@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { env } from "./config/env.js";
 import authRoutes from "./routes/auth.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import scheduleRoutes from "./routes/schedule.routes.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -21,6 +22,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/schedule", scheduleRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

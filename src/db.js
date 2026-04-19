@@ -41,6 +41,51 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS locations (
+    code TEXT PRIMARY KEY,
+    title TEXT NOT NULL
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS shifts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location_code TEXT NOT NULL,
+    shift_date TEXT NOT NULL,
+    executor1 TEXT NOT NULL DEFAULT '',
+    executor2 TEXT NOT NULL DEFAULT '',
+    rate1 REAL NOT NULL DEFAULT 0,
+    rate2 REAL NOT NULL DEFAULT 0,
+    deductions REAL NOT NULL DEFAULT 0,
+    bonuses REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(location_code, shift_date),
+    FOREIGN KEY(location_code) REFERENCES locations(code)
+  );
+`);
+
+const LOCATION_SEED = [
+  { code: "WB_AMUNDSENA_15K2", title: "wb Амундсена 15к2" },
+  { code: "WB_BOLSHAYA_MARFINSKAYA_1K4", title: "wb Большая Марфинская 1к4" },
+  { code: "WB_MENZHINSKOGO_1K4", title: "wb Менжинского 1к4" },
+  { code: "OZON_PYREVA_5A", title: "ozon Пырьева 5А" }
+];
+
+const upsertLocationStmt = db.prepare(`
+  INSERT INTO locations (code, title)
+  VALUES (?, ?)
+  ON CONFLICT(code) DO UPDATE SET title = excluded.title
+`);
+
+const seedLocationsTx = db.transaction(() => {
+  for (const location of LOCATION_SEED) {
+    upsertLocationStmt.run(location.code, location.title);
+  }
+});
+
+seedLocationsTx();
+
 function mapUserRow(row) {
   if (!row) {
     return null;
@@ -132,4 +177,147 @@ export function countAdmins() {
     .prepare("SELECT COUNT(*) as total FROM users WHERE role = 'ADMIN'")
     .get();
   return row.total;
+}
+
+export function listLocations() {
+  return db
+    .prepare(
+      `
+      SELECT code, title
+      FROM locations
+      ORDER BY title ASC
+      `
+    )
+    .all();
+}
+
+function getMonthDays(year, month) {
+  const days = [];
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  while (date.getUTCMonth() === month - 1) {
+    days.push(date.toISOString().slice(0, 10));
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+  return days;
+}
+
+function parseMonth(monthValue) {
+  if (!/^\d{4}-\d{2}$/.test(monthValue)) {
+    throw new Error("Month must be in YYYY-MM format");
+  }
+
+  const [yearStr, monthStr] = monthValue.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error("Month must be in YYYY-MM format");
+  }
+
+  return { year, month };
+}
+
+export function getScheduleForMonth({ locationCode, month }) {
+  const location = db
+    .prepare(
+      `
+      SELECT code, title
+      FROM locations
+      WHERE code = ?
+      `
+    )
+    .get(locationCode);
+
+  if (!location) {
+    return null;
+  }
+
+  const { year, month: monthNum } = parseMonth(month);
+  const monthDays = getMonthDays(year, monthNum);
+  const monthStart = `${month}-01`;
+  const monthEnd = `${month}-31`;
+
+  const rows = db
+    .prepare(
+      `
+      SELECT shift_date, executor1, executor2, rate1, rate2, deductions, bonuses
+      FROM shifts
+      WHERE location_code = ?
+        AND shift_date >= ?
+        AND shift_date <= ?
+      `
+    )
+    .all(locationCode, monthStart, monthEnd);
+
+  const rowMap = new Map(rows.map((row) => [row.shift_date, row]));
+  const shifts = monthDays.map((day) => {
+    const existing = rowMap.get(day);
+    return {
+      date: day,
+      executor1: existing?.executor1 ?? "",
+      executor2: existing?.executor2 ?? "",
+      rate1: existing?.rate1 ?? 0,
+      rate2: existing?.rate2 ?? 0,
+      deductions: existing?.deductions ?? 0,
+      bonuses: existing?.bonuses ?? 0
+    };
+  });
+
+  return {
+    location,
+    month,
+    shifts
+  };
+}
+
+export function upsertShift({
+  locationCode,
+  date,
+  executor1,
+  executor2,
+  rate1,
+  rate2,
+  deductions,
+  bonuses
+}) {
+  const locationExists = db
+    .prepare(
+      `
+      SELECT 1 as ok
+      FROM locations
+      WHERE code = ?
+      `
+    )
+    .get(locationCode);
+
+  if (!locationExists) {
+    return null;
+  }
+
+  db.prepare(
+    `
+    INSERT INTO shifts (
+      location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(location_code, shift_date) DO UPDATE SET
+      executor1 = excluded.executor1,
+      executor2 = excluded.executor2,
+      rate1 = excluded.rate1,
+      rate2 = excluded.rate2,
+      deductions = excluded.deductions,
+      bonuses = excluded.bonuses,
+      updated_at = datetime('now')
+    `
+  ).run(locationCode, date, executor1, executor2, rate1, rate2, deductions, bonuses);
+
+  return db
+    .prepare(
+      `
+      SELECT location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, updated_at
+      FROM shifts
+      WHERE location_code = ?
+        AND shift_date = ?
+      `
+    )
+    .get(locationCode, date);
 }
