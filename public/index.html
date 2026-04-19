@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PVZ Grafik Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #f4f7fb;
+        color: #1f2937;
+      }
+      .wrap {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 22px;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      button {
+        border: 0;
+        background: #0f766e;
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      pre {
+        white-space: pre-wrap;
+        background: #0b1020;
+        color: #d7e4ff;
+        padding: 10px;
+        border-radius: 10px;
+        margin-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>График ПВЗ</h1>
+        <p id="status">Проверка входа через Telegram...</p>
+        <button id="loginBtn">Войти</button>
+        <pre id="result"></pre>
+      </div>
+    </div>
+    <script>
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
+      const loginBtn = document.getElementById("loginBtn");
+
+      const tg = window.Telegram?.WebApp;
+      if (tg) {
+        tg.ready();
+        tg.expand();
+      }
+
+      function getUserFromTelegram() {
+        const user = tg?.initDataUnsafe?.user;
+        if (!user || !user.id) {
+          return null;
+        }
+        const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+        return {
+          telegramId: String(user.id),
+          fullName: fullName || user.username || "Unknown User"
+        };
+      }
+
+      async function login() {
+        const payload = getUserFromTelegram();
+        if (!payload) {
+          statusEl.textContent = "Открой Mini App из Telegram, чтобы получить пользователя.";
+          resultEl.textContent = "Данные Telegram не получены.";
+          return;
+        }
+
+        statusEl.textContent = "Выполняю вход...";
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        resultEl.textContent = JSON.stringify(data, null, 2);
+
+        if (res.ok) {
+          statusEl.textContent = `Готово. Роль: ${data.user.role}`;
+        } else {
+          statusEl.textContent = "Ошибка входа";
+        }
+      }
+
+      loginBtn.addEventListener("click", () => {
+        login().catch((error) => {
+          statusEl.textContent = "Ошибка сети";
+          resultEl.textContent = String(error);
+        });
+      });
+    </script>
+  </body>
+</html>
