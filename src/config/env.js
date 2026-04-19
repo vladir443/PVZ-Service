@@ -5,6 +5,7 @@ dotenv.config();
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
+  HOST: z.string().default("0.0.0.0"),
   DATABASE_PATH: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().default(""),
   ADMIN_TELEGRAM_IDS: z.string().default("")

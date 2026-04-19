@@ -30,6 +30,6 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-app.listen(env.PORT, () => {
-  console.log(`API is running on http://localhost:${env.PORT}`);
+app.listen(env.PORT, env.HOST, () => {
+  console.log(`API is running on http://${env.HOST}:${env.PORT}`);
 });
