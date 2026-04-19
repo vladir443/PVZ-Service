@@ -7,14 +7,14 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
       :root {
-        --bg: #f2f4f8;
+        --bg: #eef2f7;
         --card: #ffffff;
+        --line: #d5dce7;
         --text: #1f2937;
         --muted: #6b7280;
         --primary: #0f766e;
-        --primary-hover: #0b5a54;
-        --line: #d5dbe5;
-        --ok: #1d9f60;
+        --primary-dark: #0b5a54;
+        --danger: #b42318;
       }
 
       * {
@@ -23,45 +23,47 @@
 
       body {
         margin: 0;
-        background: var(--bg);
         color: var(--text);
+        background: linear-gradient(180deg, #f5f7fb 0%, #eef2f7 100%);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       .wrap {
-        max-width: 980px;
+        max-width: 1180px;
         margin: 0 auto;
-        padding: 18px 12px 24px;
+        padding: 14px 10px 22px;
       }
 
       .card {
         background: var(--card);
         border-radius: 14px;
-        padding: 16px;
-        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        padding: 14px;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
       }
 
       h1 {
         margin: 0;
-        font-size: 28px;
+        font-size: 24px;
       }
 
       h2 {
         margin: 0;
-        font-size: 21px;
-      }
-
-      .muted {
-        color: var(--muted);
+        font-size: 20px;
       }
 
       .mt8 { margin-top: 8px; }
       .mt12 { margin-top: 12px; }
       .mt16 { margin-top: 16px; }
+      .mt20 { margin-top: 20px; }
+
+      .muted {
+        color: var(--muted);
+      }
 
       .row {
         display: flex;
-        gap: 10px;
+        gap: 8px;
+        align-items: center;
         flex-wrap: wrap;
       }
 
@@ -71,31 +73,73 @@
         padding: 10px 14px;
         font-size: 15px;
         cursor: pointer;
-        background: var(--primary);
         color: #fff;
+        background: var(--primary);
       }
 
       .button:hover {
-        background: var(--primary-hover);
+        background: var(--primary-dark);
       }
 
       .button.secondary {
         background: #334155;
       }
 
-      .button.success {
-        background: var(--ok);
+      .button.danger {
+        background: var(--danger);
       }
 
-      .grid-locations {
+      .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+      }
+
+      .location-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 10px;
+        gap: 8px;
       }
 
       .location-btn {
-        padding: 14px;
         text-align: left;
+        min-height: 62px;
+      }
+
+      .profile-box {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: #f9fbff;
+      }
+
+      .avatar {
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #b7c3d4;
+        flex: 0 0 auto;
+      }
+
+      .avatar.placeholder {
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        background: #dce7f5;
+      }
+
+      input[type="text"],
+      input[type="number"],
+      input[type="month"] {
+        width: 100%;
+        border: 1px solid #c5ced8;
+        border-radius: 8px;
+        padding: 7px 8px;
+        font-size: 14px;
       }
 
       .table-wrap {
@@ -106,20 +150,20 @@
       }
 
       table {
-        border-collapse: collapse;
-        min-width: 1080px;
         width: 100%;
+        min-width: 940px;
+        border-collapse: collapse;
         background: #fff;
       }
 
       th, td {
         border: 1px solid var(--line);
-        padding: 8px;
+        padding: 7px;
         vertical-align: middle;
       }
 
       th {
-        background: #f8fafc;
+        background: #f7f9fc;
         white-space: nowrap;
       }
 
@@ -127,27 +171,47 @@
         font-weight: 600;
       }
 
-      input[type="text"],
-      input[type="number"],
-      input[type="month"] {
-        width: 100%;
-        padding: 7px 8px;
-        border: 1px solid #c5ced8;
-        border-radius: 8px;
-        font-size: 14px;
-      }
-
       .status {
         font-size: 14px;
-        min-height: 20px;
-      }
-
-      .status.error {
-        color: #b42318;
+        min-height: 18px;
       }
 
       .status.ok {
-        color: var(--ok);
+        color: #1d9f60;
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      .employees-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .employee-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 10px;
+        background: #fafcff;
+      }
+
+      @media (max-width: 640px) {
+        .wrap {
+          padding: 10px 8px 16px;
+        }
+
+        .card {
+          padding: 10px;
+        }
+
+        h1 {
+          font-size: 22px;
+        }
       }
     </style>
   </head>
@@ -155,7 +219,7 @@
     <div class="wrap">
       <div class="card">
         <h1>PVZ Service</h1>
-        <div id="screen" class="mt16"></div>
+        <div id="screen" class="mt12"></div>
       </div>
     </div>
 
@@ -177,10 +241,11 @@
       ];
 
       const state = {
+        telegramUser: null,
         user: null,
         telegramId: null,
         locations: [],
-        view: "loading",
+        employees: [],
         selectedLocation: null,
         selectedMonth: ""
       };
@@ -192,7 +257,7 @@
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       }
 
-      function parseTelegramUser() {
+      function getTelegramUser() {
         const user = tg?.initDataUnsafe?.user;
         if (!user?.id) {
           return null;
@@ -200,8 +265,18 @@
         const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
         return {
           telegramId: String(user.id),
-          fullName: fullName || user.username || "Unknown User"
+          fullName: fullName || user.username || "Unknown User",
+          photoUrl: user.photo_url || ""
         };
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
       }
 
       async function api(path, options = {}) {
@@ -221,40 +296,32 @@
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const message = data?.message || data?.error || "Ошибка API";
-          throw new Error(message);
+          throw new Error(data?.message || data?.error || "Ошибка API");
         }
         return data;
       }
 
-      function renderLoading(text) {
-        state.view = "loading";
-        screen.innerHTML = `<p class="muted">${text}</p>`;
-      }
-
-      function renderError(text) {
-        screen.innerHTML = `
-          <p class="status error">${text}</p>
-          <div class="mt12">
-            <button class="button" id="retryBtn">Повторить</button>
-          </div>
-        `;
-        document.getElementById("retryBtn").addEventListener("click", initApp);
+      async function loadEmployees() {
+        const data = await api("/api/employees");
+        state.employees = data.employees || [];
       }
 
       async function initApp() {
         try {
-          renderLoading("Подключаемся...");
-
-          const tgUser = parseTelegramUser();
+          screen.innerHTML = `<p class="muted">Подключаемся...</p>`;
+          const tgUser = getTelegramUser();
           if (!tgUser) {
-            renderError("Открой Mini App из Telegram, чтобы получить имя и роль.");
+            screen.innerHTML = `<p class="status error">Открой Mini App из Telegram.</p>`;
             return;
           }
 
+          state.telegramUser = tgUser;
           const login = await api("/api/auth/login", {
             method: "POST",
-            body: JSON.stringify(tgUser)
+            body: JSON.stringify({
+              telegramId: tgUser.telegramId,
+              fullName: tgUser.fullName
+            })
           });
 
           state.user = login.user;
@@ -263,36 +330,53 @@
 
           const locationsData = await api("/api/schedule/locations");
           state.locations = locationsData.locations || [];
+          await loadEmployees();
 
           renderMain();
         } catch (error) {
-          renderError(`Не удалось загрузить данные: ${error.message}`);
+          screen.innerHTML = `<p class="status error">Ошибка: ${escapeHtml(error.message)}</p>`;
         }
       }
 
       function renderMain() {
-        state.view = "main";
+        const photo = state.telegramUser?.photoUrl;
+        const initials = (state.user?.fullName || "?")
+          .split(" ")
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0]?.toUpperCase() || "")
+          .join("");
+
         screen.innerHTML = `
           <h2>Главный экран</h2>
-          <div class="mt12">
-            <div><strong>Имя:</strong> ${state.user.fullName}</div>
-            <div class="mt8"><strong>Роль:</strong> ${state.user.role}</div>
+          <div class="profile-box mt12">
+            ${
+              photo
+                ? `<img class="avatar" src="${escapeHtml(photo)}" alt="avatar" />`
+                : `<div class="avatar placeholder">${escapeHtml(initials || "?")}</div>`
+            }
+            <div>
+              <div><strong>${escapeHtml(state.user.fullName)}</strong></div>
+              <div class="muted mt8">Роль: <strong>${escapeHtml(state.user.role)}</strong></div>
+            </div>
           </div>
-          <div class="mt16">
+          <div class="menu-grid mt16">
             <button class="button" id="goScheduleBtn">График</button>
+            <button class="button secondary" id="goEmployeesBtn">База сотрудников</button>
           </div>
         `;
 
         document.getElementById("goScheduleBtn").addEventListener("click", renderLocations);
+        document.getElementById("goEmployeesBtn").addEventListener("click", renderEmployeesBase);
       }
 
       function renderLocations() {
-        state.view = "locations";
-
-        const items = state.locations
+        const locationHtml = state.locations
           .map(
-            (location) =>
-              `<button class="button location-btn" data-code="${location.code}">${location.title}</button>`
+            (loc) =>
+              `<button class="button location-btn" data-code="${escapeHtml(loc.code)}">${escapeHtml(
+                loc.title
+              )}</button>`
           )
           .join("");
 
@@ -301,16 +385,15 @@
             <button class="button secondary" id="backMainBtn">Назад</button>
           </div>
           <h2 class="mt12">Выбор пункта</h2>
-          <div class="grid-locations mt12">
-            ${items}
+          <div class="location-grid mt12">
+            ${locationHtml}
           </div>
         `;
 
         document.getElementById("backMainBtn").addEventListener("click", renderMain);
-
         for (const btn of screen.querySelectorAll("[data-code]")) {
           btn.addEventListener("click", () => {
-            const location = state.locations.find((item) => item.code === btn.dataset.code);
+            const location = state.locations.find((x) => x.code === btn.dataset.code);
             if (location) {
               state.selectedLocation = location;
               renderSchedule();
@@ -319,46 +402,133 @@
         }
       }
 
-      function dayNameFromIso(isoDate) {
-        const [y, m, d] = isoDate.split("-").map(Number);
-        const utc = new Date(Date.UTC(y, m - 1, d));
-        return dayNames[utc.getUTCDay()];
+      async function renderEmployeesBase() {
+        await loadEmployees();
+
+        const employeeHtml = state.employees.length
+          ? state.employees
+              .map(
+                (emp) => `
+                  <div class="employee-row">
+                    <div>${escapeHtml(emp.fullName)}</div>
+                    <button class="button danger" data-del-id="${emp.id}">Удалить</button>
+                  </div>
+                `
+              )
+              .join("")
+          : `<div class="muted">Список пока пуст.</div>`;
+
+        screen.innerHTML = `
+          <div class="row">
+            <button class="button secondary" id="backMainBtn">Назад</button>
+          </div>
+          <h2 class="mt12">База сотрудников</h2>
+          <div class="row mt12">
+            <input id="employeeNameInput" type="text" placeholder="Имя сотрудника" />
+            <button class="button" id="addEmployeeBtn">Добавить</button>
+          </div>
+          <p id="employeeStatus" class="status mt8"></p>
+          <div class="employees-list mt12">
+            ${employeeHtml}
+          </div>
+        `;
+
+        document.getElementById("backMainBtn").addEventListener("click", renderMain);
+        const status = document.getElementById("employeeStatus");
+
+        document.getElementById("addEmployeeBtn").addEventListener("click", async () => {
+          const input = document.getElementById("employeeNameInput");
+          const fullName = input.value.trim();
+          if (!fullName) {
+            status.className = "status error";
+            status.textContent = "Введите имя сотрудника";
+            return;
+          }
+
+          try {
+            await api("/api/employees", {
+              method: "POST",
+              body: JSON.stringify({ fullName })
+            });
+            status.className = "status ok";
+            status.textContent = "Сотрудник добавлен";
+            renderEmployeesBase();
+          } catch (error) {
+            status.className = "status error";
+            status.textContent = error.message;
+          }
+        });
+
+        for (const delBtn of screen.querySelectorAll("[data-del-id]")) {
+          delBtn.addEventListener("click", async () => {
+            try {
+              await api(`/api/employees/${delBtn.dataset.delId}`, { method: "DELETE" });
+              status.className = "status ok";
+              status.textContent = "Сотрудник удален";
+              renderEmployeesBase();
+            } catch (error) {
+              status.className = "status error";
+              status.textContent = error.message;
+            }
+          });
+        }
       }
 
-      function dateRuFromIso(isoDate) {
-        const [y, m, d] = isoDate.split("-");
+      function dayNameFromIso(iso) {
+        const [y, m, d] = iso.split("-").map(Number);
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        return dayNames[dt.getUTCDay()];
+      }
+
+      function ruDate(iso) {
+        const [y, m, d] = iso.split("-");
         return `${d}.${m}.${y}`;
       }
 
-      function numberInputValue(value) {
-        return Number(value || 0);
+      function employeeOptionsHtml() {
+        return state.employees
+          .map((emp) => `<option value="${escapeHtml(emp.fullName)}"></option>`)
+          .join("");
       }
 
       async function renderSchedule() {
-        state.view = "schedule";
-        renderLoading("Загружаем график...");
+        await loadEmployees();
+        screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
         try {
           const data = await api(
             `/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`
           );
-          const rows = data.shifts || [];
+          const shifts = data.shifts || [];
+          const employeeOptions = employeeOptionsHtml();
 
-          const rowsHtml = rows
+          const rows = shifts
             .map(
               (row) => `
-              <tr data-date="${row.date}">
-                <td class="day">${dayNameFromIso(row.date)}</td>
-                <td>${dateRuFromIso(row.date)}</td>
-                <td><input type="text" data-field="executor1" value="${row.executor1 || ""}" /></td>
-                <td><input type="text" data-field="executor2" value="${row.executor2 || ""}" /></td>
-                <td><input type="number" min="0" step="100" data-field="rate1" value="${numberInputValue(row.rate1)}" /></td>
-                <td><input type="number" min="0" step="100" data-field="rate2" value="${numberInputValue(row.rate2)}" /></td>
-                <td><input type="number" min="0" step="100" data-field="deductions" value="${numberInputValue(row.deductions)}" /></td>
-                <td><input type="number" min="0" step="100" data-field="bonuses" value="${numberInputValue(row.bonuses)}" /></td>
-                <td><button class="button success save-row-btn">Сохранить</button></td>
-              </tr>
-            `
+                <tr data-date="${row.date}">
+                  <td class="day">${dayNameFromIso(row.date)}</td>
+                  <td>${ruDate(row.date)}</td>
+                  <td><input type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
+                    row.executor1 || ""
+                  )}" /></td>
+                  <td><input type="text" list="employeesList" data-f="executor2" value="${escapeHtml(
+                    row.executor2 || ""
+                  )}" /></td>
+                  <td><input type="number" min="0" step="100" data-f="rate1" value="${Number(
+                    row.rate1 || 0
+                  )}" /></td>
+                  <td><input type="number" min="0" step="100" data-f="rate2" value="${Number(
+                    row.rate2 || 0
+                  )}" /></td>
+                  <td><input type="number" min="0" step="100" data-f="deductions" value="${Number(
+                    row.deductions || 0
+                  )}" /></td>
+                  <td><input type="number" min="0" step="100" data-f="bonuses" value="${Number(
+                    row.bonuses || 0
+                  )}" /></td>
+                  <td><button class="button" data-save="1">Сохранить</button></td>
+                </tr>
+              `
             )
             .join("");
 
@@ -366,15 +536,16 @@
             <div class="row">
               <button class="button secondary" id="backLocationsBtn">К пунктам</button>
             </div>
-            <h2 class="mt12">${state.selectedLocation.title}</h2>
+            <h2 class="mt12">${escapeHtml(state.selectedLocation.title)}</h2>
             <div class="row mt12">
-              <label style="display:block;">
+              <label>
                 <span class="muted">Месяц</span>
-                <input id="monthInput" type="month" value="${state.selectedMonth}" />
+                <input id="monthInput" type="month" value="${escapeHtml(state.selectedMonth)}" />
               </label>
-              <button class="button" id="reloadMonthBtn">Показать</button>
+              <button class="button" id="reloadBtn">Показать</button>
             </div>
-            <p id="pageStatus" class="status mt12"></p>
+            <p id="scheduleStatus" class="status mt8"></p>
+            <datalist id="employeesList">${employeeOptions}</datalist>
             <div class="table-wrap mt12">
               <table>
                 <thead>
@@ -390,16 +561,13 @@
                     <th>Действие</th>
                   </tr>
                 </thead>
-                <tbody>
-                  ${rowsHtml}
-                </tbody>
+                <tbody>${rows}</tbody>
               </table>
             </div>
           `;
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
-
-          document.getElementById("reloadMonthBtn").addEventListener("click", () => {
+          document.getElementById("reloadBtn").addEventListener("click", () => {
             const month = document.getElementById("monthInput").value;
             if (/^\d{4}-\d{2}$/.test(month)) {
               state.selectedMonth = month;
@@ -407,11 +575,14 @@
             }
           });
 
-          for (const btn of screen.querySelectorAll(".save-row-btn")) {
-            btn.addEventListener("click", async () => {
-              const tr = btn.closest("tr");
+          const status = document.getElementById("scheduleStatus");
+
+          for (const saveBtn of screen.querySelectorAll("[data-save='1']")) {
+            saveBtn.addEventListener("click", async () => {
+              const tr = saveBtn.closest("tr");
               const date = tr.dataset.date;
-              const get = (field) => tr.querySelector(`[data-field="${field}"]`)?.value ?? "";
+              const get = (name) => tr.querySelector(`[data-f='${name}']`)?.value ?? "";
+
               const payload = {
                 executor1: get("executor1").trim(),
                 executor2: get("executor2").trim(),
@@ -421,25 +592,27 @@
                 bonuses: Number(get("bonuses") || 0)
               };
 
-              const status = document.getElementById("pageStatus");
-              status.textContent = `Сохраняем ${dateRuFromIso(date)}...`;
               status.className = "status";
-
+              status.textContent = `Сохраняем ${ruDate(date)}...`;
               try {
                 await api(`/api/schedule/${state.selectedLocation.code}/${date}`, {
                   method: "PUT",
                   body: JSON.stringify(payload)
                 });
-                status.textContent = `Сохранено: ${dateRuFromIso(date)}`;
                 status.className = "status ok";
+                status.textContent = `Сохранено: ${ruDate(date)}`;
               } catch (error) {
-                status.textContent = `Ошибка сохранения: ${error.message}`;
                 status.className = "status error";
+                status.textContent = error.message;
               }
             });
           }
         } catch (error) {
-          renderError(`Ошибка загрузки графика: ${error.message}`);
+          screen.innerHTML = `
+            <p class="status error">Ошибка загрузки графика: ${escapeHtml(error.message)}</p>
+            <div class="mt12"><button class="button secondary" id="backLocationsBtn">Назад</button></div>
+          `;
+          document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
         }
       }
 

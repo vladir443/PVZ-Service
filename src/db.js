@@ -65,6 +65,14 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS employees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    full_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 const LOCATION_SEED = [
   { code: "WB_AMUNDSENA_15K2", title: "wb Амундсена 15к2" },
   { code: "WB_BOLSHAYA_MARFINSKAYA_1K4", title: "wb Большая Марфинская 1к4" },
@@ -320,4 +328,61 @@ export function upsertShift({
       `
     )
     .get(locationCode, date);
+}
+
+export function listEmployees() {
+  return db
+    .prepare(
+      `
+      SELECT id, full_name, created_at
+      FROM employees
+      ORDER BY full_name COLLATE NOCASE ASC
+      `
+    )
+    .all()
+    .map((row) => ({
+      id: row.id,
+      fullName: row.full_name,
+      createdAt: row.created_at
+    }));
+}
+
+export function createEmployee({ fullName }) {
+  const result = db
+    .prepare(
+      `
+      INSERT INTO employees (full_name)
+      VALUES (?)
+      `
+    )
+    .run(fullName.trim());
+
+  const row = db
+    .prepare(
+      `
+      SELECT id, full_name, created_at
+      FROM employees
+      WHERE id = ?
+      `
+    )
+    .get(result.lastInsertRowid);
+
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    createdAt: row.created_at
+  };
+}
+
+export function deleteEmployeeById(id) {
+  const result = db
+    .prepare(
+      `
+      DELETE FROM employees
+      WHERE id = ?
+      `
+    )
+    .run(id);
+
+  return result.changes > 0;
 }
