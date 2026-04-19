@@ -26,12 +26,14 @@
         color: var(--text);
         background: linear-gradient(180deg, #f5f7fb 0%, #eef2f7 100%);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        overscroll-behavior-y: none;
       }
 
       .wrap {
-        max-width: 1180px;
+        max-width: none;
         margin: 0 auto;
-        padding: 14px 10px 22px;
+        padding: 8px;
+        min-height: 100dvh;
       }
 
       .card {
@@ -39,6 +41,7 @@
         border-radius: 14px;
         padding: 14px;
         box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
+        min-height: calc(100dvh - 16px);
       }
 
       h1 {
@@ -202,11 +205,13 @@
 
       @media (max-width: 640px) {
         .wrap {
-          padding: 10px 8px 16px;
+          padding: 0;
         }
 
         .card {
           padding: 10px;
+          min-height: 100dvh;
+          border-radius: 0;
         }
 
         h1 {
@@ -225,9 +230,12 @@
 
     <script>
       const tg = window.Telegram?.WebApp;
+      const APP_VERSION = "v2.4";
       if (tg) {
         tg.ready();
         tg.expand();
+        tg.disableVerticalSwipes?.();
+        tg.requestFullscreen?.();
       }
 
       const dayNames = [
@@ -349,6 +357,7 @@
 
         screen.innerHTML = `
           <h2>Главный экран</h2>
+          <div class="muted mt8">Версия интерфейса: ${APP_VERSION}</div>
           <div class="profile-box mt12">
             ${
               photo
@@ -491,6 +500,45 @@
           .join("");
       }
 
+      function createRowAutoSaver(locationCode) {
+        const timers = new Map();
+        return (tr) => {
+          const date = tr.dataset.date;
+          if (!date) return;
+
+          const get = (name) => tr.querySelector(`[data-f='${name}']`)?.value ?? "";
+          const payload = {
+            executor1: get("executor1").trim(),
+            executor2: get("executor2").trim(),
+            rate1: Number(get("rate1") || 0),
+            rate2: Number(get("rate2") || 0),
+            deductions: Number(get("deductions") || 0),
+            bonuses: Number(get("bonuses") || 0)
+          };
+
+          const status = document.getElementById("scheduleStatus");
+          status.className = "status";
+          status.textContent = `Сохраняем ${ruDate(date)}...`;
+
+          clearTimeout(timers.get(date));
+          const timer = setTimeout(async () => {
+            try {
+              await api(`/api/schedule/${locationCode}/${date}`, {
+                method: "PUT",
+                body: JSON.stringify(payload)
+              });
+              status.className = "status ok";
+              status.textContent = `Сохранено: ${ruDate(date)}`;
+            } catch (error) {
+              status.className = "status error";
+              status.textContent = `Ошибка сохранения: ${error.message}`;
+            }
+          }, 550);
+
+          timers.set(date, timer);
+        };
+      }
+
       async function renderSchedule() {
         await loadEmployees();
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
@@ -526,7 +574,6 @@
                   <td><input type="number" min="0" step="100" data-f="bonuses" value="${Number(
                     row.bonuses || 0
                   )}" /></td>
-                  <td><button class="button" data-save="1">Сохранить</button></td>
                 </tr>
               `
             )
@@ -542,7 +589,6 @@
                 <span class="muted">Месяц</span>
                 <input id="monthInput" type="month" value="${escapeHtml(state.selectedMonth)}" />
               </label>
-              <button class="button" id="reloadBtn">Показать</button>
             </div>
             <p id="scheduleStatus" class="status mt8"></p>
             <datalist id="employeesList">${employeeOptions}</datalist>
@@ -558,7 +604,6 @@
                     <th>Ставка И2</th>
                     <th>Удержания</th>
                     <th>Доплаты</th>
-                    <th>Действие</th>
                   </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -567,7 +612,7 @@
           `;
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
-          document.getElementById("reloadBtn").addEventListener("click", () => {
+          document.getElementById("monthInput").addEventListener("change", () => {
             const month = document.getElementById("monthInput").value;
             if (/^\d{4}-\d{2}$/.test(month)) {
               state.selectedMonth = month;
@@ -575,37 +620,10 @@
             }
           });
 
-          const status = document.getElementById("scheduleStatus");
-
-          for (const saveBtn of screen.querySelectorAll("[data-save='1']")) {
-            saveBtn.addEventListener("click", async () => {
-              const tr = saveBtn.closest("tr");
-              const date = tr.dataset.date;
-              const get = (name) => tr.querySelector(`[data-f='${name}']`)?.value ?? "";
-
-              const payload = {
-                executor1: get("executor1").trim(),
-                executor2: get("executor2").trim(),
-                rate1: Number(get("rate1") || 0),
-                rate2: Number(get("rate2") || 0),
-                deductions: Number(get("deductions") || 0),
-                bonuses: Number(get("bonuses") || 0)
-              };
-
-              status.className = "status";
-              status.textContent = `Сохраняем ${ruDate(date)}...`;
-              try {
-                await api(`/api/schedule/${state.selectedLocation.code}/${date}`, {
-                  method: "PUT",
-                  body: JSON.stringify(payload)
-                });
-                status.className = "status ok";
-                status.textContent = `Сохранено: ${ruDate(date)}`;
-              } catch (error) {
-                status.className = "status error";
-                status.textContent = error.message;
-              }
-            });
+          const autosave = createRowAutoSaver(state.selectedLocation.code);
+          for (const input of screen.querySelectorAll("tbody input")) {
+            input.addEventListener("input", () => autosave(input.closest("tr")));
+            input.addEventListener("change", () => autosave(input.closest("tr")));
           }
         } catch (error) {
           screen.innerHTML = `
