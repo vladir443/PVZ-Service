@@ -1,7 +1,33 @@
 import Database from "better-sqlite3";
+import fs from "node:fs";
+import path from "node:path";
 import { env } from "./config/env.js";
 
-const db = new Database(env.DATABASE_PATH);
+function prepareDatabasePath(databasePath) {
+  try {
+    fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+    return databasePath;
+  } catch (error) {
+    // Railway often uses /data for persistent volumes. If that mount is missing,
+    // fall back to a local path so the app can still boot.
+    if (databasePath.startsWith("/data")) {
+      const fallbackPath = path.resolve(process.cwd(), "data", "grafik.db");
+      fs.mkdirSync(path.dirname(fallbackPath), { recursive: true });
+      console.warn(
+        `[db] DATABASE_PATH=${databasePath} is unavailable. Falling back to ${fallbackPath}. ` +
+          "Attach a Railway Volume to /data for persistence."
+      );
+      return fallbackPath;
+    }
+
+    throw new Error(
+      `Cannot prepare database directory for DATABASE_PATH=${databasePath}: ${error.message}`
+    );
+  }
+}
+
+const resolvedDatabasePath = prepareDatabasePath(env.DATABASE_PATH);
+const db = new Database(resolvedDatabasePath);
 db.pragma("journal_mode = WAL");
 
 db.exec(`

@@ -28,6 +28,7 @@ In Railway service -> `Variables`, set:
 2. Mount path: `/data`
 
 This keeps SQLite data between deploys/restarts.
+If you skip this, app still starts but uses fallback `./data/grafik.db` (ephemeral on Railway).
 
 ## 5) Generate public domain
 
