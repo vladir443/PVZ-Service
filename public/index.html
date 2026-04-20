@@ -143,6 +143,33 @@
         border-radius: 10px;
       }
 
+      .schedule-mobile {
+        display: grid;
+        gap: 10px;
+      }
+
+      .schedule-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        background: #fff;
+      }
+
+      .schedule-card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        font-weight: 600;
+      }
+
+      .schedule-card-grid {
+        margin-top: 8px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
       table {
         width: 100%;
         min-width: 940px;
@@ -339,7 +366,8 @@
         employees: [],
         selectedLocation: null,
         selectedMonth: "",
-        avatarNonce: String(Date.now())
+        avatarNonce: String(Date.now()),
+        scheduleViewMode: null
       };
 
       const screen = document.getElementById("screen");
@@ -361,6 +389,28 @@
 
       function canEditSchedule() {
         return state.user?.role === "ADMIN" || state.user?.role === "SUPERADMIN";
+      }
+
+      function isPhoneClient() {
+        const platform = String(tg?.platform || "").toLowerCase();
+        if (platform === "ios" || platform === "android") return true;
+        return window.matchMedia("(max-width: 860px)").matches;
+      }
+
+      async function ensureDesktopFullscreenForSchedule() {
+        if (isPhoneClient()) return;
+        try {
+          if (typeof tg?.requestFullscreen === "function") {
+            tg.requestFullscreen();
+            return;
+          }
+        } catch {}
+
+        try {
+          if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+          }
+        } catch {}
       }
 
       function canEditEmployeeFromList(employee) {
@@ -970,6 +1020,7 @@
 
       async function renderSchedule() {
         setAppTitle("");
+        await ensureDesktopFullscreenForSchedule();
         await loadEmployeesSafe();
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
@@ -979,6 +1030,11 @@
           );
           const shifts = data.shifts || [];
           const employeeOptions = employeeOptionsHtml();
+          const editable = canEditSchedule();
+          if (!state.scheduleViewMode) {
+            state.scheduleViewMode = isPhoneClient() ? "mobile" : "table";
+          }
+          const viewMode = state.scheduleViewMode;
 
           const rows = shifts
             .map(
@@ -1009,9 +1065,63 @@
             )
             .join("");
 
+          const mobileCards = shifts
+            .map(
+              (row) => `
+                <div class="schedule-card" data-date="${row.date}">
+                  <div class="schedule-card-head">
+                    <span>${dayNameFromIso(row.date)}</span>
+                    <span>${ruDate(row.date)}</span>
+                  </div>
+                  <div class="schedule-card-grid">
+                    <div>
+                      <div class="muted">Исполнитель1</div>
+                      <input data-shift-input="1" type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
+                        row.executor1 || ""
+                      )}" />
+                    </div>
+                    <div>
+                      <div class="muted">Исполнитель2</div>
+                      <input data-shift-input="1" type="text" list="employeesList" data-f="executor2" value="${escapeHtml(
+                        row.executor2 || ""
+                      )}" />
+                    </div>
+                    <div>
+                      <div class="muted">Ставка И1</div>
+                      <input data-shift-input="1" type="number" min="0" step="100" data-f="rate1" value="${Number(
+                        row.rate1 || 0
+                      )}" />
+                    </div>
+                    <div>
+                      <div class="muted">Ставка И2</div>
+                      <input data-shift-input="1" type="number" min="0" step="100" data-f="rate2" value="${Number(
+                        row.rate2 || 0
+                      )}" />
+                    </div>
+                    <div>
+                      <div class="muted">Удержания</div>
+                      <input data-shift-input="1" type="number" min="0" step="100" data-f="deductions" value="${Number(
+                        row.deductions || 0
+                      )}" />
+                    </div>
+                    <div>
+                      <div class="muted">Доплаты</div>
+                      <input data-shift-input="1" type="number" min="0" step="100" data-f="bonuses" value="${Number(
+                        row.bonuses || 0
+                      )}" />
+                    </div>
+                  </div>
+                </div>
+              `
+            )
+            .join("");
+
           screen.innerHTML = `
             <div class="row">
               <button class="button secondary" id="backLocationsBtn">Назад</button>
+              <button class="button secondary" id="toggleViewBtn">${
+                viewMode === "mobile" ? "Полный график" : "Мобильный режим"
+              }</button>
             </div>
             <h2 class="mt12">${escapeHtml(state.selectedLocation.title)}</h2>
             <div class="row mt12">
@@ -1022,26 +1132,36 @@
             </div>
             <p id="scheduleStatus" class="status mt8"></p>
             <datalist id="employeesList">${employeeOptions}</datalist>
-            <div class="table-wrap mt12">
-              <table>
-                <thead>
-                  <tr>
-                    <th>День</th>
-                    <th>Дата</th>
-                    <th>Исполнитель1</th>
-                    <th>Исполнитель2</th>
-                    <th>Ставка И1</th>
-                    <th>Ставка И2</th>
-                    <th>Удержания</th>
-                    <th>Доплаты</th>
-                  </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-              </table>
-            </div>
+            ${
+              viewMode === "mobile"
+                ? `<div class="schedule-mobile mt12">${mobileCards}</div>`
+                : `
+                  <div class="table-wrap mt12">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>День</th>
+                          <th>Дата</th>
+                          <th>Исполнитель1</th>
+                          <th>Исполнитель2</th>
+                          <th>Ставка И1</th>
+                          <th>Ставка И2</th>
+                          <th>Удержания</th>
+                          <th>Доплаты</th>
+                        </tr>
+                      </thead>
+                      <tbody>${rows}</tbody>
+                    </table>
+                  </div>
+                `
+            }
           `;
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
+          document.getElementById("toggleViewBtn").addEventListener("click", () => {
+            state.scheduleViewMode = viewMode === "mobile" ? "table" : "mobile";
+            renderSchedule();
+          });
           document.getElementById("monthInput").addEventListener("change", () => {
             const month = document.getElementById("monthInput").value;
             if (/^\d{4}-\d{2}$/.test(month)) {
@@ -1050,9 +1170,8 @@
             }
           });
 
-          const editable = canEditSchedule();
           if (!editable) {
-            for (const input of screen.querySelectorAll("tbody input")) {
+            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input")) {
               input.setAttribute("readonly", "readonly");
               input.setAttribute("disabled", "disabled");
             }
@@ -1061,9 +1180,9 @@
             status.textContent = "Режим просмотра: у вас нет прав на редактирование";
           } else {
             const autosave = createRowAutoSaver(state.selectedLocation.code);
-            for (const input of screen.querySelectorAll("tbody input")) {
-              input.addEventListener("input", () => autosave(input.closest("tr")));
-              input.addEventListener("change", () => autosave(input.closest("tr")));
+            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input")) {
+              input.addEventListener("input", () => autosave(input.closest("[data-date]")));
+              input.addEventListener("change", () => autosave(input.closest("[data-date]")));
             }
           }
         } catch (error) {
