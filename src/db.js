@@ -833,7 +833,7 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
   if (!employee) {
     return {
       employee: null,
-      dates: []
+      shifts: []
     };
   }
 
@@ -841,7 +841,7 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
     return {
       employee,
-      dates: []
+      shifts: []
     };
   }
 
@@ -849,7 +849,7 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
   if (!aliases.size) {
     return {
       employee,
-      dates: []
+      shifts: []
     };
   }
 
@@ -857,31 +857,50 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
   const rows = db
     .prepare(
       `
-      SELECT shift_date, executor1, executor2
+      SELECT
+        s.shift_date,
+        s.executor1,
+        s.executor2,
+        s.location_code,
+        l.title AS location_title,
+        l.work_start,
+        l.work_end
       FROM shifts
+      JOIN locations l ON l.code = s.location_code
       WHERE shift_date >= ?
-      ORDER BY shift_date ASC
+      ORDER BY shift_date ASC, l.title ASC
       `
     )
     .all(startDate);
 
-  const dates = [];
-  const seenDates = new Set();
+  const shifts = [];
+  const seen = new Set();
   for (const row of rows) {
-    if (dates.length >= safeLimit) break;
+    if (shifts.length >= safeLimit) break;
     const shiftDate = String(row.shift_date || "");
-    if (!shiftDate || seenDates.has(shiftDate)) continue;
+    if (!shiftDate) continue;
     const e1 = normalizeEmployeeName(row.executor1).toLowerCase();
     const e2 = normalizeEmployeeName(row.executor2).toLowerCase();
-    if ((e1 && aliases.has(e1)) || (e2 && aliases.has(e2))) {
-      seenDates.add(shiftDate);
-      dates.push(shiftDate);
+    const isE1 = e1 && aliases.has(e1);
+    const isE2 = e2 && aliases.has(e2);
+    if (isE1 || isE2) {
+      const key = `${shiftDate}:${row.location_code}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      shifts.push({
+        date: shiftDate,
+        locationCode: row.location_code,
+        locationTitle: row.location_title,
+        role: isE1 ? "executor1" : "executor2",
+        workStart: row.work_start || "14:00",
+        workEnd: row.work_end || "22:00"
+      });
     }
   }
 
   return {
     employee,
-    dates
+    shifts
   };
 }
 

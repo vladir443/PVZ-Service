@@ -129,7 +129,7 @@ router.get("/me/upcoming", (req, res, next) => {
     return res.json({
       fromDate,
       employee: result.employee,
-      dates: result.dates
+      shifts: result.shifts
     });
   } catch (error) {
     return next(error);

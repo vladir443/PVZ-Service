@@ -1115,9 +1115,16 @@
           return dateObj.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
         };
         const addDaysIso = (isoDate, days) => {
-          const dateObj = new Date(`${isoDate}T00:00:00`);
-          dateObj.setDate(dateObj.getDate() + days);
-          return dateObj.toISOString().slice(0, 10);
+          const match = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (!match) return isoDate;
+          const year = Number(match[1]);
+          const month = Number(match[2]);
+          const day = Number(match[3]);
+          const utc = new Date(Date.UTC(year, month - 1, day + Number(days || 0)));
+          const y = String(utc.getUTCFullYear());
+          const m = String(utc.getUTCMonth() + 1).padStart(2, "0");
+          const d = String(utc.getUTCDate()).padStart(2, "0");
+          return `${y}-${m}-${d}`;
         };
         try {
           const [todayData, upcomingData] = await Promise.all([
@@ -1154,8 +1161,15 @@
               todayTeamSub = `И еще ${assignments.length - 1} смен(ы)`;
             }
           }
-          const upcomingDates = Array.isArray(upcomingData.dates) ? upcomingData.dates : [];
-          const labels = upcomingDates.map((date) => formatUpcomingDate(date)).filter(Boolean);
+          const upcomingShifts = Array.isArray(upcomingData.shifts) ? upcomingData.shifts : [];
+          const labels = upcomingShifts
+            .map((item) => {
+              const dateLabel = formatUpcomingDate(item?.date);
+              const locationTitle = String(item?.locationTitle || "").trim();
+              if (!dateLabel || !locationTitle) return "";
+              return `${dateLabel} — ${locationTitle}`;
+            })
+            .filter(Boolean);
           if (labels.length) {
             upcomingCaption = labels.join(", ");
           }
@@ -1183,6 +1197,7 @@
             scheduleResponses.map((item) => [`${item.locationCode}:${item.month}`, item.shifts])
           );
           const emptyRows = [];
+          const seenEmptyRows = new Set();
           for (const date of nextDates) {
             const monthKey = String(date).slice(0, 7);
             for (const loc of state.locations || []) {
@@ -1191,7 +1206,11 @@
               const e1 = String(row?.executor1 || "").trim();
               const e2 = String(row?.executor2 || "").trim();
               if (!e1 && !e2) {
-                emptyRows.push(`${formatUpcomingDate(date)} — ${loc.title}`);
+                const line = `${formatUpcomingDate(date)} — ${loc.title}`;
+                if (!seenEmptyRows.has(line)) {
+                  seenEmptyRows.add(line);
+                  emptyRows.push(line);
+                }
               }
             }
           }
@@ -1201,7 +1220,6 @@
         } catch {
           // fallback значения уже заданы
         }
-        const employeesTotal = Number(state.employees.length || 0);
         const emptyShiftLinesHtml = emptyShiftLines
           .map((line) => `<div class="muted mt8">${escapeHtml(line)}</div>`)
           .join("");
@@ -1230,13 +1248,8 @@
               <div class="muted mt8">${escapeHtml(todayTeamSub)}</div>
             </div>
             <div class="overview-card green">
-              <h3>Ближайшие смены</h3>
+              <h3>Ваши ближайшие смены</h3>
               <div class="muted mt8">${escapeHtml(upcomingCaption)}</div>
-            </div>
-            <div class="overview-card purple">
-              <h3>Сотрудники</h3>
-              <div class="big">${employeesTotal || 0} человек</div>
-              <div class="muted mt8">В базе</div>
             </div>
           </div>
           <div class="warn-banner mt12">
