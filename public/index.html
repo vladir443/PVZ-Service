@@ -1081,10 +1081,13 @@
       }
 
       function adjustButtonLabel(kind, value) {
-        if (kind === "deductions") {
-          return `Удержания: ${formatMoney(value)}`;
-        }
-        return `Доплаты: ${formatMoney(value)}`;
+        const labels = {
+          deductions1: "Удержания И1",
+          deductions2: "Удержания И2",
+          bonuses1: "Доплаты И1",
+          bonuses2: "Доплаты И2"
+        };
+        return `${labels[kind] || "Сумма"}: ${formatMoney(value)}`;
       }
 
       function employeeOptionsHtml() {
@@ -1105,19 +1108,37 @@
             executor2: get("executor2").trim(),
             rate1: Number(get("rate1") || 0),
             rate2: Number(get("rate2") || 0),
-            deductions: Number(get("deductions") || 0),
-            bonuses: Number(get("bonuses") || 0),
-            deductionsMeta: (() => {
+            deductions1: Number(get("deductions1") || 0),
+            deductions2: Number(get("deductions2") || 0),
+            bonuses1: Number(get("bonuses1") || 0),
+            bonuses2: Number(get("bonuses2") || 0),
+            deductions1Meta: (() => {
               try {
-                const parsed = JSON.parse(tr.dataset.deductionsMeta || "[]");
+                const parsed = JSON.parse(tr.dataset.deductions1Meta || "[]");
                 return Array.isArray(parsed) ? parsed : [];
               } catch {
                 return [];
               }
             })(),
-            bonusesMeta: (() => {
+            deductions2Meta: (() => {
               try {
-                const parsed = JSON.parse(tr.dataset.bonusesMeta || "[]");
+                const parsed = JSON.parse(tr.dataset.deductions2Meta || "[]");
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            })(),
+            bonuses1Meta: (() => {
+              try {
+                const parsed = JSON.parse(tr.dataset.bonuses1Meta || "[]");
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            })(),
+            bonuses2Meta: (() => {
+              try {
+                const parsed = JSON.parse(tr.dataset.bonuses2Meta || "[]");
                 return Array.isArray(parsed) ? parsed : [];
               } catch {
                 return [];
@@ -1171,8 +1192,10 @@
               (row) => `
                 <tr
                   data-date="${row.date}"
-                  data-deductions-meta="${escapeHtml(JSON.stringify(row.deductionsMeta || []))}"
-                  data-bonuses-meta="${escapeHtml(JSON.stringify(row.bonusesMeta || []))}"
+                  data-deductions1-meta="${escapeHtml(JSON.stringify(row.deductions1Meta || []))}"
+                  data-deductions2-meta="${escapeHtml(JSON.stringify(row.deductions2Meta || []))}"
+                  data-bonuses1-meta="${escapeHtml(JSON.stringify(row.bonuses1Meta || []))}"
+                  data-bonuses2-meta="${escapeHtml(JSON.stringify(row.bonuses2Meta || []))}"
                 >
                   <td class="day">${dayNameFromIso(row.date)}</td>
                   <td>${ruDate(row.date)}</td>
@@ -1189,17 +1212,31 @@
                     row.rate2 || 0
                   )}" /></td>
                   <td>
-                    <input type="hidden" data-f="deductions" value="${Number(row.deductions || 0)}" />
-                    <button type="button" class="button secondary" data-adjust-open="deductions">${adjustButtonLabel(
-                      "deductions",
-                      Number(row.deductions || 0)
+                    <input type="hidden" data-f="deductions1" value="${Number(row.deductions1 || 0)}" />
+                    <button type="button" class="button secondary" data-adjust-open="deductions1">${adjustButtonLabel(
+                      "deductions1",
+                      Number(row.deductions1 || 0)
                     )}</button>
                   </td>
                   <td>
-                    <input type="hidden" data-f="bonuses" value="${Number(row.bonuses || 0)}" />
-                    <button type="button" class="button secondary" data-adjust-open="bonuses">${adjustButtonLabel(
-                      "bonuses",
-                      Number(row.bonuses || 0)
+                    <input type="hidden" data-f="deductions2" value="${Number(row.deductions2 || 0)}" />
+                    <button type="button" class="button secondary" data-adjust-open="deductions2">${adjustButtonLabel(
+                      "deductions2",
+                      Number(row.deductions2 || 0)
+                    )}</button>
+                  </td>
+                  <td>
+                    <input type="hidden" data-f="bonuses1" value="${Number(row.bonuses1 || 0)}" />
+                    <button type="button" class="button secondary" data-adjust-open="bonuses1">${adjustButtonLabel(
+                      "bonuses1",
+                      Number(row.bonuses1 || 0)
+                    )}</button>
+                  </td>
+                  <td>
+                    <input type="hidden" data-f="bonuses2" value="${Number(row.bonuses2 || 0)}" />
+                    <button type="button" class="button secondary" data-adjust-open="bonuses2">${adjustButtonLabel(
+                      "bonuses2",
+                      Number(row.bonuses2 || 0)
                     )}</button>
                   </td>
                 </tr>
@@ -1213,8 +1250,10 @@
                 <div
                   class="schedule-card"
                   data-date="${row.date}"
-                  data-deductions-meta="${escapeHtml(JSON.stringify(row.deductionsMeta || []))}"
-                  data-bonuses-meta="${escapeHtml(JSON.stringify(row.bonusesMeta || []))}"
+                  data-deductions1-meta="${escapeHtml(JSON.stringify(row.deductions1Meta || []))}"
+                  data-deductions2-meta="${escapeHtml(JSON.stringify(row.deductions2Meta || []))}"
+                  data-bonuses1-meta="${escapeHtml(JSON.stringify(row.bonuses1Meta || []))}"
+                  data-bonuses2-meta="${escapeHtml(JSON.stringify(row.bonuses2Meta || []))}"
                 >
                   <div class="schedule-card-head">
                     <span>${dayNameFromIso(row.date)}</span>
@@ -1254,19 +1293,35 @@
                       )}" />
                     </div>
                     <div>
-                      <div class="muted">Удержания</div>
-                      <input type="hidden" data-f="deductions" value="${Number(row.deductions || 0)}" />
-                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="deductions">${adjustButtonLabel(
-                        "deductions",
-                        Number(row.deductions || 0)
+                      <div class="muted">Удержания И1</div>
+                      <input type="hidden" data-f="deductions1" value="${Number(row.deductions1 || 0)}" />
+                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="deductions1">${adjustButtonLabel(
+                        "deductions1",
+                        Number(row.deductions1 || 0)
                       )}</button>
                     </div>
                     <div>
-                      <div class="muted">Доплаты</div>
-                      <input type="hidden" data-f="bonuses" value="${Number(row.bonuses || 0)}" />
-                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="bonuses">${adjustButtonLabel(
-                        "bonuses",
-                        Number(row.bonuses || 0)
+                      <div class="muted">Удержания И2</div>
+                      <input type="hidden" data-f="deductions2" value="${Number(row.deductions2 || 0)}" />
+                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="deductions2">${adjustButtonLabel(
+                        "deductions2",
+                        Number(row.deductions2 || 0)
+                      )}</button>
+                    </div>
+                    <div>
+                      <div class="muted">Доплаты И1</div>
+                      <input type="hidden" data-f="bonuses1" value="${Number(row.bonuses1 || 0)}" />
+                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="bonuses1">${adjustButtonLabel(
+                        "bonuses1",
+                        Number(row.bonuses1 || 0)
+                      )}</button>
+                    </div>
+                    <div>
+                      <div class="muted">Доплаты И2</div>
+                      <input type="hidden" data-f="bonuses2" value="${Number(row.bonuses2 || 0)}" />
+                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="bonuses2">${adjustButtonLabel(
+                        "bonuses2",
+                        Number(row.bonuses2 || 0)
                       )}</button>
                     </div>
                     </div>
@@ -1293,9 +1348,6 @@
               <button class="button secondary" id="monthPickerBtn">${escapeHtml(
                 formatMonthYear(state.selectedMonth)
               )}</button>
-              <input id="monthInput" type="month" value="${escapeHtml(
-                state.selectedMonth
-              )}" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;" />
             </div>
             <p id="scheduleStatus" class="status mt8"></p>
             <datalist id="employeesList">${employeeOptions}</datalist>
@@ -1313,8 +1365,10 @@
                           <th>Исполнитель2</th>
                           <th>Ставка И1</th>
                           <th>Ставка И2</th>
-                          <th>Удержания</th>
-                          <th>Доплаты</th>
+                          <th>Удержания И1</th>
+                          <th>Удержания И2</th>
+                          <th>Доплаты И1</th>
+                          <th>Доплаты И2</th>
                         </tr>
                       </thead>
                       <tbody>${rows}</tbody>
@@ -1322,6 +1376,35 @@
                   </div>
                 `
             }
+            <div id="monthModal" class="modal hidden">
+              <div class="panel">
+                <h3 class="panel-title">Выбор месяца</h3>
+                <div class="grid mt12">
+                  <div>
+                    <div class="muted">Месяц</div>
+                    <select id="monthSelect">${monthNamesRu
+                      .map(
+                        (name, idx) =>
+                          `<option value="${String(idx + 1).padStart(2, "0")}">${escapeHtml(name)}</option>`
+                      )
+                      .join("")}</select>
+                  </div>
+                  <div>
+                    <div class="muted">Год</div>
+                    <select id="yearSelect">${(() => {
+                      const year = Number(String(state.selectedMonth).slice(0, 4)) || new Date().getFullYear();
+                      const years = [];
+                      for (let y = year - 2; y <= year + 3; y += 1) years.push(y);
+                      return years.map((y) => `<option value="${y}">${y}</option>`).join("");
+                    })()}</select>
+                  </div>
+                </div>
+                <div class="row mt12">
+                  <button class="button" id="saveMonthBtn">Применить</button>
+                  <button class="button secondary" id="closeMonthBtn">Отмена</button>
+                </div>
+              </div>
+            </div>
             <div id="adjustModal" class="modal hidden">
               <div class="panel">
                 <h3 id="adjustTitle" class="panel-title"></h3>
@@ -1340,18 +1423,30 @@
             state.scheduleViewMode = viewMode === "mobile" ? "table" : "mobile";
             renderSchedule();
           });
+          const monthModal = document.getElementById("monthModal");
+          const monthSelect = document.getElementById("monthSelect");
+          const yearSelect = document.getElementById("yearSelect");
+          const selectedMatch = String(state.selectedMonth || "").match(/^(\d{4})-(\d{2})$/);
+          if (selectedMatch) {
+            yearSelect.value = selectedMatch[1];
+            monthSelect.value = selectedMatch[2];
+          }
           document.getElementById("monthPickerBtn").addEventListener("click", () => {
-            const monthInput = document.getElementById("monthInput");
-            if (typeof monthInput.showPicker === "function") {
-              monthInput.showPicker();
-            } else {
-              monthInput.click();
-            }
+            monthModal.classList.remove("hidden");
           });
-          document.getElementById("monthInput").addEventListener("change", () => {
-            const month = document.getElementById("monthInput").value;
-            if (/^\d{4}-\d{2}$/.test(month)) {
-              state.selectedMonth = month;
+          document.getElementById("closeMonthBtn").addEventListener("click", () => {
+            monthModal.classList.add("hidden");
+          });
+          monthModal.addEventListener("click", (event) => {
+            if (event.target === monthModal) monthModal.classList.add("hidden");
+          });
+          document.getElementById("saveMonthBtn").addEventListener("click", () => {
+            const month = String(monthSelect.value || "").padStart(2, "0");
+            const year = String(yearSelect.value || "").trim();
+            const nextMonth = `${year}-${month}`;
+            if (/^\d{4}-\d{2}$/.test(nextMonth)) {
+              state.selectedMonth = nextMonth;
+              monthModal.classList.add("hidden");
               renderSchedule();
             }
           });
@@ -1365,8 +1460,14 @@
           const closeAdjustBtn = document.getElementById("closeAdjustBtn");
           let adjustTarget = { row: null, kind: null };
 
-          const getMetaKey = (kind) => (kind === "deductions" ? "deductionsMeta" : "bonusesMeta");
-          const getRules = (kind) => (kind === "deductions" ? deductionRules : bonusRules);
+          const getMetaKey = (kind) => {
+            if (kind === "deductions1") return "deductions1Meta";
+            if (kind === "deductions2") return "deductions2Meta";
+            if (kind === "bonuses1") return "bonuses1Meta";
+            return "bonuses2Meta";
+          };
+          const getRules = (kind) =>
+            kind === "deductions1" || kind === "deductions2" ? deductionRules : bonusRules;
           const parseRowMeta = (row, kind) => {
             const key = getMetaKey(kind);
             try {
@@ -1393,7 +1494,13 @@
             const existing = parseRowMeta(row, kind);
             const existingMap = new Map(existing.map((item) => [item.reason, item]));
             adjustTarget = { row, kind };
-            adjustTitle.textContent = kind === "deductions" ? "Удержания" : "Доплаты";
+            const titleMap = {
+              deductions1: "Удержания И1",
+              deductions2: "Удержания И2",
+              bonuses1: "Доплаты И1",
+              bonuses2: "Доплаты И2"
+            };
+            adjustTitle.textContent = titleMap[kind] || "Изменения";
             adjustError.textContent = "";
 
             adjustList.innerHTML = rules
@@ -1414,10 +1521,10 @@
                           data-adj-amount="1"
                           type="number"
                           step="100"
-                          ${kind === "deductions" ? 'max="0"' : 'min="0"'}
+                          ${kind.startsWith("deductions") ? 'max="0"' : 'min="0"'}
                           ${rule.fixed != null ? "disabled" : ""}
                           value="${Number.isFinite(amountValue) ? amountValue : 0}"
-                          placeholder="${kind === "deductions" ? "-300" : "300"}"
+                          placeholder="${kind.startsWith("deductions") ? "-300" : "300"}"
                         />
                       </div>
                       <div>
@@ -1469,11 +1576,11 @@
               let amount = rule.fixed != null ? Number(rule.fixed) : Number(amountInput?.value || 0);
               const note = String(noteInput?.value || "").trim();
 
-              if (kind === "deductions" && amount > 0) {
+              if (kind.startsWith("deductions") && amount > 0) {
                 adjustError.textContent = "В удержаниях можно указывать только отрицательные суммы";
                 return;
               }
-              if (kind === "bonuses" && amount < 0) {
+              if (kind.startsWith("bonuses") && amount < 0) {
                 adjustError.textContent = "В доплатах можно указывать только положительные суммы";
                 return;
               }

@@ -63,6 +63,14 @@ db.exec(`
     bonuses REAL NOT NULL DEFAULT 0,
     deductions_meta TEXT NOT NULL DEFAULT '[]',
     bonuses_meta TEXT NOT NULL DEFAULT '[]',
+    deductions1 REAL NOT NULL DEFAULT 0,
+    deductions2 REAL NOT NULL DEFAULT 0,
+    bonuses1 REAL NOT NULL DEFAULT 0,
+    bonuses2 REAL NOT NULL DEFAULT 0,
+    deductions1_meta TEXT NOT NULL DEFAULT '[]',
+    deductions2_meta TEXT NOT NULL DEFAULT '[]',
+    bonuses1_meta TEXT NOT NULL DEFAULT '[]',
+    bonuses2_meta TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(location_code, shift_date),
     FOREIGN KEY(location_code) REFERENCES locations(code)
@@ -135,6 +143,30 @@ if (!hasColumn("shifts", "deductions_meta")) {
 }
 if (!hasColumn("shifts", "bonuses_meta")) {
   db.exec("ALTER TABLE shifts ADD COLUMN bonuses_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("shifts", "deductions1")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN deductions1 REAL NOT NULL DEFAULT 0;");
+}
+if (!hasColumn("shifts", "deductions2")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN deductions2 REAL NOT NULL DEFAULT 0;");
+}
+if (!hasColumn("shifts", "bonuses1")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN bonuses1 REAL NOT NULL DEFAULT 0;");
+}
+if (!hasColumn("shifts", "bonuses2")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN bonuses2 REAL NOT NULL DEFAULT 0;");
+}
+if (!hasColumn("shifts", "deductions1_meta")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN deductions1_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("shifts", "deductions2_meta")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN deductions2_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("shifts", "bonuses1_meta")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN bonuses1_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("shifts", "bonuses2_meta")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN bonuses2_meta TEXT NOT NULL DEFAULT '[]';");
 }
 
 const CORE_EMPLOYEE = {
@@ -412,7 +444,11 @@ export function getScheduleForMonth({ locationCode, month }) {
   const rows = db
     .prepare(
       `
-      SELECT shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, deductions_meta, bonuses_meta
+      SELECT
+        shift_date, executor1, executor2, rate1, rate2,
+        deductions, bonuses, deductions_meta, bonuses_meta,
+        deductions1, deductions2, bonuses1, bonuses2,
+        deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta
       FROM shifts
       WHERE location_code = ?
         AND shift_date >= ?
@@ -430,10 +466,14 @@ export function getScheduleForMonth({ locationCode, month }) {
       executor2: existing?.executor2 ?? "",
       rate1: existing?.rate1 ?? 0,
       rate2: existing?.rate2 ?? 0,
-      deductions: existing?.deductions ?? 0,
-      bonuses: existing?.bonuses ?? 0,
-      deductionsMeta: safeParseMeta(existing?.deductions_meta),
-      bonusesMeta: safeParseMeta(existing?.bonuses_meta)
+      deductions1: existing?.deductions1 ?? existing?.deductions ?? 0,
+      deductions2: existing?.deductions2 ?? 0,
+      bonuses1: existing?.bonuses1 ?? existing?.bonuses ?? 0,
+      bonuses2: existing?.bonuses2 ?? 0,
+      deductions1Meta: safeParseMeta(existing?.deductions1_meta ?? existing?.deductions_meta),
+      deductions2Meta: safeParseMeta(existing?.deductions2_meta),
+      bonuses1Meta: safeParseMeta(existing?.bonuses1_meta ?? existing?.bonuses_meta),
+      bonuses2Meta: safeParseMeta(existing?.bonuses2_meta)
     };
   });
 
@@ -451,10 +491,14 @@ export function upsertShift({
   executor2,
   rate1,
   rate2,
-  deductions,
-  bonuses,
-  deductionsMeta = [],
-  bonusesMeta = []
+  deductions1,
+  deductions2,
+  bonuses1,
+  bonuses2,
+  deductions1Meta = [],
+  deductions2Meta = [],
+  bonuses1Meta = [],
+  bonuses2Meta = []
 }) {
   const locationExists = db
     .prepare(
@@ -473,8 +517,11 @@ export function upsertShift({
   db.prepare(
     `
     INSERT INTO shifts (
-      location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, deductions_meta, bonuses_meta, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      location_code, shift_date, executor1, executor2, rate1, rate2,
+      deductions, bonuses, deductions_meta, bonuses_meta,
+      deductions1, deductions2, bonuses1, bonuses2,
+      deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(location_code, shift_date) DO UPDATE SET
       executor1 = excluded.executor1,
       executor2 = excluded.executor2,
@@ -484,6 +531,14 @@ export function upsertShift({
       bonuses = excluded.bonuses,
       deductions_meta = excluded.deductions_meta,
       bonuses_meta = excluded.bonuses_meta,
+      deductions1 = excluded.deductions1,
+      deductions2 = excluded.deductions2,
+      bonuses1 = excluded.bonuses1,
+      bonuses2 = excluded.bonuses2,
+      deductions1_meta = excluded.deductions1_meta,
+      deductions2_meta = excluded.deductions2_meta,
+      bonuses1_meta = excluded.bonuses1_meta,
+      bonuses2_meta = excluded.bonuses2_meta,
       updated_at = datetime('now')
     `
   ).run(
@@ -493,16 +548,29 @@ export function upsertShift({
     executor2,
     rate1,
     rate2,
-    deductions,
-    bonuses,
-    JSON.stringify(Array.isArray(deductionsMeta) ? deductionsMeta : []),
-    JSON.stringify(Array.isArray(bonusesMeta) ? bonusesMeta : [])
+    deductions1,
+    bonuses1,
+    JSON.stringify(Array.isArray(deductions1Meta) ? deductions1Meta : []),
+    JSON.stringify(Array.isArray(bonuses1Meta) ? bonuses1Meta : []),
+    deductions1,
+    deductions2,
+    bonuses1,
+    bonuses2,
+    JSON.stringify(Array.isArray(deductions1Meta) ? deductions1Meta : []),
+    JSON.stringify(Array.isArray(deductions2Meta) ? deductions2Meta : []),
+    JSON.stringify(Array.isArray(bonuses1Meta) ? bonuses1Meta : []),
+    JSON.stringify(Array.isArray(bonuses2Meta) ? bonuses2Meta : [])
   );
 
   return db
     .prepare(
       `
-      SELECT location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, deductions_meta, bonuses_meta, updated_at
+      SELECT
+        location_code, shift_date, executor1, executor2, rate1, rate2,
+        deductions, bonuses, deductions_meta, bonuses_meta,
+        deductions1, deductions2, bonuses1, bonuses2,
+        deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta,
+        updated_at
       FROM shifts
       WHERE location_code = ?
         AND shift_date = ?
