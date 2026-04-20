@@ -680,15 +680,24 @@ export function validateShiftExecutors({
     };
   }
 
-  const byLower = new Map();
-  if (e1) byLower.set(e1Lower, e1);
-  if (e2) byLower.set(e2Lower, e2);
-  const namesLower = [...byLower.keys()];
-  if (!namesLower.length) {
+  if (!e1 && !e2) {
     return { ok: true };
   }
 
-  const placeholders = namesLower.map(() => "?").join(", ");
+  const roleConflictClauses = [];
+  const roleConflictParams = [];
+  if (e1) {
+    roleConflictClauses.push("lower(trim(s.executor1)) = ?");
+    roleConflictParams.push(e1Lower);
+  }
+  if (e2) {
+    roleConflictClauses.push("lower(trim(s.executor2)) = ?");
+    roleConflictParams.push(e2Lower);
+  }
+  if (!roleConflictClauses.length) {
+    return { ok: true };
+  }
+
   const rows = db
     .prepare(
       `
@@ -702,30 +711,36 @@ export function validateShiftExecutors({
       WHERE s.shift_date = ?
         AND NOT (s.location_code = ? AND s.shift_date = ?)
         AND (
-          lower(trim(s.executor1)) IN (${placeholders})
-          OR lower(trim(s.executor2)) IN (${placeholders})
+          ${roleConflictClauses.join("\n          OR ")}
         )
       `
     )
-    .all(date, locationCode, date, ...namesLower, ...namesLower);
+    .all(date, locationCode, date, ...roleConflictParams);
 
   for (const row of rows) {
     const rowExecutor1 = normalizeEmployeeName(row.executor1);
     const rowExecutor2 = normalizeEmployeeName(row.executor2);
     const rowE1Lower = rowExecutor1.toLowerCase();
     const rowE2Lower = rowExecutor2.toLowerCase();
-    for (const nameLower of namesLower) {
-      if (rowE1Lower === nameLower || rowE2Lower === nameLower) {
-        const employeeName = byLower.get(nameLower) || rowExecutor1 || rowExecutor2;
-        return {
-          ok: false,
-          type: "cross_location_conflict",
-          employeeName,
-          conflictLocationCode: row.location_code,
-          conflictLocationTitle: row.location_title,
-          message: `${employeeName} уже назначен(а) в этот день на другой пункт: ${row.location_title}`
-        };
-      }
+    if (e1 && rowE1Lower === e1Lower) {
+      return {
+        ok: false,
+        type: "cross_location_conflict",
+        employeeName: e1,
+        conflictLocationCode: row.location_code,
+        conflictLocationTitle: row.location_title,
+        message: `${e1} уже назначен(а) как Исполнитель1 в этот день на другом пункте: ${row.location_title}`
+      };
+    }
+    if (e2 && rowE2Lower === e2Lower) {
+      return {
+        ok: false,
+        type: "cross_location_conflict",
+        employeeName: e2,
+        conflictLocationCode: row.location_code,
+        conflictLocationTitle: row.location_title,
+        message: `${e2} уже назначен(а) как Исполнитель2 в этот день на другом пункте: ${row.location_title}`
+      };
     }
   }
 
