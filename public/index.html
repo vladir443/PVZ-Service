@@ -78,6 +78,24 @@
         cursor: not-allowed;
       }
 
+      .back-icon-btn {
+        width: 42px;
+        height: 42px;
+        border: 1px solid #cfd7e3;
+        border-radius: 12px;
+        background: #fff;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .back-icon-btn img {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+      }
+
       .menu-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1234,7 +1252,9 @@
 
         screen.innerHTML = `
           <div class="row">
-            <button class="button secondary" id="backMainBtn">Назад</button>
+            <button class="back-icon-btn" id="backMainBtn" aria-label="Назад">
+              <img src="/icons/back-arrow.png" alt="Назад" />
+            </button>
           </div>
           <h2 class="mt12">Выбор ПВЗ</h2>
           <div class="location-grid mt12">${locationHtml}</div>
@@ -1383,7 +1403,9 @@
 
         screen.innerHTML = `
           <div class="row">
-            <button class="button secondary" id="backMainBtn">Назад</button>
+            <button class="back-icon-btn" id="backMainBtn" aria-label="Назад">
+              <img src="/icons/back-arrow.png" alt="Назад" />
+            </button>
             <button class="button" id="openAddEmployeeBtn">Добавить сотрудника</button>
           </div>
           <h2 class="mt12">База сотрудников</h2>
@@ -1958,7 +1980,9 @@
 
           screen.innerHTML = `
             <div class="row">
-              <button class="button secondary" id="backLocationsBtn">Назад</button>
+              <button class="back-icon-btn" id="backLocationsBtn" aria-label="Назад">
+                <img src="/icons/back-arrow.png" alt="Назад" />
+              </button>
               <button class="button secondary" id="toggleViewBtn">${
                 viewMode === "mobile" ? "Полный график" : "Мобильный режим"
               }</button>
@@ -2742,7 +2766,11 @@
         } catch (error) {
           screen.innerHTML = `
             <p class="status error">Ошибка загрузки графика: ${escapeHtml(error.message)}</p>
-            <div class="mt12"><button class="button secondary" id="backLocationsBtn">Назад</button></div>
+            <div class="mt12">
+              <button class="back-icon-btn" id="backLocationsBtn" aria-label="Назад">
+                <img src="/icons/back-arrow.png" alt="Назад" />
+              </button>
+            </div>
           `;
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
         }

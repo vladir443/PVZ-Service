@@ -290,7 +290,7 @@ ensureCoreEmployee();
 const LOCATION_SEED = [
   { code: "WB_AMUNDSENA_15K2", title: "wb Амундсена 15к2" },
   { code: "WB_BOLSHAYA_MARFINSKAYA_1K4", title: "wb Большая Марфинская 1к4" },
-  { code: "WB_MENZHINSKOGO_1K4", title: "wb Менжинского 1к4" },
+  { code: "WB_MENZHINSKOGO_1K4", title: "wb Менжинского 32к1" },
   { code: "OZON_PYREVA_5A", title: "ozon Пырьева 5А" }
 ];
 
