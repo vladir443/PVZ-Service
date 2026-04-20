@@ -202,6 +202,22 @@
         gap: 8px;
       }
 
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: #f8fbff;
+      }
+
+      .panel.hidden {
+        display: none;
+      }
+
+      .panel-title {
+        margin: 0;
+        font-size: 16px;
+      }
+
       @media (max-width: 640px) {
         .wrap { padding: 0; }
         .card {
@@ -226,7 +242,7 @@
 
     <script>
       const tg = window.Telegram?.WebApp;
-      const APP_VERSION = "v2.5";
+      const APP_VERSION = "v2.6";
       if (tg) {
         tg.ready();
         tg.expand();
@@ -413,6 +429,37 @@
         return `<span class="badge ${escapeHtml(value)}">${escapeHtml(label)}</span>`;
       }
 
+      function positionOptionsHtml(selected = "manager") {
+        return `
+          <option value="owner_manager" ${selected === "owner_manager" ? "selected" : ""}>Управляющий</option>
+          <option value="senior_manager" ${selected === "senior_manager" ? "selected" : ""}>Старший менеджер</option>
+          <option value="manager" ${selected === "manager" ? "selected" : ""}>Менеджер</option>
+          <option value="intern" ${selected === "intern" ? "selected" : ""}>Стажер</option>
+        `;
+      }
+
+      function reliabilityOptionsHtml(selected = "checking") {
+        return `
+          <option value="reliable" ${selected === "reliable" ? "selected" : ""}>Надежный</option>
+          <option value="checking" ${selected === "checking" ? "selected" : ""}>Проверяется</option>
+          <option value="borderline" ${selected === "borderline" ? "selected" : ""}>На грани увольнения</option>
+        `;
+      }
+
+      function mapEmployeeApiError(error) {
+        if (!error?.message) return "Не удалось сохранить сотрудника";
+        if (error.message.includes("phone") || error.message.includes("телефон")) {
+          return "Некорректный номер телефона. Пример: +7 999 123-45-67";
+        }
+        return error.message;
+      }
+
+      function normalizeTelegramContact(value) {
+        const raw = value.trim();
+        if (!raw) return "";
+        return raw.startsWith("@") ? raw : `@${raw}`;
+      }
+
       async function renderEmployeesBase() {
         await loadEmployees();
 
@@ -426,10 +473,13 @@
                         emp.reliability
                       )}</div>
                       <div class="employee-meta mt8">
-                        ${escapeHtml(positions[emp.position] || emp.position)} · ${escapeHtml(emp.phone)}
+                        ${escapeHtml(positions[emp.position] || emp.position)}
+                        ${emp.phone ? ` · ${escapeHtml(emp.phone)}` : ""}
+                        ${emp.telegramContact ? ` · TG: ${escapeHtml(emp.telegramContact)}` : ""}
+                        ${emp.vkContact ? ` · VK: ${escapeHtml(emp.vkContact)}` : ""}
                       </div>
                     </div>
-                    <button class="button danger" data-del-id="${emp.id}">Удалить</button>
+                    <button class="button secondary" data-edit-id="${emp.id}">Редактировать</button>
                   </div>
                 `
               )
@@ -439,41 +489,45 @@
         screen.innerHTML = `
           <div class="row">
             <button class="button secondary" id="backMainBtn">Назад</button>
+            <button class="button" id="openAddEmployeeBtn">Добавить сотрудника</button>
           </div>
           <h2 class="mt12">База сотрудников</h2>
-          <div class="employees-form mt12">
-            <div>
-              <div class="muted">Имя (мин 3)</div>
-              <input id="firstNameInput" type="text" />
+          <div id="employeePanel" class="panel hidden mt12">
+            <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
+            <div class="employees-form mt12">
+              <div>
+                <div class="muted">Имя (мин 3)</div>
+                <input id="firstNameInput" type="text" />
+              </div>
+              <div>
+                <div class="muted">Фамилия (мин 3)</div>
+                <input id="lastNameInput" type="text" />
+              </div>
+              <div>
+                <div class="muted">Телефон (необязательно)</div>
+                <input id="phoneInput" type="tel" placeholder="+7..." />
+              </div>
+              <div>
+                <div class="muted">Telegram контакт</div>
+                <input id="telegramInput" type="text" placeholder="@username" />
+              </div>
+              <div>
+                <div class="muted">VK контакт</div>
+                <input id="vkInput" type="text" placeholder="https://vk.com/username" />
+              </div>
+              <div>
+                <div class="muted">Должность</div>
+                <select id="positionInput">${positionOptionsHtml("manager")}</select>
+              </div>
+              <div>
+                <div class="muted">Надежность</div>
+                <select id="reliabilityInput">${reliabilityOptionsHtml("checking")}</select>
+              </div>
             </div>
-            <div>
-              <div class="muted">Фамилия (мин 3)</div>
-              <input id="lastNameInput" type="text" />
+            <div class="row mt12">
+              <button class="button" id="saveEmployeeBtn">Сохранить</button>
+              <button class="button secondary" id="closeEmployeePanelBtn">Отмена</button>
             </div>
-            <div>
-              <div class="muted">Телефон</div>
-              <input id="phoneInput" type="tel" placeholder="+7..." />
-            </div>
-            <div>
-              <div class="muted">Должность</div>
-              <select id="positionInput">
-                <option value="owner_manager">Управляющий</option>
-                <option value="senior_manager">Старший менеджер</option>
-                <option value="manager">Менеджер</option>
-                <option value="intern">Стажер</option>
-              </select>
-            </div>
-            <div>
-              <div class="muted">Надежность</div>
-              <select id="reliabilityInput">
-                <option value="reliable">Надежный</option>
-                <option value="checking">Проверяется</option>
-                <option value="borderline">На грани увольнения</option>
-              </select>
-            </div>
-          </div>
-          <div class="row mt12">
-            <button class="button" id="addEmployeeBtn">Добавить сотрудника</button>
           </div>
           <p id="employeeStatus" class="status mt8"></p>
           <div class="employees-list mt12">${employeeHtml}</div>
@@ -481,57 +535,111 @@
 
         document.getElementById("backMainBtn").addEventListener("click", renderMain);
         const status = document.getElementById("employeeStatus");
+        const panel = document.getElementById("employeePanel");
+        const panelTitle = document.getElementById("employeePanelTitle");
+        const firstNameInput = document.getElementById("firstNameInput");
+        const lastNameInput = document.getElementById("lastNameInput");
+        const phoneInput = document.getElementById("phoneInput");
+        const telegramInput = document.getElementById("telegramInput");
+        const vkInput = document.getElementById("vkInput");
+        const positionInput = document.getElementById("positionInput");
+        const reliabilityInput = document.getElementById("reliabilityInput");
+        let editingEmployeeId = null;
 
-        document.getElementById("addEmployeeBtn").addEventListener("click", async () => {
-          const firstName = document.getElementById("firstNameInput").value.trim();
-          const lastName = document.getElementById("lastNameInput").value.trim();
-          const phone = document.getElementById("phoneInput").value.trim();
-          const position = document.getElementById("positionInput").value;
-          const reliability = document.getElementById("reliabilityInput").value;
+        const openPanel = () => panel.classList.remove("hidden");
+        const closePanel = () => panel.classList.add("hidden");
+        const resetForm = () => {
+          firstNameInput.value = "";
+          lastNameInput.value = "";
+          phoneInput.value = "";
+          telegramInput.value = "";
+          vkInput.value = "";
+          positionInput.value = "manager";
+          reliabilityInput.value = "checking";
+        };
+
+        const openForCreate = () => {
+          editingEmployeeId = null;
+          panelTitle.textContent = "Добавить сотрудника";
+          resetForm();
+          openPanel();
+        };
+
+        const openForEdit = (employeeId) => {
+          const employee = state.employees.find((x) => String(x.id) === String(employeeId));
+          if (!employee) {
+            status.className = "status error";
+            status.textContent = "Сотрудник не найден";
+            return;
+          }
+
+          editingEmployeeId = employee.id;
+          panelTitle.textContent = "Редактировать сотрудника";
+          firstNameInput.value = employee.firstName || "";
+          lastNameInput.value = employee.lastName || "";
+          phoneInput.value = employee.phone || "";
+          telegramInput.value = employee.telegramContact || "";
+          vkInput.value = employee.vkContact || "";
+          positionInput.value = employee.position || "manager";
+          reliabilityInput.value = employee.reliability || "checking";
+          openPanel();
+        };
+
+        document.getElementById("openAddEmployeeBtn").addEventListener("click", openForCreate);
+        document.getElementById("closeEmployeePanelBtn").addEventListener("click", closePanel);
+
+        document.getElementById("saveEmployeeBtn").addEventListener("click", async () => {
+          const firstName = firstNameInput.value.trim();
+          const lastName = lastNameInput.value.trim();
+          const phone = phoneInput.value.trim();
+          const telegramContact = normalizeTelegramContact(telegramInput.value);
+          const vkContact = vkInput.value.trim();
+          const position = positionInput.value;
+          const reliability = reliabilityInput.value;
 
           if (firstName.length < 3 || lastName.length < 3) {
             status.className = "status error";
             status.textContent = "Имя и фамилия должны быть минимум по 3 символа";
             return;
           }
-          if (!phone) {
+
+          if (phone && !/^[+0-9()\-\s]{6,30}$/.test(phone)) {
             status.className = "status error";
-            status.textContent = "Телефон обязателен";
+            status.textContent = "Некорректный номер телефона. Пример: +7 999 123-45-67";
             return;
           }
 
           try {
-            await api("/api/employees", {
-              method: "POST",
+            const method = editingEmployeeId ? "PUT" : "POST";
+            const endpoint = editingEmployeeId
+              ? `/api/employees/${editingEmployeeId}`
+              : "/api/employees";
+
+            await api(endpoint, {
+              method,
               body: JSON.stringify({
                 firstName,
                 lastName,
                 phone,
+                telegramContact,
+                vkContact,
                 position,
                 reliability
               })
             });
+
             status.className = "status ok";
-            status.textContent = "Сотрудник добавлен";
+            status.textContent = editingEmployeeId ? "Сотрудник обновлен" : "Сотрудник добавлен";
+            closePanel();
             renderEmployeesBase();
           } catch (error) {
             status.className = "status error";
-            status.textContent = error.message;
+            status.textContent = mapEmployeeApiError(error);
           }
         });
 
-        for (const delBtn of screen.querySelectorAll("[data-del-id]")) {
-          delBtn.addEventListener("click", async () => {
-            try {
-              await api(`/api/employees/${delBtn.dataset.delId}`, { method: "DELETE" });
-              status.className = "status ok";
-              status.textContent = "Сотрудник удален";
-              renderEmployeesBase();
-            } catch (error) {
-              status.className = "status error";
-              status.textContent = error.message;
-            }
-          });
+        for (const editBtn of screen.querySelectorAll("[data-edit-id]")) {
+          editBtn.addEventListener("click", () => openForEdit(editBtn.dataset.editId));
         }
       }
 

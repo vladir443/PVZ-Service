@@ -72,6 +72,8 @@ db.exec(`
     first_name TEXT NOT NULL DEFAULT '',
     last_name TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL DEFAULT '',
+    telegram_contact TEXT NOT NULL DEFAULT '',
+    vk_contact TEXT NOT NULL DEFAULT '',
     position TEXT NOT NULL DEFAULT 'manager',
     reliability TEXT NOT NULL DEFAULT 'checking',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -97,6 +99,12 @@ if (!hasColumn("employees", "position")) {
 }
 if (!hasColumn("employees", "reliability")) {
   db.exec("ALTER TABLE employees ADD COLUMN reliability TEXT NOT NULL DEFAULT 'checking';");
+}
+if (!hasColumn("employees", "telegram_contact")) {
+  db.exec("ALTER TABLE employees ADD COLUMN telegram_contact TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("employees", "vk_contact")) {
+  db.exec("ALTER TABLE employees ADD COLUMN vk_contact TEXT NOT NULL DEFAULT '';");
 }
 
 const LOCATION_SEED = [
@@ -360,7 +368,7 @@ export function listEmployees() {
   return db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, phone, position, reliability, created_at
+      SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
       FROM employees
       ORDER BY full_name COLLATE NOCASE ASC
       `
@@ -372,27 +380,47 @@ export function listEmployees() {
       firstName: row.first_name,
       lastName: row.last_name,
       phone: row.phone,
+      telegramContact: row.telegram_contact,
+      vkContact: row.vk_contact,
       position: row.position,
       reliability: row.reliability,
       createdAt: row.created_at
     }));
 }
 
-export function createEmployee({ firstName, lastName, phone, position, reliability }) {
+export function createEmployee({
+  firstName,
+  lastName,
+  phone,
+  telegramContact,
+  vkContact,
+  position,
+  reliability
+}) {
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
   const result = db
     .prepare(
       `
-      INSERT INTO employees (full_name, first_name, last_name, phone, position, reliability)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO employees (
+        full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
-    .run(fullName, firstName.trim(), lastName.trim(), phone.trim(), position, reliability);
+    .run(
+      fullName,
+      firstName.trim(),
+      lastName.trim(),
+      phone.trim(),
+      telegramContact.trim(),
+      vkContact.trim(),
+      position,
+      reliability
+    );
 
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, phone, position, reliability, created_at
+      SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
       FROM employees
       WHERE id = ?
       `
@@ -405,6 +433,8 @@ export function createEmployee({ firstName, lastName, phone, position, reliabili
     firstName: row.first_name,
     lastName: row.last_name,
     phone: row.phone,
+    telegramContact: row.telegram_contact,
+    vkContact: row.vk_contact,
     position: row.position,
     reliability: row.reliability,
     createdAt: row.created_at
@@ -422,4 +452,71 @@ export function deleteEmployeeById(id) {
     .run(id);
 
   return result.changes > 0;
+}
+
+export function updateEmployeeById({
+  id,
+  firstName,
+  lastName,
+  phone,
+  telegramContact,
+  vkContact,
+  position,
+  reliability
+}) {
+  const fullName = `${firstName.trim()} ${lastName.trim()}`;
+  const result = db
+    .prepare(
+      `
+      UPDATE employees
+      SET
+        full_name = ?,
+        first_name = ?,
+        last_name = ?,
+        phone = ?,
+        telegram_contact = ?,
+        vk_contact = ?,
+        position = ?,
+        reliability = ?
+      WHERE id = ?
+      `
+    )
+    .run(
+      fullName,
+      firstName.trim(),
+      lastName.trim(),
+      phone.trim(),
+      telegramContact.trim(),
+      vkContact.trim(),
+      position,
+      reliability,
+      id
+    );
+
+  if (result.changes === 0) {
+    return null;
+  }
+
+  const row = db
+    .prepare(
+      `
+      SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
+      FROM employees
+      WHERE id = ?
+      `
+    )
+    .get(id);
+
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    phone: row.phone,
+    telegramContact: row.telegram_contact,
+    vkContact: row.vk_contact,
+    position: row.position,
+    reliability: row.reliability,
+    createdAt: row.created_at
+  };
 }
