@@ -498,6 +498,10 @@ function safeParseMeta(raw) {
   }
 }
 
+function normalizeEmployeeName(value) {
+  return String(value || "").trim();
+}
+
 export function getScheduleForMonth({ locationCode, month }) {
   const location = db
     .prepare(
@@ -654,6 +658,78 @@ export function upsertShift({
       `
     )
     .get(locationCode, date);
+}
+
+export function validateShiftExecutors({
+  locationCode,
+  date,
+  executor1,
+  executor2
+}) {
+  const e1 = normalizeEmployeeName(executor1);
+  const e2 = normalizeEmployeeName(executor2);
+  const e1Lower = e1.toLowerCase();
+  const e2Lower = e2.toLowerCase();
+
+  if (e1 && e2 && e1Lower === e2Lower) {
+    return {
+      ok: false,
+      type: "same_shift_duplicate",
+      employeeName: e1,
+      message: "Нельзя назначить одного сотрудника одновременно в Исполнитель1 и Исполнитель2"
+    };
+  }
+
+  const byLower = new Map();
+  if (e1) byLower.set(e1Lower, e1);
+  if (e2) byLower.set(e2Lower, e2);
+  const namesLower = [...byLower.keys()];
+  if (!namesLower.length) {
+    return { ok: true };
+  }
+
+  const placeholders = namesLower.map(() => "?").join(", ");
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        s.location_code,
+        l.title AS location_title,
+        s.executor1,
+        s.executor2
+      FROM shifts s
+      JOIN locations l ON l.code = s.location_code
+      WHERE s.shift_date = ?
+        AND NOT (s.location_code = ? AND s.shift_date = ?)
+        AND (
+          lower(trim(s.executor1)) IN (${placeholders})
+          OR lower(trim(s.executor2)) IN (${placeholders})
+        )
+      `
+    )
+    .all(date, locationCode, date, ...namesLower, ...namesLower);
+
+  for (const row of rows) {
+    const rowExecutor1 = normalizeEmployeeName(row.executor1);
+    const rowExecutor2 = normalizeEmployeeName(row.executor2);
+    const rowE1Lower = rowExecutor1.toLowerCase();
+    const rowE2Lower = rowExecutor2.toLowerCase();
+    for (const nameLower of namesLower) {
+      if (rowE1Lower === nameLower || rowE2Lower === nameLower) {
+        const employeeName = byLower.get(nameLower) || rowExecutor1 || rowExecutor2;
+        return {
+          ok: false,
+          type: "cross_location_conflict",
+          employeeName,
+          conflictLocationCode: row.location_code,
+          conflictLocationTitle: row.location_title,
+          message: `${employeeName} уже назначен(а) в этот день на другой пункт: ${row.location_title}`
+        };
+      }
+    }
+  }
+
+  return { ok: true };
 }
 
 export function listFinancePaymentsForMonth({ locationCode, month }) {

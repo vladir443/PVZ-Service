@@ -9,6 +9,7 @@ import {
   listFinancePaymentsForMonth,
   listLocations,
   updateLocationHours,
+  validateShiftExecutors,
   upsertShift
 } from "../db.js";
 
@@ -185,11 +186,27 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
       });
     }
 
+    const normalizedExecutor1 = parsed.data.executor1.trim();
+    const normalizedExecutor2 = parsed.data.executor2.trim();
+    const executorsCheck = validateShiftExecutors({
+      locationCode: req.params.locationCode,
+      date: parsed.data.date,
+      executor1: normalizedExecutor1,
+      executor2: normalizedExecutor2
+    });
+    if (!executorsCheck.ok) {
+      return res.status(409).json({
+        error: "ValidationError",
+        message: executorsCheck.message,
+        details: executorsCheck
+      });
+    }
+
     const shift = upsertShift({
       locationCode: req.params.locationCode,
       date: parsed.data.date,
-      executor1: parsed.data.executor1.trim(),
-      executor2: parsed.data.executor2.trim(),
+      executor1: normalizedExecutor1,
+      executor2: normalizedExecutor2,
       rate1: parsed.data.rate1,
       rate2: parsed.data.rate2,
       deductions1: parsed.data.deductions1,
