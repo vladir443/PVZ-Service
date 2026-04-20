@@ -172,22 +172,24 @@
       .card-toggle {
         width: 28px;
         height: 28px;
-        border: 1px solid #9cc9b2;
-        background: #e9f8ef;
-        color: #198754;
+        border: 1px solid #c5ced8;
+        background: #fff;
         border-radius: 50%;
         display: grid;
         place-items: center;
-        font-weight: 700;
-        font-size: 15px;
         cursor: pointer;
         padding: 0;
       }
 
       .card-toggle.open {
-        background: #198754;
-        color: #fff;
-        border-color: #198754;
+        background: #eef2f7;
+      }
+
+      .card-toggle img {
+        width: 16px;
+        height: 16px;
+        object-fit: contain;
+        pointer-events: none;
       }
 
       .schedule-card-grid {
@@ -1104,7 +1106,9 @@
                     <span>${dayNameFromIso(row.date)}</span>
                     <div class="schedule-date-wrap">
                       <span>${ruDate(row.date)}</span>
-                      <button class="card-toggle" type="button" data-toggle-card="${row.date}" aria-label="Развернуть день">✓</button>
+                      <button class="card-toggle" type="button" data-toggle-card="${row.date}" aria-label="Развернуть день">
+                        <img src="/icons/chevron_double_down_icon_143818.png" alt="Развернуть" />
+                      </button>
                     </div>
                   </div>
                   <div class="schedule-card-grid">
@@ -1237,10 +1241,17 @@
             function setCardExpanded(card, expanded) {
               const details = card.querySelector("[data-details='1']");
               const btn = card.querySelector("[data-toggle-card]");
+              const icon = btn?.querySelector("img");
               if (!details || !btn) return;
               details.classList.toggle("hidden", !expanded);
               btn.classList.toggle("open", expanded);
               btn.setAttribute("aria-label", expanded ? "Свернуть день" : "Развернуть день");
+              if (icon) {
+                icon.src = expanded
+                  ? "/icons/chevron_double_up_icon_143815.png"
+                  : "/icons/chevron_double_down_icon_143818.png";
+                icon.alt = expanded ? "Свернуть" : "Развернуть";
+              }
             }
 
             for (const card of allCards) {
