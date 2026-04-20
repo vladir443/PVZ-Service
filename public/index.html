@@ -17,9 +17,7 @@
         --danger: #b42318;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -44,24 +42,14 @@
         min-height: calc(100dvh - 16px);
       }
 
-      h1 {
-        margin: 0;
-        font-size: 24px;
-      }
-
-      h2 {
-        margin: 0;
-        font-size: 20px;
-      }
+      h1 { margin: 0; font-size: 24px; }
+      h2 { margin: 0; font-size: 20px; }
 
       .mt8 { margin-top: 8px; }
       .mt12 { margin-top: 12px; }
       .mt16 { margin-top: 16px; }
-      .mt20 { margin-top: 20px; }
 
-      .muted {
-        color: var(--muted);
-      }
+      .muted { color: var(--muted); }
 
       .row {
         display: flex;
@@ -80,17 +68,9 @@
         background: var(--primary);
       }
 
-      .button:hover {
-        background: var(--primary-dark);
-      }
-
-      .button.secondary {
-        background: #334155;
-      }
-
-      .button.danger {
-        background: var(--danger);
-      }
+      .button:hover { background: var(--primary-dark); }
+      .button.secondary { background: #334155; }
+      .button.danger { background: var(--danger); }
 
       .menu-grid {
         display: grid;
@@ -137,7 +117,9 @@
 
       input[type="text"],
       input[type="number"],
-      input[type="month"] {
+      input[type="month"],
+      input[type="tel"],
+      select {
         width: 100%;
         border: 1px solid #c5ced8;
         border-radius: 8px;
@@ -170,22 +152,15 @@
         white-space: nowrap;
       }
 
-      td.day {
-        font-weight: 600;
-      }
+      td.day { font-weight: 600; }
 
       .status {
         font-size: 14px;
         min-height: 18px;
       }
 
-      .status.ok {
-        color: #1d9f60;
-      }
-
-      .status.error {
-        color: var(--danger);
-      }
+      .status.ok { color: #1d9f60; }
+      .status.error { color: var(--danger); }
 
       .employees-list {
         display: grid;
@@ -193,29 +168,50 @@
       }
 
       .employee-row {
-        display: flex;
+        display: grid;
+        grid-template-columns: 1fr auto;
         gap: 8px;
         align-items: center;
-        justify-content: space-between;
         border: 1px solid var(--line);
         border-radius: 10px;
         padding: 9px 10px;
         background: #fafcff;
       }
 
-      @media (max-width: 640px) {
-        .wrap {
-          padding: 0;
-        }
+      .employee-meta {
+        font-size: 13px;
+        color: var(--muted);
+      }
 
+      .badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 6px;
+      }
+
+      .badge.reliable { background: #dff7e8; color: #157a3f; }
+      .badge.checking { background: #fff4cc; color: #7a5600; }
+      .badge.borderline { background: #ffe0e0; color: #9b1c1c; }
+
+      .employees-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+      }
+
+      @media (max-width: 640px) {
+        .wrap { padding: 0; }
         .card {
           padding: 10px;
           min-height: 100dvh;
           border-radius: 0;
         }
-
-        h1 {
-          font-size: 22px;
+        h1 { font-size: 22px; }
+        .employee-row {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -230,12 +226,11 @@
 
     <script>
       const tg = window.Telegram?.WebApp;
-      const APP_VERSION = "v2.4";
+      const APP_VERSION = "v2.5";
       if (tg) {
         tg.ready();
         tg.expand();
         tg.disableVerticalSwipes?.();
-        tg.requestFullscreen?.();
       }
 
       const dayNames = [
@@ -247,6 +242,19 @@
         "Пятница",
         "Суббота"
       ];
+
+      const positions = {
+        owner_manager: "Управляющий",
+        senior_manager: "Старший менеджер",
+        manager: "Менеджер",
+        intern: "Стажер"
+      };
+
+      const reliabilities = {
+        reliable: "Надежный",
+        checking: "Проверяется",
+        borderline: "На грани увольнения"
+      };
 
       const state = {
         telegramUser: null,
@@ -267,9 +275,7 @@
 
       function getTelegramUser() {
         const user = tg?.initDataUnsafe?.user;
-        if (!user?.id) {
-          return null;
-        }
+        if (!user?.id) return null;
         const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
         return {
           telegramId: String(user.id),
@@ -292,16 +298,9 @@
           "Content-Type": "application/json",
           ...(options.headers || {})
         };
+        if (state.telegramId) headers["x-telegram-id"] = state.telegramId;
 
-        if (state.telegramId) {
-          headers["x-telegram-id"] = state.telegramId;
-        }
-
-        const response = await fetch(path, {
-          ...options,
-          headers
-        });
-
+        const response = await fetch(path, { ...options, headers });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(data?.message || data?.error || "Ошибка API");
@@ -394,9 +393,7 @@
             <button class="button secondary" id="backMainBtn">Назад</button>
           </div>
           <h2 class="mt12">Выбор пункта</h2>
-          <div class="location-grid mt12">
-            ${locationHtml}
-          </div>
+          <div class="location-grid mt12">${locationHtml}</div>
         `;
 
         document.getElementById("backMainBtn").addEventListener("click", renderMain);
@@ -411,6 +408,11 @@
         }
       }
 
+      function reliabilityBadge(value) {
+        const label = reliabilities[value] || value;
+        return `<span class="badge ${escapeHtml(value)}">${escapeHtml(label)}</span>`;
+      }
+
       async function renderEmployeesBase() {
         await loadEmployees();
 
@@ -419,7 +421,14 @@
               .map(
                 (emp) => `
                   <div class="employee-row">
-                    <div>${escapeHtml(emp.fullName)}</div>
+                    <div>
+                      <div><strong>${escapeHtml(emp.fullName)}</strong>${reliabilityBadge(
+                        emp.reliability
+                      )}</div>
+                      <div class="employee-meta mt8">
+                        ${escapeHtml(positions[emp.position] || emp.position)} · ${escapeHtml(emp.phone)}
+                      </div>
+                    </div>
                     <button class="button danger" data-del-id="${emp.id}">Удалить</button>
                   </div>
                 `
@@ -432,32 +441,75 @@
             <button class="button secondary" id="backMainBtn">Назад</button>
           </div>
           <h2 class="mt12">База сотрудников</h2>
+          <div class="employees-form mt12">
+            <div>
+              <div class="muted">Имя (мин 3)</div>
+              <input id="firstNameInput" type="text" />
+            </div>
+            <div>
+              <div class="muted">Фамилия (мин 3)</div>
+              <input id="lastNameInput" type="text" />
+            </div>
+            <div>
+              <div class="muted">Телефон</div>
+              <input id="phoneInput" type="tel" placeholder="+7..." />
+            </div>
+            <div>
+              <div class="muted">Должность</div>
+              <select id="positionInput">
+                <option value="owner_manager">Управляющий</option>
+                <option value="senior_manager">Старший менеджер</option>
+                <option value="manager">Менеджер</option>
+                <option value="intern">Стажер</option>
+              </select>
+            </div>
+            <div>
+              <div class="muted">Надежность</div>
+              <select id="reliabilityInput">
+                <option value="reliable">Надежный</option>
+                <option value="checking">Проверяется</option>
+                <option value="borderline">На грани увольнения</option>
+              </select>
+            </div>
+          </div>
           <div class="row mt12">
-            <input id="employeeNameInput" type="text" placeholder="Имя сотрудника" />
-            <button class="button" id="addEmployeeBtn">Добавить</button>
+            <button class="button" id="addEmployeeBtn">Добавить сотрудника</button>
           </div>
           <p id="employeeStatus" class="status mt8"></p>
-          <div class="employees-list mt12">
-            ${employeeHtml}
-          </div>
+          <div class="employees-list mt12">${employeeHtml}</div>
         `;
 
         document.getElementById("backMainBtn").addEventListener("click", renderMain);
         const status = document.getElementById("employeeStatus");
 
         document.getElementById("addEmployeeBtn").addEventListener("click", async () => {
-          const input = document.getElementById("employeeNameInput");
-          const fullName = input.value.trim();
-          if (!fullName) {
+          const firstName = document.getElementById("firstNameInput").value.trim();
+          const lastName = document.getElementById("lastNameInput").value.trim();
+          const phone = document.getElementById("phoneInput").value.trim();
+          const position = document.getElementById("positionInput").value;
+          const reliability = document.getElementById("reliabilityInput").value;
+
+          if (firstName.length < 3 || lastName.length < 3) {
             status.className = "status error";
-            status.textContent = "Введите имя сотрудника";
+            status.textContent = "Имя и фамилия должны быть минимум по 3 символа";
+            return;
+          }
+          if (!phone) {
+            status.className = "status error";
+            status.textContent = "Телефон обязателен";
             return;
           }
 
           try {
             await api("/api/employees", {
               method: "POST",
-              body: JSON.stringify({ fullName })
+              body: JSON.stringify({
+                firstName,
+                lastName,
+                phone,
+                position,
+                reliability
+              })
             });
             status.className = "status ok";
             status.textContent = "Сотрудник добавлен";

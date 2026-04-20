@@ -69,9 +69,35 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS employees (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     full_name TEXT NOT NULL UNIQUE,
+    first_name TEXT NOT NULL DEFAULT '',
+    last_name TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    position TEXT NOT NULL DEFAULT 'manager',
+    reliability TEXT NOT NULL DEFAULT 'checking',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
+
+function hasColumn(table, column) {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all();
+  return rows.some((row) => row.name === column);
+}
+
+if (!hasColumn("employees", "first_name")) {
+  db.exec("ALTER TABLE employees ADD COLUMN first_name TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("employees", "last_name")) {
+  db.exec("ALTER TABLE employees ADD COLUMN last_name TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("employees", "phone")) {
+  db.exec("ALTER TABLE employees ADD COLUMN phone TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("employees", "position")) {
+  db.exec("ALTER TABLE employees ADD COLUMN position TEXT NOT NULL DEFAULT 'manager';");
+}
+if (!hasColumn("employees", "reliability")) {
+  db.exec("ALTER TABLE employees ADD COLUMN reliability TEXT NOT NULL DEFAULT 'checking';");
+}
 
 const LOCATION_SEED = [
   { code: "WB_AMUNDSENA_15K2", title: "wb Амундсена 15к2" },
@@ -334,7 +360,7 @@ export function listEmployees() {
   return db
     .prepare(
       `
-      SELECT id, full_name, created_at
+      SELECT id, full_name, first_name, last_name, phone, position, reliability, created_at
       FROM employees
       ORDER BY full_name COLLATE NOCASE ASC
       `
@@ -343,24 +369,30 @@ export function listEmployees() {
     .map((row) => ({
       id: row.id,
       fullName: row.full_name,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      phone: row.phone,
+      position: row.position,
+      reliability: row.reliability,
       createdAt: row.created_at
     }));
 }
 
-export function createEmployee({ fullName }) {
+export function createEmployee({ firstName, lastName, phone, position, reliability }) {
+  const fullName = `${firstName.trim()} ${lastName.trim()}`;
   const result = db
     .prepare(
       `
-      INSERT INTO employees (full_name)
-      VALUES (?)
+      INSERT INTO employees (full_name, first_name, last_name, phone, position, reliability)
+      VALUES (?, ?, ?, ?, ?, ?)
       `
     )
-    .run(fullName.trim());
+    .run(fullName, firstName.trim(), lastName.trim(), phone.trim(), position, reliability);
 
   const row = db
     .prepare(
       `
-      SELECT id, full_name, created_at
+      SELECT id, full_name, first_name, last_name, phone, position, reliability, created_at
       FROM employees
       WHERE id = ?
       `
@@ -370,6 +402,11 @@ export function createEmployee({ fullName }) {
   return {
     id: row.id,
     fullName: row.full_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    phone: row.phone,
+    position: row.position,
+    reliability: row.reliability,
     createdAt: row.created_at
   };
 }

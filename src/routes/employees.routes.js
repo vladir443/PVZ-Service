@@ -21,7 +21,16 @@ router.get("/", (_req, res, next) => {
 });
 
 const createSchema = z.object({
-  fullName: z.string().min(1).max(120)
+  firstName: z.string().trim().min(3).max(60),
+  lastName: z.string().trim().min(3).max(60),
+  phone: z
+    .string()
+    .trim()
+    .min(6)
+    .max(30)
+    .regex(/^[+0-9()\-\s]+$/),
+  position: z.enum(["owner_manager", "senior_manager", "manager", "intern"]),
+  reliability: z.enum(["reliable", "checking", "borderline"])
 });
 
 router.post("/", (req, res, next) => {
@@ -35,7 +44,11 @@ router.post("/", (req, res, next) => {
     }
 
     const employee = createEmployee({
-      fullName: parsed.data.fullName
+      firstName: parsed.data.firstName,
+      lastName: parsed.data.lastName,
+      phone: parsed.data.phone,
+      position: parsed.data.position,
+      reliability: parsed.data.reliability
     });
 
     return res.status(201).json({ employee });
