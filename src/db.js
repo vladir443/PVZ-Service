@@ -61,6 +61,8 @@ db.exec(`
     rate2 REAL NOT NULL DEFAULT 0,
     deductions REAL NOT NULL DEFAULT 0,
     bonuses REAL NOT NULL DEFAULT 0,
+    deductions_meta TEXT NOT NULL DEFAULT '[]',
+    bonuses_meta TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(location_code, shift_date),
     FOREIGN KEY(location_code) REFERENCES locations(code)
@@ -127,6 +129,12 @@ if (!hasColumn("employees", "vk_contact")) {
 }
 if (!hasColumn("employees", "is_protected")) {
   db.exec("ALTER TABLE employees ADD COLUMN is_protected INTEGER NOT NULL DEFAULT 0;");
+}
+if (!hasColumn("shifts", "deductions_meta")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN deductions_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("shifts", "bonuses_meta")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN bonuses_meta TEXT NOT NULL DEFAULT '[]';");
 }
 
 const CORE_EMPLOYEE = {
@@ -371,6 +379,16 @@ function parseMonth(monthValue) {
   return { year, month };
 }
 
+function safeParseMeta(raw) {
+  try {
+    const parsed = JSON.parse(String(raw || "[]"));
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
 export function getScheduleForMonth({ locationCode, month }) {
   const location = db
     .prepare(
@@ -394,7 +412,7 @@ export function getScheduleForMonth({ locationCode, month }) {
   const rows = db
     .prepare(
       `
-      SELECT shift_date, executor1, executor2, rate1, rate2, deductions, bonuses
+      SELECT shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, deductions_meta, bonuses_meta
       FROM shifts
       WHERE location_code = ?
         AND shift_date >= ?
@@ -413,7 +431,9 @@ export function getScheduleForMonth({ locationCode, month }) {
       rate1: existing?.rate1 ?? 0,
       rate2: existing?.rate2 ?? 0,
       deductions: existing?.deductions ?? 0,
-      bonuses: existing?.bonuses ?? 0
+      bonuses: existing?.bonuses ?? 0,
+      deductionsMeta: safeParseMeta(existing?.deductions_meta),
+      bonusesMeta: safeParseMeta(existing?.bonuses_meta)
     };
   });
 
@@ -432,7 +452,9 @@ export function upsertShift({
   rate1,
   rate2,
   deductions,
-  bonuses
+  bonuses,
+  deductionsMeta = [],
+  bonusesMeta = []
 }) {
   const locationExists = db
     .prepare(
@@ -451,8 +473,8 @@ export function upsertShift({
   db.prepare(
     `
     INSERT INTO shifts (
-      location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, deductions_meta, bonuses_meta, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(location_code, shift_date) DO UPDATE SET
       executor1 = excluded.executor1,
       executor2 = excluded.executor2,
@@ -460,14 +482,27 @@ export function upsertShift({
       rate2 = excluded.rate2,
       deductions = excluded.deductions,
       bonuses = excluded.bonuses,
+      deductions_meta = excluded.deductions_meta,
+      bonuses_meta = excluded.bonuses_meta,
       updated_at = datetime('now')
     `
-  ).run(locationCode, date, executor1, executor2, rate1, rate2, deductions, bonuses);
+  ).run(
+    locationCode,
+    date,
+    executor1,
+    executor2,
+    rate1,
+    rate2,
+    deductions,
+    bonuses,
+    JSON.stringify(Array.isArray(deductionsMeta) ? deductionsMeta : []),
+    JSON.stringify(Array.isArray(bonusesMeta) ? bonusesMeta : [])
+  );
 
   return db
     .prepare(
       `
-      SELECT location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, updated_at
+      SELECT location_code, shift_date, executor1, executor2, rate1, rate2, deductions, bonuses, deductions_meta, bonuses_meta, updated_at
       FROM shifts
       WHERE location_code = ?
         AND shift_date = ?

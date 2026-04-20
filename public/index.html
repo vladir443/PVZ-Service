@@ -203,6 +203,37 @@
         display: none;
       }
 
+      .adjust-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .adjust-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        background: #fff;
+      }
+
+      .adjust-item-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .adjust-item-desc {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .adjust-item-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
       table {
         width: 100%;
         min-width: 940px;
@@ -390,6 +421,33 @@
         ADMIN: "Админ",
         PARTICIPANT: "Участник"
       };
+      const monthNamesRu = [
+        "Январь",
+        "Февраль",
+        "Март",
+        "Апрель",
+        "Май",
+        "Июнь",
+        "Июль",
+        "Август",
+        "Сентябрь",
+        "Октябрь",
+        "Ноябрь",
+        "Декабрь"
+      ];
+      const deductionRules = [
+        { code: "mess", title: "Беспорядок", fixed: -300, hint: "-300 рублей" },
+        { code: "acceptance", title: "Приёмка", variable: true, hint: "Введите сумму удержания" },
+        { code: "returns", title: "Возвраты", variable: true, hint: "Введите сумму удержания" },
+        { code: "defect", title: "Брак", variable: true, hint: "Введите сумму удержания" },
+        { code: "swap", title: "Подмена", variable: true, hint: "Введите сумму удержания" }
+      ];
+      const bonusRules = [
+        { code: "urgent", title: "Экстренная замена", variable: true, hint: "Введите сумму доплаты" },
+        { code: "inventory", title: "Инвентаризация", variable: true, hint: "Введите сумму доплаты" },
+        { code: "general_cleaning", title: "Генеральная уборка", variable: true, hint: "Введите сумму доплаты" },
+        { code: "basic_cleaning", title: "Базовая уборка после другого сотрудника", fixed: 300, hint: "+300 рублей" }
+      ];
 
       const state = {
         telegramUser: null,
@@ -1006,6 +1064,29 @@
         return `${d}.${m}.${y}`;
       }
 
+      function formatMonthYear(monthValue) {
+        const match = String(monthValue || "").match(/^(\d{4})-(\d{2})$/);
+        if (!match) return "Выбрать месяц";
+        const year = Number(match[1]);
+        const monthIndex = Number(match[2]) - 1;
+        return `${monthNamesRu[monthIndex] || "Месяц"} ${year}`;
+      }
+
+      function formatMoney(value) {
+        const num = Number(value || 0);
+        const abs = Math.abs(num).toLocaleString("ru-RU");
+        if (num < 0) return `-${abs} ₽`;
+        if (num > 0) return `+${abs} ₽`;
+        return "0 ₽";
+      }
+
+      function adjustButtonLabel(kind, value) {
+        if (kind === "deductions") {
+          return `Удержания: ${formatMoney(value)}`;
+        }
+        return `Доплаты: ${formatMoney(value)}`;
+      }
+
       function employeeOptionsHtml() {
         return state.employees
           .map((emp) => `<option value="${escapeHtml(emp.fullName)}"></option>`)
@@ -1025,7 +1106,23 @@
             rate1: Number(get("rate1") || 0),
             rate2: Number(get("rate2") || 0),
             deductions: Number(get("deductions") || 0),
-            bonuses: Number(get("bonuses") || 0)
+            bonuses: Number(get("bonuses") || 0),
+            deductionsMeta: (() => {
+              try {
+                const parsed = JSON.parse(tr.dataset.deductionsMeta || "[]");
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            })(),
+            bonusesMeta: (() => {
+              try {
+                const parsed = JSON.parse(tr.dataset.bonusesMeta || "[]");
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            })()
           };
 
           const status = document.getElementById("scheduleStatus");
@@ -1072,7 +1169,11 @@
           const rows = shifts
             .map(
               (row) => `
-                <tr data-date="${row.date}">
+                <tr
+                  data-date="${row.date}"
+                  data-deductions-meta="${escapeHtml(JSON.stringify(row.deductionsMeta || []))}"
+                  data-bonuses-meta="${escapeHtml(JSON.stringify(row.bonusesMeta || []))}"
+                >
                   <td class="day">${dayNameFromIso(row.date)}</td>
                   <td>${ruDate(row.date)}</td>
                   <td><input type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
@@ -1087,12 +1188,20 @@
                   <td><input type="number" min="0" step="100" data-f="rate2" value="${Number(
                     row.rate2 || 0
                   )}" /></td>
-                  <td><input type="number" min="0" step="100" data-f="deductions" value="${Number(
-                    row.deductions || 0
-                  )}" /></td>
-                  <td><input type="number" min="0" step="100" data-f="bonuses" value="${Number(
-                    row.bonuses || 0
-                  )}" /></td>
+                  <td>
+                    <input type="hidden" data-f="deductions" value="${Number(row.deductions || 0)}" />
+                    <button type="button" class="button secondary" data-adjust-open="deductions">${adjustButtonLabel(
+                      "deductions",
+                      Number(row.deductions || 0)
+                    )}</button>
+                  </td>
+                  <td>
+                    <input type="hidden" data-f="bonuses" value="${Number(row.bonuses || 0)}" />
+                    <button type="button" class="button secondary" data-adjust-open="bonuses">${adjustButtonLabel(
+                      "bonuses",
+                      Number(row.bonuses || 0)
+                    )}</button>
+                  </td>
                 </tr>
               `
             )
@@ -1101,7 +1210,12 @@
           const mobileCards = shifts
             .map(
               (row) => `
-                <div class="schedule-card" data-date="${row.date}">
+                <div
+                  class="schedule-card"
+                  data-date="${row.date}"
+                  data-deductions-meta="${escapeHtml(JSON.stringify(row.deductionsMeta || []))}"
+                  data-bonuses-meta="${escapeHtml(JSON.stringify(row.bonusesMeta || []))}"
+                >
                   <div class="schedule-card-head">
                     <span>${dayNameFromIso(row.date)}</span>
                     <div class="schedule-date-wrap">
@@ -1141,15 +1255,19 @@
                     </div>
                     <div>
                       <div class="muted">Удержания</div>
-                      <input data-shift-input="1" type="number" min="0" step="100" data-f="deductions" value="${Number(
-                        row.deductions || 0
-                      )}" />
+                      <input type="hidden" data-f="deductions" value="${Number(row.deductions || 0)}" />
+                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="deductions">${adjustButtonLabel(
+                        "deductions",
+                        Number(row.deductions || 0)
+                      )}</button>
                     </div>
                     <div>
                       <div class="muted">Доплаты</div>
-                      <input data-shift-input="1" type="number" min="0" step="100" data-f="bonuses" value="${Number(
-                        row.bonuses || 0
-                      )}" />
+                      <input type="hidden" data-f="bonuses" value="${Number(row.bonuses || 0)}" />
+                      <button data-shift-input="1" type="button" class="button secondary" data-adjust-open="bonuses">${adjustButtonLabel(
+                        "bonuses",
+                        Number(row.bonuses || 0)
+                      )}</button>
                     </div>
                     </div>
                   </div>
@@ -1172,10 +1290,12 @@
             </div>
             <h2 class="mt12">${escapeHtml(state.selectedLocation.title)}</h2>
             <div class="row mt12">
-              <label>
-                <span class="muted">Месяц</span>
-                <input id="monthInput" type="month" value="${escapeHtml(state.selectedMonth)}" />
-              </label>
+              <button class="button secondary" id="monthPickerBtn">${escapeHtml(
+                formatMonthYear(state.selectedMonth)
+              )}</button>
+              <input id="monthInput" type="month" value="${escapeHtml(
+                state.selectedMonth
+              )}" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;" />
             </div>
             <p id="scheduleStatus" class="status mt8"></p>
             <datalist id="employeesList">${employeeOptions}</datalist>
@@ -1202,12 +1322,31 @@
                   </div>
                 `
             }
+            <div id="adjustModal" class="modal hidden">
+              <div class="panel">
+                <h3 id="adjustTitle" class="panel-title"></h3>
+                <div id="adjustList" class="adjust-list mt12"></div>
+                <p id="adjustError" class="status error mt8"></p>
+                <div class="row mt12">
+                  <button class="button" id="saveAdjustBtn">Сохранить</button>
+                  <button class="button secondary" id="closeAdjustBtn">Отмена</button>
+                </div>
+              </div>
+            </div>
           `;
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
           document.getElementById("toggleViewBtn").addEventListener("click", () => {
             state.scheduleViewMode = viewMode === "mobile" ? "table" : "mobile";
             renderSchedule();
+          });
+          document.getElementById("monthPickerBtn").addEventListener("click", () => {
+            const monthInput = document.getElementById("monthInput");
+            if (typeof monthInput.showPicker === "function") {
+              monthInput.showPicker();
+            } else {
+              monthInput.click();
+            }
           });
           document.getElementById("monthInput").addEventListener("change", () => {
             const month = document.getElementById("monthInput").value;
@@ -1217,8 +1356,149 @@
             }
           });
 
+          const autosave = createRowAutoSaver(state.selectedLocation.code);
+          const adjustModal = document.getElementById("adjustModal");
+          const adjustTitle = document.getElementById("adjustTitle");
+          const adjustList = document.getElementById("adjustList");
+          const adjustError = document.getElementById("adjustError");
+          const saveAdjustBtn = document.getElementById("saveAdjustBtn");
+          const closeAdjustBtn = document.getElementById("closeAdjustBtn");
+          let adjustTarget = { row: null, kind: null };
+
+          const getMetaKey = (kind) => (kind === "deductions" ? "deductionsMeta" : "bonusesMeta");
+          const getRules = (kind) => (kind === "deductions" ? deductionRules : bonusRules);
+          const parseRowMeta = (row, kind) => {
+            const key = getMetaKey(kind);
+            try {
+              const raw = row.dataset[key] || "[]";
+              const parsed = JSON.parse(raw);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          };
+          const writeRowMeta = (row, kind, items) => {
+            row.dataset[getMetaKey(kind)] = JSON.stringify(items);
+          };
+          const updateAdjustValue = (row, kind, total) => {
+            const hidden = row.querySelector(`[data-f='${kind}']`);
+            if (hidden) hidden.value = String(total);
+            for (const btn of row.querySelectorAll(`[data-adjust-open='${kind}']`)) {
+              btn.textContent = adjustButtonLabel(kind, total);
+            }
+          };
+
+          const openAdjustModal = (row, kind) => {
+            const rules = getRules(kind);
+            const existing = parseRowMeta(row, kind);
+            const existingMap = new Map(existing.map((item) => [item.reason, item]));
+            adjustTarget = { row, kind };
+            adjustTitle.textContent = kind === "deductions" ? "Удержания" : "Доплаты";
+            adjustError.textContent = "";
+
+            adjustList.innerHTML = rules
+              .map((rule, index) => {
+                const prev = existingMap.get(rule.title);
+                const amountValue = prev ? Number(prev.amount || 0) : Number(rule.fixed || 0);
+                return `
+                  <div class="adjust-item" data-rule-code="${escapeHtml(rule.code)}">
+                    <div class="adjust-item-head">
+                      <input id="adjCheck${index}" type="checkbox" data-adj-check="1" ${prev ? "checked" : ""} />
+                      <label for="adjCheck${index}">${escapeHtml(rule.title)}</label>
+                    </div>
+                    <div class="adjust-item-desc">${escapeHtml(rule.hint || "")}</div>
+                    <div class="adjust-item-grid">
+                      <div>
+                        <div class="muted">Сумма</div>
+                        <input
+                          data-adj-amount="1"
+                          type="number"
+                          step="100"
+                          ${kind === "deductions" ? 'max="0"' : 'min="0"'}
+                          ${rule.fixed != null ? "disabled" : ""}
+                          value="${Number.isFinite(amountValue) ? amountValue : 0}"
+                          placeholder="${kind === "deductions" ? "-300" : "300"}"
+                        />
+                      </div>
+                      <div>
+                        <div class="muted">Описание</div>
+                        <input
+                          data-adj-note="1"
+                          type="text"
+                          maxlength="250"
+                          value="${escapeHtml(prev?.note || "")}"
+                          placeholder="Краткое описание"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                `;
+              })
+              .join("");
+
+            adjustModal.classList.remove("hidden");
+          };
+
+          closeAdjustBtn.addEventListener("click", () => {
+            adjustModal.classList.add("hidden");
+            adjustTarget = { row: null, kind: null };
+          });
+          adjustModal.addEventListener("click", (event) => {
+            if (event.target === adjustModal) {
+              adjustModal.classList.add("hidden");
+              adjustTarget = { row: null, kind: null };
+            }
+          });
+
+          saveAdjustBtn.addEventListener("click", () => {
+            const { row, kind } = adjustTarget;
+            if (!row || !kind) return;
+            const rules = getRules(kind);
+            const items = [];
+            let total = 0;
+            adjustError.textContent = "";
+
+            const cards = [...adjustList.querySelectorAll(".adjust-item")];
+            for (let idx = 0; idx < cards.length; idx += 1) {
+              const card = cards[idx];
+              const rule = rules[idx];
+              const checked = !!card.querySelector("[data-adj-check='1']")?.checked;
+              if (!checked) continue;
+              const amountInput = card.querySelector("[data-adj-amount='1']");
+              const noteInput = card.querySelector("[data-adj-note='1']");
+              let amount = rule.fixed != null ? Number(rule.fixed) : Number(amountInput?.value || 0);
+              const note = String(noteInput?.value || "").trim();
+
+              if (kind === "deductions" && amount > 0) {
+                adjustError.textContent = "В удержаниях можно указывать только отрицательные суммы";
+                return;
+              }
+              if (kind === "bonuses" && amount < 0) {
+                adjustError.textContent = "В доплатах можно указывать только положительные суммы";
+                return;
+              }
+
+              if (!Number.isFinite(amount) || amount === 0) {
+                continue;
+              }
+
+              items.push({
+                reason: rule.title,
+                amount,
+                note
+              });
+              total += amount;
+            }
+
+            writeRowMeta(row, kind, items);
+            updateAdjustValue(row, kind, total);
+            autosave(row);
+            adjustModal.classList.add("hidden");
+            adjustTarget = { row: null, kind: null };
+          });
+
           if (!editable) {
-            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input")) {
+            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input, [data-adjust-open]")) {
               input.setAttribute("readonly", "readonly");
               input.setAttribute("disabled", "disabled");
             }
@@ -1226,10 +1506,17 @@
             status.className = "status";
             status.textContent = "Режим просмотра: у вас нет прав на редактирование";
           } else {
-            const autosave = createRowAutoSaver(state.selectedLocation.code);
             for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input")) {
               input.addEventListener("input", () => autosave(input.closest("[data-date]")));
               input.addEventListener("change", () => autosave(input.closest("[data-date]")));
+            }
+            for (const btn of screen.querySelectorAll("[data-adjust-open]")) {
+              btn.addEventListener("click", () => {
+                const row = btn.closest("[data-date]");
+                if (!row) return;
+                const kind = btn.dataset.adjustOpen;
+                openAdjustModal(row, kind);
+              });
             }
           }
 

@@ -59,8 +59,26 @@ const shiftSchema = z.object({
   executor2: z.string().max(120).default(""),
   rate1: z.coerce.number().min(0).max(1000000).default(0),
   rate2: z.coerce.number().min(0).max(1000000).default(0),
-  deductions: z.coerce.number().min(0).max(1000000).default(0),
-  bonuses: z.coerce.number().min(0).max(1000000).default(0)
+  deductions: z.coerce.number().min(-1000000).max(0).default(0),
+  bonuses: z.coerce.number().min(0).max(1000000).default(0),
+  deductionsMeta: z
+    .array(
+      z.object({
+        reason: z.string().max(120),
+        amount: z.coerce.number().min(-1000000).max(0),
+        note: z.string().max(250).optional().default("")
+      })
+    )
+    .default([]),
+  bonusesMeta: z
+    .array(
+      z.object({
+        reason: z.string().max(120),
+        amount: z.coerce.number().min(0).max(1000000),
+        note: z.string().max(250).optional().default("")
+      })
+    )
+    .default([])
 });
 
 router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
@@ -85,7 +103,9 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
       rate1: parsed.data.rate1,
       rate2: parsed.data.rate2,
       deductions: parsed.data.deductions,
-      bonuses: parsed.data.bonuses
+      bonuses: parsed.data.bonuses,
+      deductionsMeta: parsed.data.deductionsMeta,
+      bonusesMeta: parsed.data.bonusesMeta
     });
 
     if (!shift) {
