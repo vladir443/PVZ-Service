@@ -2,9 +2,11 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import {
-  countUsers,
+  bindEmployeeTelegramId,
+  canLoginByEmployeeAccess,
   createUser,
   getUserByTelegramId,
+  isCoreAdminUsername,
   updateUserProfile,
   updateUserRole
 } from "../db.js";
@@ -14,7 +16,8 @@ const router = express.Router();
 
 const loginSchema = z.object({
   telegramId: z.string().min(1).max(64),
-  fullName: z.string().min(1).max(120)
+  fullName: z.string().min(1).max(120),
+  username: z.string().max(64).optional().default("")
 });
 
 router.post("/login", async (req, res, next) => {
@@ -28,13 +31,19 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    const { telegramId, fullName } = parsed.data;
-    const adminIds = getAdminTelegramIds();
-    let shouldBeAdmin = adminIds.has(telegramId);
+    const { telegramId, fullName, username } = parsed.data;
 
-    if (!shouldBeAdmin && adminIds.size === 0 && countUsers() === 0) {
-      shouldBeAdmin = true;
+    if (!canLoginByEmployeeAccess({ telegramId, username })) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Доступ закрыт: вас нет в базе сотрудников"
+      });
     }
+
+    bindEmployeeTelegramId({ telegramId, username });
+
+    const adminIds = getAdminTelegramIds();
+    let shouldBeAdmin = adminIds.has(telegramId) || isCoreAdminUsername(username);
 
     const existingUser = getUserByTelegramId(telegramId);
 

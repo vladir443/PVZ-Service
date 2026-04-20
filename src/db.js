@@ -71,11 +71,13 @@ db.exec(`
     full_name TEXT NOT NULL UNIQUE,
     first_name TEXT NOT NULL DEFAULT '',
     last_name TEXT NOT NULL DEFAULT '',
+    telegram_id TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL DEFAULT '',
     telegram_contact TEXT NOT NULL DEFAULT '',
     vk_contact TEXT NOT NULL DEFAULT '',
     position TEXT NOT NULL DEFAULT 'manager',
     reliability TEXT NOT NULL DEFAULT 'checking',
+    is_protected INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
@@ -94,6 +96,9 @@ if (!hasColumn("employees", "last_name")) {
 if (!hasColumn("employees", "phone")) {
   db.exec("ALTER TABLE employees ADD COLUMN phone TEXT NOT NULL DEFAULT '';");
 }
+if (!hasColumn("employees", "telegram_id")) {
+  db.exec("ALTER TABLE employees ADD COLUMN telegram_id TEXT NOT NULL DEFAULT '';");
+}
 if (!hasColumn("employees", "position")) {
   db.exec("ALTER TABLE employees ADD COLUMN position TEXT NOT NULL DEFAULT 'manager';");
 }
@@ -106,6 +111,93 @@ if (!hasColumn("employees", "telegram_contact")) {
 if (!hasColumn("employees", "vk_contact")) {
   db.exec("ALTER TABLE employees ADD COLUMN vk_contact TEXT NOT NULL DEFAULT '';");
 }
+if (!hasColumn("employees", "is_protected")) {
+  db.exec("ALTER TABLE employees ADD COLUMN is_protected INTEGER NOT NULL DEFAULT 0;");
+}
+
+const CORE_EMPLOYEE = {
+  firstName: "Владимир",
+  lastName: "Ставицкий",
+  fullName: "Владимир Ставицкий",
+  telegramId: "",
+  phone: "+7 922 924-24-94",
+  telegramContact: "@i1wqq",
+  vkContact: "https://vk.com/volodyast",
+  position: "owner",
+  reliability: "reliable"
+};
+
+function normalizeUsername(value) {
+  const source = String(value || "").trim().toLowerCase();
+  if (!source) return "";
+  return source.startsWith("@") ? source.slice(1) : source;
+}
+
+function ensureCoreEmployee() {
+  const existing = db
+    .prepare(
+      `
+      SELECT id, telegram_id
+      FROM employees
+      WHERE is_protected = 1
+         OR lower(telegram_contact) = lower(?)
+         OR full_name = ?
+      ORDER BY is_protected DESC, id ASC
+      LIMIT 1
+      `
+    )
+    .get(CORE_EMPLOYEE.telegramContact, CORE_EMPLOYEE.fullName);
+
+  if (existing) {
+    db.prepare(
+      `
+      UPDATE employees
+      SET
+        full_name = ?,
+        first_name = ?,
+        last_name = ?,
+        telegram_id = ?,
+        phone = ?,
+        telegram_contact = ?,
+        vk_contact = ?,
+        position = ?,
+        reliability = 'reliable',
+        is_protected = 1
+      WHERE id = ?
+      `
+    ).run(
+      CORE_EMPLOYEE.fullName,
+      CORE_EMPLOYEE.firstName,
+      CORE_EMPLOYEE.lastName,
+      existing.telegram_id || CORE_EMPLOYEE.telegramId,
+      CORE_EMPLOYEE.phone,
+      CORE_EMPLOYEE.telegramContact,
+      CORE_EMPLOYEE.vkContact,
+      CORE_EMPLOYEE.position,
+      existing.id
+    );
+    return;
+  }
+
+  db.prepare(
+    `
+    INSERT INTO employees (
+      full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, is_protected
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reliable', 1)
+    `
+  ).run(
+    CORE_EMPLOYEE.fullName,
+    CORE_EMPLOYEE.firstName,
+    CORE_EMPLOYEE.lastName,
+    CORE_EMPLOYEE.telegramId,
+    CORE_EMPLOYEE.phone,
+    CORE_EMPLOYEE.telegramContact,
+    CORE_EMPLOYEE.vkContact,
+    CORE_EMPLOYEE.position
+  );
+}
+
+ensureCoreEmployee();
 
 const LOCATION_SEED = [
   { code: "WB_AMUNDSENA_15K2", title: "wb Амундсена 15к2" },
@@ -379,11 +471,13 @@ export function listEmployees() {
       fullName: row.full_name,
       firstName: row.first_name,
       lastName: row.last_name,
+      telegramId: row.telegram_id,
       phone: row.phone,
       telegramContact: row.telegram_contact,
       vkContact: row.vk_contact,
       position: row.position,
       reliability: row.reliability,
+      isProtected: row.is_protected === 1,
       createdAt: row.created_at
     }));
 }
@@ -391,6 +485,7 @@ export function listEmployees() {
 export function createEmployee({
   firstName,
   lastName,
+  telegramId = "",
   phone,
   telegramContact,
   vkContact,
@@ -402,14 +497,15 @@ export function createEmployee({
     .prepare(
       `
       INSERT INTO employees (
-        full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
       fullName,
       firstName.trim(),
       lastName.trim(),
+      telegramId.trim(),
       phone.trim(),
       telegramContact.trim(),
       vkContact.trim(),
@@ -432,16 +528,26 @@ export function createEmployee({
     fullName: row.full_name,
     firstName: row.first_name,
     lastName: row.last_name,
+    telegramId: row.telegram_id,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
     position: row.position,
     reliability: row.reliability,
+    isProtected: row.is_protected === 1,
     createdAt: row.created_at
   };
 }
 
 export function deleteEmployeeById(id) {
+  const row = db.prepare("SELECT is_protected FROM employees WHERE id = ?").get(id);
+  if (!row) {
+    return { deleted: false, reason: "not_found" };
+  }
+  if (row.is_protected === 1) {
+    return { deleted: false, reason: "protected" };
+  }
+
   const result = db
     .prepare(
       `
@@ -451,19 +557,38 @@ export function deleteEmployeeById(id) {
     )
     .run(id);
 
-  return result.changes > 0;
+  return { deleted: result.changes > 0, reason: result.changes > 0 ? "ok" : "not_found" };
 }
 
 export function updateEmployeeById({
   id,
   firstName,
   lastName,
+  telegramId = "",
   phone,
   telegramContact,
   vkContact,
   position,
   reliability
 }) {
+  const current = db
+    .prepare(
+      `
+      SELECT is_protected
+      FROM employees
+      WHERE id = ?
+      `
+    )
+    .get(id);
+
+  if (!current) {
+    return { employee: null, reason: "not_found" };
+  }
+
+  if (current.is_protected === 1) {
+    return { employee: null, reason: "protected" };
+  }
+
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
   const result = db
     .prepare(
@@ -473,6 +598,7 @@ export function updateEmployeeById({
         full_name = ?,
         first_name = ?,
         last_name = ?,
+        telegram_id = ?,
         phone = ?,
         telegram_contact = ?,
         vk_contact = ?,
@@ -485,6 +611,7 @@ export function updateEmployeeById({
       fullName,
       firstName.trim(),
       lastName.trim(),
+      telegramId.trim(),
       phone.trim(),
       telegramContact.trim(),
       vkContact.trim(),
@@ -494,13 +621,13 @@ export function updateEmployeeById({
     );
 
   if (result.changes === 0) {
-    return null;
+    return { employee: null, reason: "not_found" };
   }
 
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
       FROM employees
       WHERE id = ?
       `
@@ -508,15 +635,95 @@ export function updateEmployeeById({
     .get(id);
 
   return {
+    reason: "ok",
+    employee: {
+      id: row.id,
+      fullName: row.full_name,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      telegramId: row.telegram_id,
+      phone: row.phone,
+      telegramContact: row.telegram_contact,
+      vkContact: row.vk_contact,
+      position: row.position,
+      reliability: row.reliability,
+      isProtected: row.is_protected === 1,
+      createdAt: row.created_at
+    }
+  };
+}
+
+export function canLoginByEmployeeAccess({ telegramId, username }) {
+  const normalizedUsername = normalizeUsername(username);
+  const rows = db
+    .prepare(
+      `
+      SELECT telegram_id, telegram_contact
+      FROM employees
+      `
+    )
+    .all();
+
+  return rows.some((row) => {
+    const employeeTgId = String(row.telegram_id || "").trim();
+    if (employeeTgId && employeeTgId === String(telegramId || "").trim()) {
+      return true;
+    }
+
+    const employeeUsername = normalizeUsername(row.telegram_contact);
+    if (employeeUsername && normalizedUsername && employeeUsername === normalizedUsername) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
+export function isCoreAdminUsername(username) {
+  return normalizeUsername(username) === "i1wqq";
+}
+
+export function bindEmployeeTelegramId({ telegramId, username }) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) {
+    return;
+  }
+
+  db.prepare(
+    `
+    UPDATE employees
+    SET telegram_id = ?
+    WHERE lower(replace(telegram_contact, '@', '')) = ?
+      AND (telegram_id = '' OR telegram_id IS NULL)
+    `
+  ).run(String(telegramId || "").trim(), normalizedUsername);
+}
+
+export function getEmployeeByTelegramId(telegramId) {
+  const row = db
+    .prepare(
+      `
+      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
+      FROM employees
+      WHERE telegram_id = ?
+      LIMIT 1
+      `
+    )
+    .get(String(telegramId || "").trim());
+
+  if (!row) return null;
+  return {
     id: row.id,
     fullName: row.full_name,
     firstName: row.first_name,
     lastName: row.last_name,
+    telegramId: row.telegram_id,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
     position: row.position,
     reliability: row.reliability,
+    isProtected: row.is_protected === 1,
     createdAt: row.created_at
   };
 }

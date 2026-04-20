@@ -24,10 +24,11 @@ router.get("/", (_req, res, next) => {
 const contactSchema = z.object({
   firstName: z.string().trim().min(3).max(60),
   lastName: z.string().trim().min(3).max(60),
+  telegramId: z.string().trim().max(64).optional().default(""),
   phone: z.string().trim().max(30).optional().default(""),
   telegramContact: z.string().trim().max(120).optional().default(""),
   vkContact: z.string().trim().max(200).optional().default(""),
-  position: z.enum(["owner_manager", "senior_manager", "manager", "intern"]),
+  position: z.enum(["owner", "owner_manager", "senior_manager", "manager", "intern"]),
   reliability: z.enum(["reliable", "checking", "borderline"])
 });
 
@@ -71,6 +72,7 @@ router.post("/", (req, res, next) => {
     const employee = createEmployee({
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
+      telegramId: parsed.data.telegramId,
       phone: parsed.data.phone,
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
@@ -116,10 +118,11 @@ router.put("/:id", (req, res, next) => {
       });
     }
 
-    const employee = updateEmployeeById({
+    const result = updateEmployeeById({
       id,
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
+      telegramId: parsed.data.telegramId,
       phone: parsed.data.phone,
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
@@ -127,14 +130,21 @@ router.put("/:id", (req, res, next) => {
       reliability: parsed.data.reliability
     });
 
-    if (!employee) {
+    if (result.reason === "protected") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Этого сотрудника нельзя редактировать"
+      });
+    }
+
+    if (!result.employee) {
       return res.status(404).json({
         error: "NotFound",
         message: "Сотрудник не найден"
       });
     }
 
-    return res.json({ employee });
+    return res.json({ employee: result.employee });
   } catch (error) {
     if (String(error.message || "").includes("UNIQUE")) {
       return res.status(409).json({
@@ -157,7 +167,14 @@ router.delete("/:id", (req, res, next) => {
     }
 
     const deleted = deleteEmployeeById(id);
-    if (!deleted) {
+    if (deleted.reason === "protected") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Этого сотрудника нельзя удалить"
+      });
+    }
+
+    if (!deleted.deleted) {
       return res.status(404).json({
         error: "NotFound",
         message: "Сотрудник не найден"

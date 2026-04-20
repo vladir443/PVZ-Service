@@ -259,7 +259,7 @@
 
     <script>
       const tg = window.Telegram?.WebApp;
-      const APP_VERSION = "v2.7";
+      const APP_VERSION = "v2.8";
       if (tg) {
         tg.ready();
         tg.expand();
@@ -277,6 +277,7 @@
       ];
 
       const positions = {
+        owner: "Владелец",
         owner_manager: "Управляющий",
         senior_manager: "Старший менеджер",
         manager: "Менеджер",
@@ -313,6 +314,7 @@
         return {
           telegramId: String(user.id),
           fullName: fullName || user.username || "Unknown User",
+          username: user.username ? `@${user.username}` : "",
           photoUrl: user.photo_url || ""
         };
       }
@@ -360,7 +362,8 @@
             method: "POST",
             body: JSON.stringify({
               telegramId: tgUser.telegramId,
-              fullName: tgUser.fullName
+              fullName: tgUser.fullName,
+              username: tgUser.username || ""
             })
           });
 
@@ -448,6 +451,7 @@
 
       function positionOptionsHtml(selected = "manager") {
         return `
+          <option value="owner" ${selected === "owner" ? "selected" : ""}>Владелец</option>
           <option value="owner_manager" ${selected === "owner_manager" ? "selected" : ""}>Управляющий</option>
           <option value="senior_manager" ${selected === "senior_manager" ? "selected" : ""}>Старший менеджер</option>
           <option value="manager" ${selected === "manager" ? "selected" : ""}>Менеджер</option>
@@ -554,7 +558,7 @@
                 </div>
                 <div>
                   <div class="muted">Телефон (необязательно)</div>
-                  <input id="phoneInput" type="tel" placeholder="+7 922 ***-**-94" inputmode="numeric" />
+                  <input id="phoneInput" type="tel" placeholder="+7 922 ***‒**‒94" inputmode="numeric" />
                 </div>
                 <div>
                   <div class="muted">Telegram контакт</div>
@@ -575,6 +579,7 @@
               </div>
               <div class="row mt12">
                 <button class="button" id="saveEmployeeBtn">Сохранить</button>
+                <button class="button danger" id="deleteEmployeeBtn">Удалить сотрудника</button>
                 <button class="button secondary" id="closeEmployeePanelBtn">Отмена</button>
               </div>
             </div>
@@ -595,6 +600,7 @@
         const vkInput = document.getElementById("vkInput");
         const positionInput = document.getElementById("positionInput");
         const reliabilityInput = document.getElementById("reliabilityInput");
+        const deleteEmployeeBtn = document.getElementById("deleteEmployeeBtn");
         let editingEmployeeId = null;
 
         const openPanel = () => modal.classList.remove("hidden");
@@ -607,6 +613,9 @@
           vkInput.value = "";
           positionInput.value = "manager";
           reliabilityInput.value = "checking";
+          deleteEmployeeBtn.style.display = "none";
+          deleteEmployeeBtn.disabled = true;
+          deleteEmployeeBtn.textContent = "Удалить сотрудника";
         };
 
         const openForCreate = () => {
@@ -633,6 +642,11 @@
           vkInput.value = employee.vkContact || "";
           positionInput.value = employee.position || "manager";
           reliabilityInput.value = employee.reliability || "checking";
+          deleteEmployeeBtn.style.display = "inline-block";
+          deleteEmployeeBtn.disabled = !!employee.isProtected;
+          deleteEmployeeBtn.textContent = employee.isProtected
+            ? "Удаление запрещено"
+            : "Удалить сотрудника";
           openPanel();
         };
 
@@ -710,6 +724,20 @@
         for (const editBtn of screen.querySelectorAll("[data-edit-id]")) {
           editBtn.addEventListener("click", () => openForEdit(editBtn.dataset.editId));
         }
+
+        deleteEmployeeBtn.addEventListener("click", async () => {
+          if (!editingEmployeeId || deleteEmployeeBtn.disabled) return;
+          try {
+            await api(`/api/employees/${editingEmployeeId}`, { method: "DELETE" });
+            status.className = "status ok";
+            status.textContent = "Сотрудник удален";
+            closePanel();
+            renderEmployeesBase();
+          } catch (error) {
+            status.className = "status error";
+            status.textContent = error.message;
+          }
+        });
       }
 
       function dayNameFromIso(iso) {
