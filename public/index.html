@@ -243,17 +243,84 @@
       .finance-row {
         border: 1px solid var(--line);
         border-radius: 10px;
-        padding: 8px 10px;
+        padding: 0;
         background: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
       }
 
       .finance-amount {
         font-weight: 700;
         white-space: nowrap;
+      }
+
+      .finance-summary {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        cursor: pointer;
+      }
+
+      .finance-summary-left {
+        min-width: 0;
+      }
+
+      .finance-summary-name {
+        font-weight: 600;
+      }
+
+      .finance-summary-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 0 0 auto;
+      }
+
+      .finance-toggle-icon {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+      }
+
+      .finance-details {
+        border-top: 1px solid var(--line);
+        padding: 8px 10px 10px;
+        color: var(--muted);
+        font-size: 13px;
+        display: grid;
+        gap: 4px;
+      }
+
+      .finance-details.hidden {
+        display: none;
+      }
+
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .icon-button {
+        width: 34px;
+        height: 34px;
+        border: 1px solid #c5ced8;
+        border-radius: 10px;
+        background: #fff;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .icon-button img {
+        width: 17px;
+        height: 17px;
+        object-fit: contain;
       }
 
       table {
@@ -1120,6 +1187,11 @@
         return "0 ₽";
       }
 
+      function formatMoneyUnsigned(value) {
+        const num = Math.abs(Number(value || 0));
+        return `${num.toLocaleString("ru-RU")} ₽`;
+      }
+
       function adjustButtonLabel(kind, value) {
         const labels = {
           deductions1: "Удержания И1",
@@ -1449,7 +1521,12 @@
             </div>
             <div id="financeModal" class="modal hidden">
               <div class="panel">
-                <h3 class="panel-title">Финансы за период</h3>
+                <div class="panel-head">
+                  <h3 class="panel-title">Финансы за период</h3>
+                  <button class="icon-button" id="refreshFinanceBtn" type="button" title="Обновить">
+                    <img src="/icons/refresh-icon-10848.png" alt="Обновить" />
+                  </button>
+                </div>
                 <div class="row mt12">
                   <button class="button secondary" id="financeFirstHalfBtn">1-15</button>
                   <button class="button secondary" id="financeSecondHalfBtn">16-конец</button>
@@ -1525,6 +1602,9 @@
           const financeList = document.getElementById("financeList");
           const financeHint = document.getElementById("financeHint");
           const financeError = document.getElementById("financeError");
+          const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
+          let financeShifts = shifts;
+          const expandedFinance = new Set();
 
           financeFromInput.min = monthBounds.start;
           financeFromInput.max = monthBounds.end;
@@ -1550,21 +1630,37 @@
             }
 
             const totals = new Map();
-            for (const row of shifts) {
+            for (const row of financeShifts) {
               if (!row?.date || row.date < from || row.date > to) continue;
               const p1 = String(row.executor1 || "").trim();
               const p2 = String(row.executor2 || "").trim();
-              const sum1 =
-                Number(row.rate1 || 0) + Number(row.bonuses1 || 0) + Number(row.deductions1 || 0);
-              const sum2 =
-                Number(row.rate2 || 0) + Number(row.bonuses2 || 0) + Number(row.deductions2 || 0);
+              const rate1 = Number(row.rate1 || 0);
+              const rate2 = Number(row.rate2 || 0);
+              const bonus1 = Number(row.bonuses1 || 0);
+              const bonus2 = Number(row.bonuses2 || 0);
+              const ded1Raw = Number(row.deductions1 || 0);
+              const ded2Raw = Number(row.deductions2 || 0);
 
-              if (p1) totals.set(p1, (totals.get(p1) || 0) + sum1);
-              if (p2) totals.set(p2, (totals.get(p2) || 0) + sum2);
+              if (p1) {
+                const current = totals.get(p1) || { total: 0, shifts: 0, deductions: 0, bonuses: 0 };
+                current.total += rate1 + bonus1 + ded1Raw;
+                current.shifts += 1;
+                current.deductions += Math.abs(Math.min(0, ded1Raw));
+                current.bonuses += Math.max(0, bonus1);
+                totals.set(p1, current);
+              }
+              if (p2) {
+                const current = totals.get(p2) || { total: 0, shifts: 0, deductions: 0, bonuses: 0 };
+                current.total += rate2 + bonus2 + ded2Raw;
+                current.shifts += 1;
+                current.deductions += Math.abs(Math.min(0, ded2Raw));
+                current.bonuses += Math.max(0, bonus2);
+                totals.set(p2, current);
+              }
             }
 
             const rows = [...totals.entries()]
-              .map(([name, total]) => ({ name, total }))
+              .map(([name, stat]) => ({ name, ...stat }))
               .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "ru"));
 
             financeHint.textContent = `Период: ${ruDate(from)} - ${ruDate(to)}. Ставка + доплаты - удержания.`;
@@ -1575,19 +1671,67 @@
 
             financeList.innerHTML = rows
               .map(
-                (item) => `
+                (item, index) => `
                   <div class="finance-row">
-                    <div>${escapeHtml(item.name)}</div>
-                    <div class="finance-amount">${formatMoney(item.total)}</div>
+                    <button class="finance-summary" type="button" data-finance-toggle="${index}">
+                      <div class="finance-summary-left">
+                        <div class="finance-summary-name">${escapeHtml(item.name)}</div>
+                      </div>
+                      <div class="finance-summary-right">
+                        <div class="finance-amount">${formatMoney(item.total)}</div>
+                        <img
+                          class="finance-toggle-icon"
+                          src="${expandedFinance.has(item.name) ? "/icons/chevron_double_up_icon_143815.png" : "/icons/chevron_double_down_icon_143818.png"}"
+                          alt="${expandedFinance.has(item.name) ? "Свернуть" : "Развернуть"}"
+                        />
+                      </div>
+                    </button>
+                    <div class="finance-details ${expandedFinance.has(item.name) ? "" : "hidden"}" data-finance-details="${index}">
+                      <div>За смены: ${item.shifts}</div>
+                      <div>Удержано: ${formatMoneyUnsigned(item.deductions)}</div>
+                      <div>Доплачено: ${formatMoneyUnsigned(item.bonuses)}</div>
+                    </div>
                   </div>
                 `
               )
               .join("");
+
+            const toggleButtons = [...financeList.querySelectorAll("[data-finance-toggle]")];
+            for (const btn of toggleButtons) {
+              btn.addEventListener("click", () => {
+                const idx = Number(btn.dataset.financeToggle);
+                const item = rows[idx];
+                if (!item) return;
+                if (expandedFinance.has(item.name)) {
+                  expandedFinance.delete(item.name);
+                } else {
+                  expandedFinance.add(item.name);
+                }
+                renderFinance();
+              });
+            }
+          };
+
+          const refreshFinanceData = async () => {
+            refreshFinanceBtn.disabled = true;
+            financeError.textContent = "";
+            try {
+              const latest = await api(
+                `/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`
+              );
+              financeShifts = latest.shifts || [];
+              renderFinance();
+            } catch (error) {
+              financeError.textContent = `Ошибка обновления: ${error.message}`;
+            } finally {
+              refreshFinanceBtn.disabled = false;
+            }
           };
 
           document.getElementById("openFinanceBtn").addEventListener("click", () => {
             financeFromInput.value = monthBounds.start;
             financeToInput.value = monthBounds.end;
+            expandedFinance.clear();
             renderFinance();
             financeModal.classList.remove("hidden");
           });
@@ -1599,6 +1743,7 @@
           });
           financeFromInput.addEventListener("change", renderFinance);
           financeToInput.addEventListener("change", renderFinance);
+          refreshFinanceBtn.addEventListener("click", refreshFinanceData);
           document.getElementById("financeFirstHalfBtn").addEventListener("click", () => {
             const firstHalfEnd = `${state.selectedMonth}-15`;
             financeFromInput.value = monthBounds.start;
