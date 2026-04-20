@@ -385,6 +385,23 @@
         state.employees = data.employees || [];
       }
 
+      async function loadEmployeesSafe() {
+        try {
+          await loadEmployees();
+        } catch (error) {
+          const message = String(error?.message || "");
+          if (
+            message.includes("Недостаточно прав") ||
+            message.includes("Insufficient permissions") ||
+            message.includes("Forbidden")
+          ) {
+            state.employees = [];
+            return;
+          }
+          throw error;
+        }
+      }
+
       async function initApp() {
         try {
           screen.innerHTML = `<p class="muted">Подключаемся...</p>`;
@@ -410,7 +427,7 @@
 
           const locationsData = await api("/api/schedule/locations");
           state.locations = locationsData.locations || [];
-          await loadEmployees();
+          await loadEmployeesSafe();
 
           renderMain();
         } catch (error) {
@@ -884,7 +901,7 @@
 
       async function renderSchedule() {
         setAppTitle("");
-        await loadEmployees();
+        await loadEmployeesSafe();
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
         try {
