@@ -163,6 +163,33 @@
         font-weight: 600;
       }
 
+      .schedule-date-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .card-toggle {
+        width: 28px;
+        height: 28px;
+        border: 1px solid #9cc9b2;
+        background: #e9f8ef;
+        color: #198754;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 15px;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .card-toggle.open {
+        background: #198754;
+        color: #fff;
+        border-color: #198754;
+      }
+
       .schedule-card-grid {
         margin-top: 8px;
         display: grid;
@@ -1075,7 +1102,10 @@
                 <div class="schedule-card" data-date="${row.date}">
                   <div class="schedule-card-head">
                     <span>${dayNameFromIso(row.date)}</span>
-                    <span>${ruDate(row.date)}</span>
+                    <div class="schedule-date-wrap">
+                      <span>${ruDate(row.date)}</span>
+                      <button class="card-toggle" type="button" data-toggle-card="${row.date}" aria-label="Развернуть день">✓</button>
+                    </div>
                   </div>
                   <div class="schedule-card-grid">
                     <div>
@@ -1118,9 +1148,6 @@
                       )}" />
                     </div>
                     </div>
-                  </div>
-                  <div class="row mt8">
-                    <button class="button secondary" data-toggle-card="${row.date}">Развернуть</button>
                   </div>
                 </div>
               `
@@ -1212,7 +1239,8 @@
               const btn = card.querySelector("[data-toggle-card]");
               if (!details || !btn) return;
               details.classList.toggle("hidden", !expanded);
-              btn.textContent = expanded ? "Свернуть" : "Развернуть";
+              btn.classList.toggle("open", expanded);
+              btn.setAttribute("aria-label", expanded ? "Свернуть день" : "Развернуть день");
             }
 
             for (const card of allCards) {
