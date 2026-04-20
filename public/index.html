@@ -38,6 +38,7 @@
         background: var(--card);
         border-radius: 14px;
         padding: 14px;
+        padding-bottom: 88px;
         box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
         min-height: calc(100dvh - 16px);
       }
@@ -81,6 +82,44 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 8px;
+      }
+
+      .bottom-nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 60;
+        background: #ffffffee;
+        border-top: 1px solid var(--line);
+        backdrop-filter: blur(8px);
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .bottom-nav-btn {
+        border: 1px solid #d9e1ec;
+        border-radius: 12px;
+        background: #fff;
+        color: #334155;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 9px 6px;
+        text-align: center;
+        cursor: pointer;
+      }
+
+      .bottom-nav-btn.active {
+        background: #0f766e;
+        color: #fff;
+        border-color: #0f766e;
+      }
+
+      .bottom-nav-btn.disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
       }
 
       .location-grid {
@@ -510,6 +549,7 @@
         .wrap { padding: 0; }
         .card {
           padding: 10px;
+          padding-bottom: 86px;
           min-height: 100dvh;
           border-radius: 0;
         }
@@ -527,6 +567,7 @@
         <div id="screen" class="mt12"></div>
       </div>
     </div>
+    <nav id="bottomNav" class="bottom-nav"></nav>
 
     <script>
       const tg = window.Telegram?.WebApp;
@@ -602,11 +643,13 @@
         selectedLocation: null,
         selectedMonth: "",
         avatarNonce: String(Date.now()),
-        scheduleViewMode: null
+        scheduleViewMode: null,
+        activeTab: "home"
       };
 
       const screen = document.getElementById("screen");
       const appTitle = document.getElementById("appTitle");
+      const bottomNav = document.getElementById("bottomNav");
 
       function setAppTitle(value) {
         if (!value) {
@@ -616,6 +659,50 @@
         }
         appTitle.textContent = value;
         appTitle.classList.remove("hidden");
+      }
+
+      function showAccessDenied() {
+        const message = "Недостаточно прав для раздела Сотрудники";
+        if (typeof tg?.showAlert === "function") {
+          tg.showAlert(message);
+          return;
+        }
+        window.alert(message);
+      }
+
+      function renderBottomNav(active = state.activeTab) {
+        state.activeTab = active;
+        const employeesLocked = !canManageEmployees();
+        bottomNav.innerHTML = `
+          <button class="bottom-nav-btn ${active === "home" ? "active" : ""}" data-tab="home">Главная</button>
+          <button class="bottom-nav-btn ${active === "schedule" ? "active" : ""}" data-tab="schedule">График</button>
+          <button class="bottom-nav-btn ${active === "employees" ? "active" : ""} ${employeesLocked ? "disabled" : ""}" data-tab="employees" ${employeesLocked ? "aria-disabled='true'" : ""}>Сотрудники</button>
+          <button class="bottom-nav-btn ${active === "profile" ? "active" : ""}" data-tab="profile">Профиль</button>
+        `;
+        for (const btn of bottomNav.querySelectorAll("[data-tab]")) {
+          btn.addEventListener("click", () => {
+            const tab = btn.dataset.tab;
+            if (tab === "home") {
+              renderMain();
+              return;
+            }
+            if (tab === "schedule") {
+              renderLocations();
+              return;
+            }
+            if (tab === "employees") {
+              if (!canManageEmployees()) {
+                showAccessDenied();
+                return;
+              }
+              renderEmployeesBase();
+              return;
+            }
+            if (tab === "profile") {
+              renderProfile();
+            }
+          });
+        }
       }
 
       function canManageEmployees() {
@@ -764,6 +851,20 @@
 
       function renderMain() {
         setAppTitle("PVZ Service");
+        screen.innerHTML = `
+          <h2>Главный экран</h2>
+          <p class="muted mt12">Быстрый доступ к разделам через нижнее меню.</p>
+          <div class="panel mt12">
+            <div class="muted">Текущий месяц</div>
+            <div><strong>${escapeHtml(formatMonthYear(state.selectedMonth))}</strong></div>
+            <div class="muted mt8">Точек ПВЗ в системе: ${Number(state.locations.length || 0)}</div>
+          </div>
+        `;
+        renderBottomNav("home");
+      }
+
+      function renderProfile() {
+        setAppTitle("");
         const photo = withAvatarCacheBust(state.telegramUser?.photoUrl || "");
         const initials = (state.user?.fullName || "?")
           .split(" ")
@@ -771,9 +872,8 @@
           .slice(0, 2)
           .map((w) => w[0]?.toUpperCase() || "")
           .join("");
-
         screen.innerHTML = `
-          <h2>Главный экран</h2>
+          <h2>Профиль</h2>
           <div class="profile-box mt12">
             ${
               photo
@@ -783,25 +883,15 @@
             <div>
               <div><strong>${escapeHtml(state.user.fullName)}</strong></div>
               <div class="muted mt8">Роль: <strong>${escapeHtml(userRoles[state.user.role] || state.user.role)}</strong></div>
+              ${
+                state.telegramUser?.username
+                  ? `<div class="muted mt8">Telegram: ${escapeHtml(state.telegramUser.username)}</div>`
+                  : ""
+              }
             </div>
           </div>
-          <div class="menu-grid mt16">
-            <button class="button" id="goScheduleBtn">График</button>
-            <button class="button secondary ${canManageEmployees() ? "" : "disabled"}" id="goEmployeesBtn">База сотрудников</button>
-          </div>
-          <p id="mainStatus" class="status mt8"></p>
         `;
-
-        document.getElementById("goScheduleBtn").addEventListener("click", renderLocations);
-        document.getElementById("goEmployeesBtn").addEventListener("click", () => {
-          const status = document.getElementById("mainStatus");
-          if (!canManageEmployees()) {
-            status.className = "status error";
-            status.textContent = "Недостаточно прав для раздела База сотрудников";
-            return;
-          }
-          renderEmployeesBase();
-        });
+        renderBottomNav("profile");
       }
 
       function renderLocations() {
@@ -824,6 +914,7 @@
           <h2 class="mt12">Выбор ПВЗ</h2>
           <div class="location-grid mt12">${locationHtml}</div>
         `;
+        renderBottomNav("schedule");
 
         document.getElementById("backMainBtn").addEventListener("click", renderMain);
         for (const btn of screen.querySelectorAll("[data-code]")) {
@@ -1018,6 +1109,7 @@
           <p id="employeeStatus" class="status mt8"></p>
           <div class="employees-list mt12">${employeeHtml}</div>
         `;
+        renderBottomNav("employees");
 
         document.getElementById("backMainBtn").addEventListener("click", renderMain);
         const status = document.getElementById("employeeStatus");
@@ -1667,6 +1759,7 @@
               </div>
             </div>
           `;
+          renderBottomNav("schedule");
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
           document.getElementById("toggleViewBtn").addEventListener("click", () => {
