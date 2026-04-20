@@ -1099,6 +1099,7 @@
         let upcomingCaption = "Нет запланированных смен";
         let todayTeamTitle = "Сегодня у вас нет смены";
         let todayTeamSub = "Пока вы не назначены на смену";
+        let emptyShiftLines = ["Пустых смен на ближайшие 3 дня нет"];
         const formatUpcomingDate = (isoDate) => {
           const value = String(isoDate || "").trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
@@ -1112,6 +1113,11 @@
           }
           const dateObj = new Date(`${value}T00:00:00`);
           return dateObj.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+        };
+        const addDaysIso = (isoDate, days) => {
+          const dateObj = new Date(`${isoDate}T00:00:00`);
+          dateObj.setDate(dateObj.getDate() + days);
+          return dateObj.toISOString().slice(0, 10);
         };
         try {
           const [todayData, upcomingData] = await Promise.all([
@@ -1153,10 +1159,52 @@
           if (labels.length) {
             upcomingCaption = labels.join(", ");
           }
+
+          const nextDates = [todayIso, addDaysIso(todayIso, 1), addDaysIso(todayIso, 2)];
+          const monthsToLoad = [...new Set(nextDates.map((date) => String(date).slice(0, 7)))];
+          const scheduleResponses = await Promise.all(
+            (state.locations || []).flatMap((loc) =>
+              monthsToLoad.map((month) =>
+                api(`/api/schedule/${loc.code}?month=${month}`)
+                  .then((data) => ({
+                    locationCode: loc.code,
+                    month,
+                    shifts: Array.isArray(data?.shifts) ? data.shifts : []
+                  }))
+                  .catch(() => ({
+                    locationCode: loc.code,
+                    month,
+                    shifts: []
+                  }))
+              )
+            )
+          );
+          const scheduleMap = new Map(
+            scheduleResponses.map((item) => [`${item.locationCode}:${item.month}`, item.shifts])
+          );
+          const emptyRows = [];
+          for (const date of nextDates) {
+            const monthKey = String(date).slice(0, 7);
+            for (const loc of state.locations || []) {
+              const shifts = scheduleMap.get(`${loc.code}:${monthKey}`) || [];
+              const row = shifts.find((item) => String(item?.date) === date);
+              const e1 = String(row?.executor1 || "").trim();
+              const e2 = String(row?.executor2 || "").trim();
+              if (!e1 && !e2) {
+                emptyRows.push(`${formatUpcomingDate(date)} — ${loc.title}`);
+              }
+            }
+          }
+          if (emptyRows.length) {
+            emptyShiftLines = emptyRows;
+          }
         } catch {
           // fallback значения уже заданы
         }
         const employeesTotal = Number(state.employees.length || 0);
+        const emptyShiftLinesHtml = emptyShiftLines
+          .map((line) => `<div class="muted mt8">${escapeHtml(line)}</div>`)
+          .join("");
         screen.innerHTML = `
           <h2>Главный экран</h2>
           <div class="dash-user mt12">
@@ -1178,20 +1226,22 @@
               <h3>Сегодня</h3>
               <div class="big">${escapeHtml(overviewShift)}</div>
               <div class="muted mt8">${escapeHtml(overviewStatus)}</div>
+              <div class="muted mt8">${escapeHtml(todayTeamTitle)}</div>
+              <div class="muted mt8">${escapeHtml(todayTeamSub)}</div>
             </div>
             <div class="overview-card green">
               <h3>Ближайшие смены</h3>
               <div class="muted mt8">${escapeHtml(upcomingCaption)}</div>
             </div>
             <div class="overview-card purple">
-              <h3>Смена сегодня</h3>
-              <div class="big">${escapeHtml(todayTeamTitle)}</div>
-              <div class="muted mt8">${escapeHtml(todayTeamSub)}</div>
+              <h3>Сотрудники</h3>
+              <div class="big">${employeesTotal || 0} человек</div>
+              <div class="muted mt8">В базе</div>
             </div>
           </div>
           <div class="warn-banner mt12">
-            <div><strong>Сегодня ${Math.max(2, Math.min(5, employeesTotal || 3))} сотрудника в смене</strong></div>
-            <div class="muted mt8">Не забудьте проверить график.</div>
+            <div><strong>Ближайшие пустые смены</strong></div>
+            ${emptyShiftLinesHtml}
           </div>
         `;
         renderBottomNav("home");
