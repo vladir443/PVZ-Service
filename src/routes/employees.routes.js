@@ -32,8 +32,11 @@ const contactSchema = z.object({
 });
 
 function validateContacts(data) {
-  if (data.phone && !/^[+0-9()\-\s]{6,30}$/.test(data.phone)) {
-    return "Номер телефона должен содержать 6-30 символов: цифры, пробел, +, скобки или тире";
+  if (data.phone) {
+    const digits = String(data.phone).replace(/\D/g, "");
+    if (digits.length !== 11 || digits[0] !== "7") {
+      return "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
+    }
   }
 
   if (data.telegramContact && !/^@?[a-zA-Z0-9_]{5,}$/.test(data.telegramContact)) {

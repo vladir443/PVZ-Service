@@ -202,11 +202,28 @@
         gap: 8px;
       }
 
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        display: grid;
+        place-items: center;
+        padding: 12px;
+        z-index: 50;
+      }
+
+      .modal.hidden {
+        display: none;
+      }
+
       .panel {
         border: 1px solid var(--line);
         border-radius: 12px;
         padding: 10px;
         background: #f8fbff;
+        width: min(760px, 100%);
+        max-height: calc(100dvh - 32px);
+        overflow: auto;
       }
 
       .panel.hidden {
@@ -242,7 +259,7 @@
 
     <script>
       const tg = window.Telegram?.WebApp;
-      const APP_VERSION = "v2.6";
+      const APP_VERSION = "v2.7";
       if (tg) {
         tg.ready();
         tg.expand();
@@ -460,6 +477,37 @@
         return raw.startsWith("@") ? raw : `@${raw}`;
       }
 
+      function onlyDigits(value) {
+        return String(value || "").replace(/\D/g, "");
+      }
+
+      function applyPhoneMask(value) {
+        const digits = onlyDigits(value);
+        if (!digits) return "";
+
+        const normalized = `7${digits.startsWith("7") ? digits.slice(1) : digits}`;
+        const cut = normalized.slice(0, 11);
+        const p1 = cut.slice(1, 4);
+        const p2 = cut.slice(4, 7);
+        const p3 = cut.slice(7, 9);
+        const p4 = cut.slice(9, 11);
+
+        let out = "+7";
+        if (p1) out += ` ${p1}`;
+        if (p2) out += ` ${p2}`;
+        if (p3) out += `-${p3}`;
+        if (p4) out += `-${p4}`;
+        return out;
+      }
+
+      function normalizePhone(value) {
+        const masked = applyPhoneMask(value);
+        const digits = onlyDigits(masked);
+        if (!digits) return "";
+        if (digits.length !== 11 || digits[0] !== "7") return null;
+        return masked;
+      }
+
       async function renderEmployeesBase() {
         await loadEmployees();
 
@@ -492,41 +540,43 @@
             <button class="button" id="openAddEmployeeBtn">Добавить сотрудника</button>
           </div>
           <h2 class="mt12">База сотрудников</h2>
-          <div id="employeePanel" class="panel hidden mt12">
-            <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
-            <div class="employees-form mt12">
-              <div>
-                <div class="muted">Имя (мин 3)</div>
-                <input id="firstNameInput" type="text" />
+          <div id="employeeModal" class="modal hidden">
+            <div id="employeePanel" class="panel">
+              <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
+              <div class="employees-form mt12">
+                <div>
+                  <div class="muted">Имя (мин 3)</div>
+                  <input id="firstNameInput" type="text" />
+                </div>
+                <div>
+                  <div class="muted">Фамилия (мин 3)</div>
+                  <input id="lastNameInput" type="text" />
+                </div>
+                <div>
+                  <div class="muted">Телефон (необязательно)</div>
+                  <input id="phoneInput" type="tel" placeholder="+7 922 ***-**-94" inputmode="numeric" />
+                </div>
+                <div>
+                  <div class="muted">Telegram контакт</div>
+                  <input id="telegramInput" type="text" placeholder="@username" />
+                </div>
+                <div>
+                  <div class="muted">VK контакт</div>
+                  <input id="vkInput" type="text" placeholder="https://vk.com/username" />
+                </div>
+                <div>
+                  <div class="muted">Должность</div>
+                  <select id="positionInput">${positionOptionsHtml("manager")}</select>
+                </div>
+                <div>
+                  <div class="muted">Надежность</div>
+                  <select id="reliabilityInput">${reliabilityOptionsHtml("checking")}</select>
+                </div>
               </div>
-              <div>
-                <div class="muted">Фамилия (мин 3)</div>
-                <input id="lastNameInput" type="text" />
+              <div class="row mt12">
+                <button class="button" id="saveEmployeeBtn">Сохранить</button>
+                <button class="button secondary" id="closeEmployeePanelBtn">Отмена</button>
               </div>
-              <div>
-                <div class="muted">Телефон (необязательно)</div>
-                <input id="phoneInput" type="tel" placeholder="+7..." />
-              </div>
-              <div>
-                <div class="muted">Telegram контакт</div>
-                <input id="telegramInput" type="text" placeholder="@username" />
-              </div>
-              <div>
-                <div class="muted">VK контакт</div>
-                <input id="vkInput" type="text" placeholder="https://vk.com/username" />
-              </div>
-              <div>
-                <div class="muted">Должность</div>
-                <select id="positionInput">${positionOptionsHtml("manager")}</select>
-              </div>
-              <div>
-                <div class="muted">Надежность</div>
-                <select id="reliabilityInput">${reliabilityOptionsHtml("checking")}</select>
-              </div>
-            </div>
-            <div class="row mt12">
-              <button class="button" id="saveEmployeeBtn">Сохранить</button>
-              <button class="button secondary" id="closeEmployeePanelBtn">Отмена</button>
             </div>
           </div>
           <p id="employeeStatus" class="status mt8"></p>
@@ -535,6 +585,7 @@
 
         document.getElementById("backMainBtn").addEventListener("click", renderMain);
         const status = document.getElementById("employeeStatus");
+        const modal = document.getElementById("employeeModal");
         const panel = document.getElementById("employeePanel");
         const panelTitle = document.getElementById("employeePanelTitle");
         const firstNameInput = document.getElementById("firstNameInput");
@@ -546,8 +597,8 @@
         const reliabilityInput = document.getElementById("reliabilityInput");
         let editingEmployeeId = null;
 
-        const openPanel = () => panel.classList.remove("hidden");
-        const closePanel = () => panel.classList.add("hidden");
+        const openPanel = () => modal.classList.remove("hidden");
+        const closePanel = () => modal.classList.add("hidden");
         const resetForm = () => {
           firstNameInput.value = "";
           lastNameInput.value = "";
@@ -587,11 +638,29 @@
 
         document.getElementById("openAddEmployeeBtn").addEventListener("click", openForCreate);
         document.getElementById("closeEmployeePanelBtn").addEventListener("click", closePanel);
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) closePanel();
+        });
+        panel.addEventListener("click", (event) => event.stopPropagation());
+        phoneInput.addEventListener("focus", () => {
+          if (!phoneInput.value.trim()) {
+            phoneInput.value = "+7";
+          }
+        });
+        phoneInput.addEventListener("blur", () => {
+          const digits = onlyDigits(phoneInput.value);
+          if (!digits || digits === "7") {
+            phoneInput.value = "";
+          }
+        });
+        phoneInput.addEventListener("input", () => {
+          phoneInput.value = applyPhoneMask(phoneInput.value);
+        });
 
         document.getElementById("saveEmployeeBtn").addEventListener("click", async () => {
           const firstName = firstNameInput.value.trim();
           const lastName = lastNameInput.value.trim();
-          const phone = phoneInput.value.trim();
+          const normalizedPhone = normalizePhone(phoneInput.value);
           const telegramContact = normalizeTelegramContact(telegramInput.value);
           const vkContact = vkInput.value.trim();
           const position = positionInput.value;
@@ -603,9 +672,9 @@
             return;
           }
 
-          if (phone && !/^[+0-9()\-\s]{6,30}$/.test(phone)) {
+          if (normalizedPhone === null) {
             status.className = "status error";
-            status.textContent = "Некорректный номер телефона. Пример: +7 999 123-45-67";
+            status.textContent = "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
             return;
           }
 
@@ -620,7 +689,7 @@
               body: JSON.stringify({
                 firstName,
                 lastName,
-                phone,
+                phone: normalizedPhone || "",
                 telegramContact,
                 vkContact,
                 position,
