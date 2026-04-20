@@ -750,15 +750,7 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
     };
   }
 
-  const aliases = new Set();
-  const fullName = normalizeEmployeeName(employee.fullName);
-  const firstName = normalizeEmployeeName(employee.firstName);
-  const lastName = normalizeEmployeeName(employee.lastName);
-  const firstLast = normalizeEmployeeName([firstName, lastName].filter(Boolean).join(" "));
-  const lastFirst = normalizeEmployeeName([lastName, firstName].filter(Boolean).join(" "));
-  if (fullName) aliases.add(fullName.toLowerCase());
-  if (firstLast) aliases.add(firstLast.toLowerCase());
-  if (lastFirst) aliases.add(lastFirst.toLowerCase());
+  const aliases = buildEmployeeAliases(employee);
 
   if (!aliases.size) {
     return {
@@ -812,6 +804,76 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
   return {
     employee,
     assignments
+  };
+}
+
+function buildEmployeeAliases(employee) {
+  const aliases = new Set();
+  const fullName = normalizeEmployeeName(employee?.fullName);
+  const firstName = normalizeEmployeeName(employee?.firstName);
+  const lastName = normalizeEmployeeName(employee?.lastName);
+  const firstLast = normalizeEmployeeName([firstName, lastName].filter(Boolean).join(" "));
+  const lastFirst = normalizeEmployeeName([lastName, firstName].filter(Boolean).join(" "));
+  if (fullName) aliases.add(fullName.toLowerCase());
+  if (firstLast) aliases.add(firstLast.toLowerCase());
+  if (lastFirst) aliases.add(lastFirst.toLowerCase());
+  return aliases;
+}
+
+export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit = 4 }) {
+  const employee = getEmployeeByTelegramId(telegramId);
+  if (!employee) {
+    return {
+      employee: null,
+      dates: []
+    };
+  }
+
+  const startDate = String(fromDate || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    return {
+      employee,
+      dates: []
+    };
+  }
+
+  const aliases = buildEmployeeAliases(employee);
+  if (!aliases.size) {
+    return {
+      employee,
+      dates: []
+    };
+  }
+
+  const safeLimit = Math.max(1, Math.min(10, Number(limit) || 4));
+  const rows = db
+    .prepare(
+      `
+      SELECT shift_date, executor1, executor2
+      FROM shifts
+      WHERE shift_date >= ?
+      ORDER BY shift_date ASC
+      `
+    )
+    .all(startDate);
+
+  const dates = [];
+  const seenDates = new Set();
+  for (const row of rows) {
+    if (dates.length >= safeLimit) break;
+    const shiftDate = String(row.shift_date || "");
+    if (!shiftDate || seenDates.has(shiftDate)) continue;
+    const e1 = normalizeEmployeeName(row.executor1).toLowerCase();
+    const e2 = normalizeEmployeeName(row.executor2).toLowerCase();
+    if ((e1 && aliases.has(e1)) || (e2 && aliases.has(e2))) {
+      seenDates.add(shiftDate);
+      dates.push(shiftDate);
+    }
+  }
+
+  return {
+    employee,
+    dates
   };
 }
 

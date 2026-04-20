@@ -1096,8 +1096,26 @@
         let shiftText = "Сегодня: смена не назначена";
         let overviewShift = "—";
         let overviewStatus = "Выходной";
+        let upcomingCaption = "Нет запланированных смен";
+        const formatUpcomingDate = (isoDate) => {
+          const value = String(isoDate || "").trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+          if (value === todayIso) return "Сегодня";
+          const tomorrow = new Date(`${todayIso}T00:00:00`);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const tomorrowIso = tomorrow.toISOString().slice(0, 10);
+          if (value === tomorrowIso) {
+            const [, month, day] = value.match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+            return `Завтра (${day}.${month})`;
+          }
+          const dateObj = new Date(`${value}T00:00:00`);
+          return dateObj.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+        };
         try {
-          const todayData = await api(`/api/schedule/me/today?date=${todayIso}`);
+          const [todayData, upcomingData] = await Promise.all([
+            api(`/api/schedule/me/today?date=${todayIso}`),
+            api(`/api/schedule/me/upcoming?fromDate=${todayIso}&limit=4`)
+          ]);
           const assignments = Array.isArray(todayData.assignments) ? todayData.assignments : [];
           if (assignments.length === 1) {
             const one = assignments[0];
@@ -1112,11 +1130,15 @@
             overviewShift = `${assignments.length} смены`;
             overviewStatus = firstTime;
           }
+          const upcomingDates = Array.isArray(upcomingData.dates) ? upcomingData.dates : [];
+          const labels = upcomingDates.map((date) => formatUpcomingDate(date)).filter(Boolean);
+          if (labels.length) {
+            upcomingCaption = labels.join(", ");
+          }
         } catch {
           // fallback значения уже заданы
         }
         const employeesTotal = Number(state.employees.length || 0);
-        const weekPlanned = Math.max(5, Math.round((state.locations.length || 1) * 1.2));
         screen.innerHTML = `
           <h2>Главный экран</h2>
           <div class="dash-user mt12">
@@ -1140,9 +1162,8 @@
               <div class="muted mt8">${escapeHtml(overviewStatus)}</div>
             </div>
             <div class="overview-card green">
-              <h3>На этой неделе</h3>
-              <div class="big">${weekPlanned} смен</div>
-              <div class="muted mt8">Запланировано</div>
+              <h3>Ближайшие смены</h3>
+              <div class="muted mt8">${escapeHtml(upcomingCaption)}</div>
             </div>
             <div class="overview-card purple">
               <h3>Сотрудники</h3>

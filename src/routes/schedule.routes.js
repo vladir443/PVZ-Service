@@ -5,6 +5,7 @@ import { Role } from "../lib/roles.js";
 import {
   createFinancePayment,
   deleteFinancePayment,
+  getUpcomingShiftDatesForTelegramId,
   getTodayAssignmentsForTelegramId,
   getScheduleForMonth,
   listFinancePaymentsForMonth,
@@ -73,6 +74,11 @@ const todaySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 });
 
+const upcomingSchema = z.object({
+  fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  limit: z.coerce.number().int().min(1).max(10).optional()
+});
+
 router.get("/me/today", (req, res, next) => {
   try {
     const parsed = todaySchema.safeParse(req.query);
@@ -95,6 +101,35 @@ router.get("/me/today", (req, res, next) => {
       date: todayIso,
       employee: result.employee,
       assignments: result.assignments
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/me/upcoming", (req, res, next) => {
+  try {
+    const parsed = upcomingSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const fromDate =
+      parsed.data.fromDate ||
+      new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+    const result = getUpcomingShiftDatesForTelegramId({
+      telegramId: req.user.telegramId,
+      fromDate,
+      limit: parsed.data.limit || 4
+    });
+
+    return res.json({
+      fromDate,
+      employee: result.employee,
+      dates: result.dates
     });
   } catch (error) {
     return next(error);
