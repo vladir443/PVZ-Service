@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
 import {
   createFinancePayment,
+  deleteFinancePayment,
   getScheduleForMonth,
   listFinancePaymentsForMonth,
   listLocations,
@@ -226,5 +227,37 @@ router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN),
     return next(error);
   }
 });
+
+router.delete(
+  "/:locationCode/payments/:paymentId",
+  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  (req, res, next) => {
+    try {
+      const paymentId = Number(req.params.paymentId);
+      if (!Number.isInteger(paymentId) || paymentId <= 0) {
+        return res.status(400).json({
+          error: "ValidationError",
+          message: "Invalid payment id"
+        });
+      }
+
+      const deleted = deleteFinancePayment({
+        locationCode: req.params.locationCode,
+        paymentId
+      });
+
+      if (!deleted) {
+        return res.status(404).json({
+          error: "NotFound",
+          message: "Payment was not found"
+        });
+      }
+
+      return res.json({ deleted });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
 
 export default router;

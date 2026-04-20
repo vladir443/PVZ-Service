@@ -315,6 +315,12 @@
         font-size: 13px;
       }
 
+      .finance-history-actions {
+        margin-top: 8px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
       .finance-details.hidden {
         display: none;
       }
@@ -1687,12 +1693,44 @@
                       <div>Дата выплаты: ${ruDate(item.paymentDate)}</div>
                       <div>За период: ${pFrom} - ${pTo}</div>
                       <div>Сумма: ${formatMoneyUnsigned(item.amount)}</div>
+                      ${
+                        canMarkPaid
+                          ? `
+                            <div class="finance-history-actions">
+                              <button class="button danger" type="button" data-history-cancel-id="${item.id}">Отменить</button>
+                            </div>
+                          `
+                          : ""
+                      }
                     </div>
                   `;
                 })
                 .join("");
             }
             financeHistoryModal.classList.remove("hidden");
+
+            const cancelButtons = [...financeHistoryList.querySelectorAll("[data-history-cancel-id]")];
+            for (const btn of cancelButtons) {
+              btn.addEventListener("click", async () => {
+                const paymentId = Number(btn.dataset.historyCancelId);
+                if (!Number.isInteger(paymentId) || paymentId <= 0) return;
+                if (!window.confirm("Отменить эту выплату?")) return;
+                btn.disabled = true;
+                financeError.textContent = "";
+                try {
+                  await api(`/api/schedule/${state.selectedLocation.code}/payments/${paymentId}`, {
+                    method: "DELETE"
+                  });
+                  await refreshFinanceData();
+                  renderFinanceHistory(employeeName);
+                  setFinanceStatus(`Выплата отменена. Обновлено: ${nowTimeLabel()}`);
+                } catch (error) {
+                  financeError.textContent = `Ошибка отмены выплаты: ${error.message}`;
+                } finally {
+                  btn.disabled = false;
+                }
+              });
+            }
           };
 
           const renderFinance = () => {

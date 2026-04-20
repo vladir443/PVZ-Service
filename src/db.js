@@ -710,6 +710,47 @@ export function createFinancePayment({
     .get(info.lastInsertRowid);
 }
 
+export function deleteFinancePayment({ locationCode, paymentId }) {
+  const id = Number(paymentId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  const existing = db
+    .prepare(
+      `
+      SELECT id, location_code, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
+      FROM finance_payments
+      WHERE id = ?
+        AND location_code = ?
+      `
+    )
+    .get(id, locationCode);
+
+  if (!existing) {
+    return null;
+  }
+
+  db.prepare(
+    `
+    DELETE FROM finance_payments
+    WHERE id = ?
+      AND location_code = ?
+    `
+  ).run(id, locationCode);
+
+  return {
+    id: existing.id,
+    employeeName: existing.employee_name,
+    paymentDate: existing.payment_date,
+    periodFrom: existing.period_from || "",
+    periodTo: existing.period_to || "",
+    amount: existing.amount,
+    createdByTelegramId: existing.created_by_telegram_id,
+    createdAt: existing.created_at
+  };
+}
+
 export function listEmployees() {
   return db
     .prepare(
