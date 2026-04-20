@@ -499,7 +499,10 @@ function safeParseMeta(raw) {
 }
 
 function normalizeEmployeeName(value) {
-  return String(value || "").trim();
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function getScheduleForMonth({ locationCode, month }) {
@@ -684,20 +687,6 @@ export function validateShiftExecutors({
     return { ok: true };
   }
 
-  const roleConflictClauses = [];
-  const roleConflictParams = [];
-  if (e1) {
-    roleConflictClauses.push("lower(trim(s.executor1)) = ?");
-    roleConflictParams.push(e1Lower);
-  }
-  if (e2) {
-    roleConflictClauses.push("lower(trim(s.executor2)) = ?");
-    roleConflictParams.push(e2Lower);
-  }
-  if (!roleConflictClauses.length) {
-    return { ok: true };
-  }
-
   const rows = db
     .prepare(
       `
@@ -710,12 +699,9 @@ export function validateShiftExecutors({
       JOIN locations l ON l.code = s.location_code
       WHERE s.shift_date = ?
         AND NOT (s.location_code = ? AND s.shift_date = ?)
-        AND (
-          ${roleConflictClauses.join("\n          OR ")}
-        )
       `
     )
-    .all(date, locationCode, date, ...roleConflictParams);
+    .all(date, locationCode, date);
 
   for (const row of rows) {
     const rowExecutor1 = normalizeEmployeeName(row.executor1);

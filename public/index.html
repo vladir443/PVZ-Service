@@ -1772,19 +1772,27 @@
         return `${labels[kind] || "Сумма"}: ${formatMoney(value)}`;
       }
 
-      function employeeSelectOptionsHtml(selectedValue = "") {
+      function employeeSelectOptionsHtml(selectedValue = "", disabledNames = new Set()) {
         const current = String(selectedValue || "").trim();
         const names = state.employees.map((emp) => String(emp.fullName || "").trim()).filter(Boolean);
         if (current && !names.includes(current)) {
           names.unshift(current);
         }
         const uniqueNames = [...new Set(names)];
+        const disabledLookup = new Set(
+          [...disabledNames].map((name) => String(name || "").trim().toLowerCase()).filter(Boolean)
+        );
         return `
           <option value="">— Пусто —</option>
           ${uniqueNames
             .map(
-              (name) =>
-                `<option value="${escapeHtml(name)}" ${current === name ? "selected" : ""}>${escapeHtml(name)}</option>`
+              (name) => {
+                const normalized = String(name || "").trim().toLowerCase();
+                const isDisabled = normalized && disabledLookup.has(normalized) && current !== name;
+                return `<option value="${escapeHtml(name)}" ${current === name ? "selected" : ""} ${
+                  isDisabled ? "disabled" : ""
+                }>${escapeHtml(name)}</option>`;
+              }
             )
             .join("")}
         `;
@@ -1870,12 +1878,36 @@
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
         try {
-          const [data, paymentsData] = await Promise.all([
+          const [data, paymentsData, otherSchedules] = await Promise.all([
             api(`/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`),
-            api(`/api/schedule/${state.selectedLocation.code}/payments?month=${state.selectedMonth}`)
+            api(`/api/schedule/${state.selectedLocation.code}/payments?month=${state.selectedMonth}`),
+            Promise.all(
+              (state.locations || [])
+                .filter((loc) => String(loc.code) !== String(state.selectedLocation.code))
+                .map((loc) => api(`/api/schedule/${loc.code}?month=${state.selectedMonth}`).catch(() => null))
+            )
           ]);
           const shifts = data.shifts || [];
           const payments = paymentsData.payments || [];
+          const roleBusyByDate = new Map();
+          for (const scheduleData of otherSchedules || []) {
+            if (!scheduleData?.shifts?.length) continue;
+            for (const otherRow of scheduleData.shifts) {
+              const date = String(otherRow?.date || "");
+              if (!date) continue;
+              const busy =
+                roleBusyByDate.get(date) ||
+                {
+                  executor1: new Set(),
+                  executor2: new Set()
+                };
+              const e1 = String(otherRow.executor1 || "").trim();
+              const e2 = String(otherRow.executor2 || "").trim();
+              if (e1) busy.executor1.add(e1);
+              if (e2) busy.executor2.add(e2);
+              roleBusyByDate.set(date, busy);
+            }
+          }
           const monthBounds = getMonthBounds(state.selectedMonth);
           const editable = canEditSchedule();
           if (!state.scheduleViewMode) {
@@ -1910,10 +1942,16 @@
                   <td class="day">${dayNameFromIso(row.date)}</td>
                   <td>${ruDate(row.date)}</td>
                   <td>
-                    <select data-f="executor1">${employeeSelectOptionsHtml(row.executor1 || "")}</select>
+                    <select data-f="executor1">${employeeSelectOptionsHtml(
+                      row.executor1 || "",
+                      roleBusyByDate.get(row.date)?.executor1 || new Set()
+                    )}</select>
                   </td>
                   <td>
-                    <select data-f="executor2">${employeeSelectOptionsHtml(row.executor2 || "")}</select>
+                    <select data-f="executor2">${employeeSelectOptionsHtml(
+                      row.executor2 || "",
+                      roleBusyByDate.get(row.date)?.executor2 || new Set()
+                    )}</select>
                   </td>
                   <td><input type="number" min="0" step="100" data-f="rate1" value="${Number(
                     row.rate1 || 0
@@ -1977,11 +2015,17 @@
                   <div class="schedule-card-grid">
                     <div>
                       <div class="muted">Исполнитель1</div>
-                      <select data-shift-input="1" data-f="executor1">${employeeSelectOptionsHtml(row.executor1 || "")}</select>
+                      <select data-shift-input="1" data-f="executor1">${employeeSelectOptionsHtml(
+                        row.executor1 || "",
+                        roleBusyByDate.get(row.date)?.executor1 || new Set()
+                      )}</select>
                     </div>
                     <div>
                       <div class="muted">Исполнитель2</div>
-                      <select data-shift-input="1" data-f="executor2">${employeeSelectOptionsHtml(row.executor2 || "")}</select>
+                      <select data-shift-input="1" data-f="executor2">${employeeSelectOptionsHtml(
+                        row.executor2 || "",
+                        roleBusyByDate.get(row.date)?.executor2 || new Set()
+                      )}</select>
                     </div>
                   </div>
                   <div class="schedule-card-details hidden" data-details="1">
