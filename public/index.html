@@ -170,6 +170,10 @@
         gap: 8px;
       }
 
+      .schedule-card-details.hidden {
+        display: none;
+      }
+
       table {
         width: 100%;
         min-width: 940px;
@@ -1086,6 +1090,9 @@
                         row.executor2 || ""
                       )}" />
                     </div>
+                  </div>
+                  <div class="schedule-card-details hidden" data-details="1">
+                    <div class="schedule-card-grid">
                     <div>
                       <div class="muted">Ставка И1</div>
                       <input data-shift-input="1" type="number" min="0" step="100" data-f="rate1" value="${Number(
@@ -1110,6 +1117,10 @@
                         row.bonuses || 0
                       )}" />
                     </div>
+                    </div>
+                  </div>
+                  <div class="row mt8">
+                    <button class="button secondary" data-toggle-card="${row.date}">Развернуть</button>
                   </div>
                 </div>
               `
@@ -1122,6 +1133,11 @@
               <button class="button secondary" id="toggleViewBtn">${
                 viewMode === "mobile" ? "Полный график" : "Мобильный режим"
               }</button>
+              ${
+                viewMode === "mobile"
+                  ? `<button class="button secondary" id="toggleAllCardsBtn">Развернуть все</button>`
+                  : ""
+              }
             </div>
             <h2 class="mt12">${escapeHtml(state.selectedLocation.title)}</h2>
             <div class="row mt12">
@@ -1183,6 +1199,46 @@
             for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input")) {
               input.addEventListener("input", () => autosave(input.closest("[data-date]")));
               input.addEventListener("change", () => autosave(input.closest("[data-date]")));
+            }
+          }
+
+          if (viewMode === "mobile") {
+            const allCards = [...screen.querySelectorAll(".schedule-card")];
+            const toggleAllBtn = document.getElementById("toggleAllCardsBtn");
+            let expandedAll = false;
+
+            function setCardExpanded(card, expanded) {
+              const details = card.querySelector("[data-details='1']");
+              const btn = card.querySelector("[data-toggle-card]");
+              if (!details || !btn) return;
+              details.classList.toggle("hidden", !expanded);
+              btn.textContent = expanded ? "Свернуть" : "Развернуть";
+            }
+
+            for (const card of allCards) {
+              setCardExpanded(card, false);
+              const btn = card.querySelector("[data-toggle-card]");
+              if (!btn) continue;
+              btn.addEventListener("click", () => {
+                const details = card.querySelector("[data-details='1']");
+                const expanded = details?.classList.contains("hidden");
+                setCardExpanded(card, !!expanded);
+                const anyCollapsed = allCards.some((c) =>
+                  c.querySelector("[data-details='1']")?.classList.contains("hidden")
+                );
+                expandedAll = !anyCollapsed;
+                toggleAllBtn.textContent = expandedAll ? "Свернуть все" : "Развернуть все";
+              });
+            }
+
+            if (toggleAllBtn) {
+              toggleAllBtn.addEventListener("click", () => {
+                expandedAll = !expandedAll;
+                for (const card of allCards) {
+                  setCardExpanded(card, expandedAll);
+                }
+                toggleAllBtn.textContent = expandedAll ? "Свернуть все" : "Развернуть все";
+              });
             }
           }
         } catch (error) {
