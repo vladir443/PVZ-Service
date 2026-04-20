@@ -1099,7 +1099,7 @@
         let upcomingCaption = "Нет запланированных смен";
         let todayTeamTitle = "Сегодня у вас нет смены";
         let todayTeamSub = "Пока вы не назначены на смену";
-        let emptyShiftLines = ["Пустых смен на ближайшие 3 дня нет"];
+        let emptyShiftLines = ["Свободных смен на ближайшие 3 дня нет"];
         const formatUpcomingDate = (isoDate) => {
           const value = String(isoDate || "").trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
@@ -1196,7 +1196,7 @@
           const scheduleMap = new Map(
             scheduleResponses.map((item) => [`${item.locationCode}:${item.month}`, item.shifts])
           );
-          const emptyRows = [];
+          const emptyRowsByDate = new Map();
           const seenEmptyRows = new Set();
           for (const date of nextDates) {
             const monthKey = String(date).slice(0, 7);
@@ -1206,16 +1206,22 @@
               const e1 = String(row?.executor1 || "").trim();
               const e2 = String(row?.executor2 || "").trim();
               if (!e1 && !e2) {
-                const line = `${formatUpcomingDate(date)} — ${loc.title}`;
-                if (!seenEmptyRows.has(line)) {
-                  seenEmptyRows.add(line);
-                  emptyRows.push(line);
+                const dateLabel = formatUpcomingDate(date);
+                const key = `${dateLabel}::${loc.title}`;
+                if (!seenEmptyRows.has(key)) {
+                  seenEmptyRows.add(key);
+                  const current = emptyRowsByDate.get(dateLabel) || [];
+                  current.push(loc.title);
+                  emptyRowsByDate.set(dateLabel, current);
                 }
               }
             }
           }
-          if (emptyRows.length) {
-            emptyShiftLines = emptyRows;
+          const groupedRows = [...emptyRowsByDate.entries()].map(
+            ([dateLabel, locations]) => `${dateLabel} — ${locations.join(", ")}`
+          );
+          if (groupedRows.length) {
+            emptyShiftLines = groupedRows;
           }
         } catch {
           // fallback значения уже заданы
@@ -1253,7 +1259,7 @@
             </div>
           </div>
           <div class="warn-banner mt12">
-            <div><strong>Ближайшие пустые смены</strong></div>
+            <div><strong>Ближайшие свободные смены</strong></div>
             ${emptyShiftLinesHtml}
           </div>
         `;
