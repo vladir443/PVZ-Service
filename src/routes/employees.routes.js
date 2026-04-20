@@ -3,14 +3,17 @@ import { z } from "zod";
 import {
   createEmployee,
   deleteEmployeeById,
+  getUserByTelegramId,
   listEmployees,
+  updateUserRole,
   updateEmployeeById
 } from "../db.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+import { Role } from "../lib/roles.js";
 
 const router = express.Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireRole(Role.ADMIN, Role.SUPERADMIN));
 
 router.get("/", (_req, res, next) => {
   try {
@@ -29,7 +32,8 @@ const contactSchema = z.object({
   telegramContact: z.string().trim().max(120).optional().default(""),
   vkContact: z.string().trim().max(200).optional().default(""),
   position: z.enum(["owner", "owner_manager", "senior_manager", "manager", "intern"]),
-  reliability: z.enum(["reliable", "checking", "borderline"])
+  reliability: z.enum(["reliable", "checking", "borderline"]),
+  accessRole: z.enum([Role.ADMIN, Role.PARTICIPANT]).optional().default(Role.PARTICIPANT)
 });
 
 function validateContacts(data) {
@@ -77,7 +81,8 @@ router.post("/", (req, res, next) => {
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
       position: parsed.data.position,
-      reliability: parsed.data.reliability
+      reliability: parsed.data.reliability,
+      accessRole: parsed.data.accessRole
     });
 
     return res.status(201).json({ employee });
@@ -118,6 +123,41 @@ router.put("/:id", (req, res, next) => {
       });
     }
 
+    const currentEmployees = listEmployees();
+    const targetEmployee = currentEmployees.find((item) => item.id === id);
+    if (!targetEmployee) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Сотрудник не найден"
+      });
+    }
+
+    const actorRole = req.user.role;
+    const targetRole = targetEmployee.accessRole || Role.PARTICIPANT;
+    const requestedRole = parsed.data.accessRole || Role.PARTICIPANT;
+
+    if (targetEmployee.isProtected) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Роль главного админа менять нельзя"
+      });
+    }
+
+    if (actorRole === Role.ADMIN) {
+      if (targetRole === Role.ADMIN && requestedRole !== Role.ADMIN) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Админ не может менять роль другого админа"
+        });
+      }
+      if (targetRole === Role.PARTICIPANT && requestedRole !== targetRole && requestedRole !== Role.ADMIN) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Админ может только повысить участника до админа"
+        });
+      }
+    }
+
     const result = updateEmployeeById({
       id,
       firstName: parsed.data.firstName,
@@ -127,7 +167,8 @@ router.put("/:id", (req, res, next) => {
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
       position: parsed.data.position,
-      reliability: parsed.data.reliability
+      reliability: parsed.data.reliability,
+      accessRole: requestedRole
     });
 
     if (result.reason === "protected") {
@@ -142,6 +183,17 @@ router.put("/:id", (req, res, next) => {
         error: "NotFound",
         message: "Сотрудник не найден"
       });
+    }
+
+    if (result.employee.telegramId) {
+      const targetUser = getUserByTelegramId(result.employee.telegramId);
+      if (targetUser && targetUser.role !== Role.SUPERADMIN) {
+        updateUserRole({
+          telegramId: result.employee.telegramId,
+          role: requestedRole,
+          isSuperAdmin: false
+        });
+      }
     }
 
     return res.json({ employee: result.employee });

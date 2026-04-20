@@ -71,6 +71,11 @@
       .button:hover { background: var(--primary-dark); }
       .button.secondary { background: #334155; }
       .button.danger { background: var(--danger); }
+      .button.disabled,
+      .button:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+      }
 
       .menu-grid {
         display: grid;
@@ -88,6 +93,10 @@
         text-align: left;
         min-height: 62px;
       }
+      .location-btn.wb { background: #6d28d9; }
+      .location-btn.wb:hover { background: #5b21b6; }
+      .location-btn.ozon { background: #1d4ed8; }
+      .location-btn.ozon:hover { background: #1e40af; }
 
       .profile-box {
         display: flex;
@@ -235,6 +244,10 @@
         font-size: 16px;
       }
 
+      .app-title.hidden {
+        display: none;
+      }
+
       @media (max-width: 640px) {
         .wrap { padding: 0; }
         .card {
@@ -252,7 +265,7 @@
   <body>
     <div class="wrap">
       <div class="card">
-        <h1>PVZ Service</h1>
+        <h1 id="appTitle" class="app-title">PVZ Service</h1>
         <div id="screen" class="mt12"></div>
       </div>
     </div>
@@ -289,6 +302,11 @@
         checking: "Проверяется",
         borderline: "На грани увольнения"
       };
+      const userRoles = {
+        SUPERADMIN: "Гл. Админ",
+        ADMIN: "Админ",
+        PARTICIPANT: "Участник"
+      };
 
       const state = {
         telegramUser: null,
@@ -301,6 +319,25 @@
       };
 
       const screen = document.getElementById("screen");
+      const appTitle = document.getElementById("appTitle");
+
+      function setAppTitle(value) {
+        if (!value) {
+          appTitle.textContent = "";
+          appTitle.classList.add("hidden");
+          return;
+        }
+        appTitle.textContent = value;
+        appTitle.classList.remove("hidden");
+      }
+
+      function canManageEmployees() {
+        return state.user?.role === "ADMIN" || state.user?.role === "SUPERADMIN";
+      }
+
+      function canEditSchedule() {
+        return state.user?.role === "ADMIN" || state.user?.role === "SUPERADMIN";
+      }
 
       function monthNow() {
         const now = new Date();
@@ -382,6 +419,7 @@
       }
 
       function renderMain() {
+        setAppTitle("PVZ Service");
         const photo = state.telegramUser?.photoUrl;
         const initials = (state.user?.fullName || "?")
           .split(" ")
@@ -401,26 +439,38 @@
             }
             <div>
               <div><strong>${escapeHtml(state.user.fullName)}</strong></div>
-              <div class="muted mt8">Роль: <strong>${escapeHtml(state.user.role)}</strong></div>
+              <div class="muted mt8">Роль: <strong>${escapeHtml(userRoles[state.user.role] || state.user.role)}</strong></div>
             </div>
           </div>
           <div class="menu-grid mt16">
             <button class="button" id="goScheduleBtn">График</button>
-            <button class="button secondary" id="goEmployeesBtn">База сотрудников</button>
+            <button class="button secondary ${canManageEmployees() ? "" : "disabled"}" id="goEmployeesBtn">База сотрудников</button>
           </div>
+          <p id="mainStatus" class="status mt8"></p>
         `;
 
         document.getElementById("goScheduleBtn").addEventListener("click", renderLocations);
-        document.getElementById("goEmployeesBtn").addEventListener("click", renderEmployeesBase);
+        document.getElementById("goEmployeesBtn").addEventListener("click", () => {
+          const status = document.getElementById("mainStatus");
+          if (!canManageEmployees()) {
+            status.className = "status error";
+            status.textContent = "Недостаточно прав для раздела База сотрудников";
+            return;
+          }
+          renderEmployeesBase();
+        });
       }
 
       function renderLocations() {
+        setAppTitle("");
         const locationHtml = state.locations
           .map(
-            (loc) =>
-              `<button class="button location-btn" data-code="${escapeHtml(loc.code)}">${escapeHtml(
+            (loc) => {
+              const btnClass = loc.title.toLowerCase().startsWith("ozon") ? "ozon" : "wb";
+              return `<button class="button location-btn ${btnClass}" data-code="${escapeHtml(loc.code)}">${escapeHtml(
                 loc.title
-              )}</button>`
+              )}</button>`;
+            }
           )
           .join("");
 
@@ -428,7 +478,7 @@
           <div class="row">
             <button class="button secondary" id="backMainBtn">Назад</button>
           </div>
-          <h2 class="mt12">Выбор пункта</h2>
+          <h2 class="mt12">Выбор ПВЗ</h2>
           <div class="location-grid mt12">${locationHtml}</div>
         `;
 
@@ -456,6 +506,22 @@
           <option value="senior_manager" ${selected === "senior_manager" ? "selected" : ""}>Старший менеджер</option>
           <option value="manager" ${selected === "manager" ? "selected" : ""}>Менеджер</option>
           <option value="intern" ${selected === "intern" ? "selected" : ""}>Стажер</option>
+        `;
+      }
+
+      function accessRoleOptionsHtml(selected = "PARTICIPANT", actorRole = "PARTICIPANT", targetProtected = false) {
+        if (targetProtected) {
+          return `<option value="ADMIN" selected>Гл. Админ</option>`;
+        }
+        if (actorRole === "SUPERADMIN") {
+          return `
+            <option value="PARTICIPANT" ${selected === "PARTICIPANT" ? "selected" : ""}>Участник</option>
+            <option value="ADMIN" ${selected === "ADMIN" ? "selected" : ""}>Админ</option>
+          `;
+        }
+        return `
+          <option value="PARTICIPANT" ${selected === "PARTICIPANT" ? "selected" : ""}>Участник</option>
+          <option value="ADMIN" ${selected === "ADMIN" ? "selected" : ""}>Админ</option>
         `;
       }
 
@@ -529,6 +595,7 @@
                         ${emp.phone ? ` · ${escapeHtml(emp.phone)}` : ""}
                         ${emp.telegramContact ? ` · TG: ${escapeHtml(emp.telegramContact)}` : ""}
                         ${emp.vkContact ? ` · VK: ${escapeHtml(emp.vkContact)}` : ""}
+                        ${emp.accessRole ? ` · Доступ: ${escapeHtml(userRoles[emp.accessRole] || emp.accessRole)}` : ""}
                       </div>
                     </div>
                     <button class="button secondary" data-edit-id="${emp.id}">Редактировать</button>
@@ -576,6 +643,10 @@
                   <div class="muted">Надежность</div>
                   <select id="reliabilityInput">${reliabilityOptionsHtml("checking")}</select>
                 </div>
+                <div>
+                  <div class="muted">Роль в приложении</div>
+                  <select id="accessRoleInput">${accessRoleOptionsHtml("PARTICIPANT", state.user.role, false)}</select>
+                </div>
               </div>
               <div class="row mt12">
                 <button class="button" id="saveEmployeeBtn">Сохранить</button>
@@ -600,6 +671,7 @@
         const vkInput = document.getElementById("vkInput");
         const positionInput = document.getElementById("positionInput");
         const reliabilityInput = document.getElementById("reliabilityInput");
+        const accessRoleInput = document.getElementById("accessRoleInput");
         const deleteEmployeeBtn = document.getElementById("deleteEmployeeBtn");
         let editingEmployeeId = null;
 
@@ -613,6 +685,9 @@
           vkInput.value = "";
           positionInput.value = "manager";
           reliabilityInput.value = "checking";
+          accessRoleInput.innerHTML = accessRoleOptionsHtml("PARTICIPANT", state.user.role, false);
+          accessRoleInput.value = "PARTICIPANT";
+          accessRoleInput.disabled = false;
           deleteEmployeeBtn.style.display = "none";
           deleteEmployeeBtn.disabled = true;
           deleteEmployeeBtn.textContent = "Удалить сотрудника";
@@ -642,6 +717,15 @@
           vkInput.value = employee.vkContact || "";
           positionInput.value = employee.position || "manager";
           reliabilityInput.value = employee.reliability || "checking";
+          accessRoleInput.innerHTML = accessRoleOptionsHtml(
+            employee.accessRole || "PARTICIPANT",
+            state.user.role,
+            !!employee.isProtected
+          );
+          accessRoleInput.value = employee.accessRole || "PARTICIPANT";
+          accessRoleInput.disabled =
+            !!employee.isProtected ||
+            (state.user.role === "ADMIN" && (employee.accessRole || "PARTICIPANT") === "ADMIN");
           deleteEmployeeBtn.style.display = "inline-block";
           deleteEmployeeBtn.disabled = !!employee.isProtected;
           deleteEmployeeBtn.textContent = employee.isProtected
@@ -679,6 +763,7 @@
           const vkContact = vkInput.value.trim();
           const position = positionInput.value;
           const reliability = reliabilityInput.value;
+          const accessRole = accessRoleInput.value || "PARTICIPANT";
 
           if (firstName.length < 3 || lastName.length < 3) {
             status.className = "status error";
@@ -707,7 +792,8 @@
                 telegramContact,
                 vkContact,
                 position,
-                reliability
+                reliability,
+                accessRole
               })
             });
 
@@ -797,6 +883,7 @@
       }
 
       async function renderSchedule() {
+        setAppTitle("");
         await loadEmployees();
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
@@ -838,7 +925,7 @@
 
           screen.innerHTML = `
             <div class="row">
-              <button class="button secondary" id="backLocationsBtn">К пунктам</button>
+              <button class="button secondary" id="backLocationsBtn">Назад</button>
             </div>
             <h2 class="mt12">${escapeHtml(state.selectedLocation.title)}</h2>
             <div class="row mt12">
@@ -877,10 +964,21 @@
             }
           });
 
-          const autosave = createRowAutoSaver(state.selectedLocation.code);
-          for (const input of screen.querySelectorAll("tbody input")) {
-            input.addEventListener("input", () => autosave(input.closest("tr")));
-            input.addEventListener("change", () => autosave(input.closest("tr")));
+          const editable = canEditSchedule();
+          if (!editable) {
+            for (const input of screen.querySelectorAll("tbody input")) {
+              input.setAttribute("readonly", "readonly");
+              input.setAttribute("disabled", "disabled");
+            }
+            const status = document.getElementById("scheduleStatus");
+            status.className = "status";
+            status.textContent = "Режим просмотра: у вас нет прав на редактирование";
+          } else {
+            const autosave = createRowAutoSaver(state.selectedLocation.code);
+            for (const input of screen.querySelectorAll("tbody input")) {
+              input.addEventListener("input", () => autosave(input.closest("tr")));
+              input.addEventListener("change", () => autosave(input.closest("tr")));
+            }
           }
         } catch (error) {
           screen.innerHTML = `

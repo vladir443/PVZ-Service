@@ -2,7 +2,6 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import {
-  countAdmins,
   getUserByTelegramId,
   listUsers,
   updateUserRole
@@ -11,7 +10,7 @@ import { Role } from "../lib/roles.js";
 
 const router = express.Router();
 
-router.use(requireAuth, requireRole(Role.ADMIN));
+router.use(requireAuth, requireRole(Role.ADMIN, Role.SUPERADMIN));
 
 router.get("/users", async (_req, res, next) => {
   try {
@@ -23,7 +22,7 @@ router.get("/users", async (_req, res, next) => {
 });
 
 const updateRoleSchema = z.object({
-  role: z.enum([Role.ADMIN, Role.EMPLOYEE])
+  role: z.enum([Role.ADMIN, Role.PARTICIPANT])
 });
 
 router.patch("/users/:telegramId/role", async (req, res, next) => {
@@ -44,20 +43,32 @@ router.patch("/users/:telegramId/role", async (req, res, next) => {
       });
     }
 
-    if (
-      targetUser.role === Role.ADMIN &&
-      parsed.data.role === Role.EMPLOYEE &&
-      countAdmins() === 1
-    ) {
-      return res.status(400).json({
-        error: "ValidationError",
-        message: "Cannot demote the last admin user"
+    if (targetUser.role === Role.SUPERADMIN) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Роль главного админа менять нельзя"
       });
+    }
+
+    if (req.user.role === Role.ADMIN) {
+      if (targetUser.role === Role.ADMIN && parsed.data.role !== Role.ADMIN) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Админ не может менять роль другого админа"
+        });
+      }
+      if (targetUser.role === Role.PARTICIPANT && parsed.data.role !== Role.ADMIN) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Админ может только повысить участника до админа"
+        });
+      }
     }
 
     const user = updateUserRole({
       telegramId: req.params.telegramId,
-      role: parsed.data.role
+      role: parsed.data.role,
+      isSuperAdmin: false
     });
 
     return res.json({ user });

@@ -1,6 +1,7 @@
 import express from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+import { Role } from "../lib/roles.js";
 import {
   getScheduleForMonth,
   listLocations,
@@ -62,7 +63,7 @@ const shiftSchema = z.object({
   bonuses: z.coerce.number().min(0).max(1000000).default(0)
 });
 
-router.put("/:locationCode/:date", (req, res, next) => {
+router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
   try {
     const parsed = shiftSchema.safeParse({
       ...req.body,

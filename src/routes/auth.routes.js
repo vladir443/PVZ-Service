@@ -3,8 +3,8 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import {
   bindEmployeeTelegramId,
-  canLoginByEmployeeAccess,
   createUser,
+  getEmployeeByAuth,
   getUserByTelegramId,
   isCoreAdminUsername,
   updateUserProfile,
@@ -33,7 +33,8 @@ router.post("/login", async (req, res, next) => {
 
     const { telegramId, fullName, username } = parsed.data;
 
-    if (!canLoginByEmployeeAccess({ telegramId, username })) {
+    const employee = getEmployeeByAuth({ telegramId, username });
+    if (!employee) {
       return res.status(403).json({
         error: "Forbidden",
         message: "Доступ закрыт: вас нет в базе сотрудников"
@@ -43,7 +44,9 @@ router.post("/login", async (req, res, next) => {
     bindEmployeeTelegramId({ telegramId, username });
 
     const adminIds = getAdminTelegramIds();
-    let shouldBeAdmin = adminIds.has(telegramId) || isCoreAdminUsername(username);
+    const isSuperAdmin = isCoreAdminUsername(username);
+    const shouldBeAdmin =
+      isSuperAdmin || adminIds.has(telegramId) || employee.accessRole === Role.ADMIN;
 
     const existingUser = getUserByTelegramId(telegramId);
 
@@ -52,13 +55,16 @@ router.post("/login", async (req, res, next) => {
       user = createUser({
         telegramId,
         fullName,
-        role: shouldBeAdmin ? Role.ADMIN : Role.EMPLOYEE
+        role: shouldBeAdmin ? Role.ADMIN : Role.PARTICIPANT,
+        isSuperAdmin
       });
     } else {
       user = updateUserProfile({ telegramId, fullName });
 
-      if (shouldBeAdmin && existingUser.role !== Role.ADMIN) {
-        user = updateUserRole({ telegramId, role: Role.ADMIN });
+      const targetRole = shouldBeAdmin ? Role.ADMIN : Role.PARTICIPANT;
+      const needsRoleUpdate = existingUser.role !== targetRole || (isSuperAdmin && existingUser.role !== Role.SUPERADMIN);
+      if (needsRoleUpdate || isSuperAdmin) {
+        user = updateUserRole({ telegramId, role: targetRole, isSuperAdmin });
       }
     }
 

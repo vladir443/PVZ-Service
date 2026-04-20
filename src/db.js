@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "./config/env.js";
+import { DbRole, Role, fromDbRole, toDbRole } from "./lib/roles.js";
 
 function prepareDatabasePath(databasePath) {
   try {
@@ -36,6 +37,7 @@ db.exec(`
     telegram_id TEXT NOT NULL UNIQUE,
     full_name TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('ADMIN', 'EMPLOYEE')) DEFAULT 'EMPLOYEE',
+    is_super_admin INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -77,6 +79,7 @@ db.exec(`
     vk_contact TEXT NOT NULL DEFAULT '',
     position TEXT NOT NULL DEFAULT 'manager',
     reliability TEXT NOT NULL DEFAULT 'checking',
+    access_role TEXT NOT NULL DEFAULT 'EMPLOYEE',
     is_protected INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -85,6 +88,10 @@ db.exec(`
 function hasColumn(table, column) {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all();
   return rows.some((row) => row.name === column);
+}
+
+if (!hasColumn("users", "is_super_admin")) {
+  db.exec("ALTER TABLE users ADD COLUMN is_super_admin INTEGER NOT NULL DEFAULT 0;");
 }
 
 if (!hasColumn("employees", "first_name")) {
@@ -104,6 +111,9 @@ if (!hasColumn("employees", "position")) {
 }
 if (!hasColumn("employees", "reliability")) {
   db.exec("ALTER TABLE employees ADD COLUMN reliability TEXT NOT NULL DEFAULT 'checking';");
+}
+if (!hasColumn("employees", "access_role")) {
+  db.exec("ALTER TABLE employees ADD COLUMN access_role TEXT NOT NULL DEFAULT 'EMPLOYEE';");
 }
 if (!hasColumn("employees", "telegram_contact")) {
   db.exec("ALTER TABLE employees ADD COLUMN telegram_contact TEXT NOT NULL DEFAULT '';");
@@ -162,6 +172,7 @@ function ensureCoreEmployee() {
         vk_contact = ?,
         position = ?,
         reliability = 'reliable',
+        access_role = 'ADMIN',
         is_protected = 1
       WHERE id = ?
       `
@@ -182,8 +193,8 @@ function ensureCoreEmployee() {
   db.prepare(
     `
     INSERT INTO employees (
-      full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, is_protected
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reliable', 1)
+      full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reliable', 'ADMIN', 1)
     `
   ).run(
     CORE_EMPLOYEE.fullName,
@@ -228,7 +239,7 @@ function mapUserRow(row) {
     id: row.id,
     telegramId: row.telegram_id,
     fullName: row.full_name,
-    role: row.role,
+    role: fromDbRole(row.role, row.is_super_admin === 1),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -239,6 +250,7 @@ export function getUserByTelegramId(telegramId) {
     .prepare(
       `
       SELECT id, telegram_id, full_name, role, created_at, updated_at
+           , is_super_admin
       FROM users
       WHERE telegram_id = ?
       `
@@ -248,13 +260,13 @@ export function getUserByTelegramId(telegramId) {
   return mapUserRow(row);
 }
 
-export function createUser({ telegramId, fullName, role }) {
+export function createUser({ telegramId, fullName, role, isSuperAdmin = false }) {
   db.prepare(
     `
-    INSERT INTO users (telegram_id, full_name, role, updated_at)
-    VALUES (?, ?, ?, datetime('now'))
+    INSERT INTO users (telegram_id, full_name, role, is_super_admin, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
     `
-  ).run(telegramId, fullName, role);
+  ).run(telegramId, fullName, toDbRole(role), isSuperAdmin ? 1 : 0);
 
   return getUserByTelegramId(telegramId);
 }
@@ -271,14 +283,17 @@ export function updateUserProfile({ telegramId, fullName }) {
   return getUserByTelegramId(telegramId);
 }
 
-export function updateUserRole({ telegramId, role }) {
+export function updateUserRole({ telegramId, role, isSuperAdmin }) {
+  const hasSuperAdminFlag = typeof isSuperAdmin === "boolean";
   const result = db.prepare(
     `
     UPDATE users
-    SET role = ?, updated_at = datetime('now')
+    SET role = ?,
+        is_super_admin = CASE WHEN ? THEN ? ELSE is_super_admin END,
+        updated_at = datetime('now')
     WHERE telegram_id = ?
     `
-  ).run(role, telegramId);
+  ).run(toDbRole(role), hasSuperAdminFlag ? 1 : 0, isSuperAdmin ? 1 : 0, telegramId);
 
   if (result.changes === 0) {
     return null;
@@ -292,6 +307,7 @@ export function listUsers() {
     .prepare(
       `
       SELECT id, telegram_id, full_name, role, created_at, updated_at
+           , is_super_admin
       FROM users
       ORDER BY created_at DESC
       `
@@ -308,7 +324,7 @@ export function countUsers() {
 
 export function countAdmins() {
   const row = db
-    .prepare("SELECT COUNT(*) as total FROM users WHERE role = 'ADMIN'")
+    .prepare("SELECT COUNT(*) as total FROM users WHERE role = 'ADMIN' OR is_super_admin = 1")
     .get();
   return row.total;
 }
@@ -461,6 +477,7 @@ export function listEmployees() {
     .prepare(
       `
       SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
+           , telegram_id, access_role, is_protected
       FROM employees
       ORDER BY full_name COLLATE NOCASE ASC
       `
@@ -477,6 +494,7 @@ export function listEmployees() {
       vkContact: row.vk_contact,
       position: row.position,
       reliability: row.reliability,
+      accessRole: fromDbRole(row.access_role, row.is_protected === 1),
       isProtected: row.is_protected === 1,
       createdAt: row.created_at
     }));
@@ -490,15 +508,16 @@ export function createEmployee({
   telegramContact,
   vkContact,
   position,
-  reliability
+  reliability,
+  accessRole = Role.PARTICIPANT
 }) {
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
   const result = db
     .prepare(
       `
       INSERT INTO employees (
-        full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
@@ -510,13 +529,14 @@ export function createEmployee({
       telegramContact.trim(),
       vkContact.trim(),
       position,
-      reliability
+      reliability,
+      toDbRole(accessRole)
     );
 
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE id = ?
       `
@@ -534,6 +554,7 @@ export function createEmployee({
     vkContact: row.vk_contact,
     position: row.position,
     reliability: row.reliability,
+    accessRole: fromDbRole(row.access_role, row.is_protected === 1),
     isProtected: row.is_protected === 1,
     createdAt: row.created_at
   };
@@ -569,7 +590,8 @@ export function updateEmployeeById({
   telegramContact,
   vkContact,
   position,
-  reliability
+  reliability,
+  accessRole = Role.PARTICIPANT
 }) {
   const current = db
     .prepare(
@@ -603,7 +625,8 @@ export function updateEmployeeById({
         telegram_contact = ?,
         vk_contact = ?,
         position = ?,
-        reliability = ?
+        reliability = ?,
+        access_role = ?
       WHERE id = ?
       `
     )
@@ -617,6 +640,7 @@ export function updateEmployeeById({
       vkContact.trim(),
       position,
       reliability,
+      toDbRole(accessRole),
       id
     );
 
@@ -647,6 +671,7 @@ export function updateEmployeeById({
       vkContact: row.vk_contact,
       position: row.position,
       reliability: row.reliability,
+      accessRole: fromDbRole(row.access_role, row.is_protected === 1),
       isProtected: row.is_protected === 1,
       createdAt: row.created_at
     }
@@ -704,6 +729,7 @@ export function getEmployeeByTelegramId(telegramId) {
     .prepare(
       `
       SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
+           , access_role
       FROM employees
       WHERE telegram_id = ?
       LIMIT 1
@@ -723,6 +749,40 @@ export function getEmployeeByTelegramId(telegramId) {
     vkContact: row.vk_contact,
     position: row.position,
     reliability: row.reliability,
+    accessRole: fromDbRole(row.access_role, row.is_protected === 1),
+    isProtected: row.is_protected === 1,
+    createdAt: row.created_at
+  };
+}
+
+export function getEmployeeByAuth({ telegramId, username }) {
+  const normalizedUsername = normalizeUsername(username);
+  const row = db
+    .prepare(
+      `
+      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      FROM employees
+      WHERE telegram_id = ?
+         OR lower(replace(telegram_contact, '@', '')) = ?
+      ORDER BY CASE WHEN telegram_id = ? THEN 0 ELSE 1 END, id ASC
+      LIMIT 1
+      `
+    )
+    .get(String(telegramId || "").trim(), normalizedUsername, String(telegramId || "").trim());
+
+  if (!row) return null;
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    telegramId: row.telegram_id,
+    phone: row.phone,
+    telegramContact: row.telegram_contact,
+    vkContact: row.vk_contact,
+    position: row.position,
+    reliability: row.reliability,
+    accessRole: fromDbRole(row.access_role, row.is_protected === 1),
     isProtected: row.is_protected === 1,
     createdAt: row.created_at
   };
