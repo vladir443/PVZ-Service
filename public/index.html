@@ -127,6 +127,7 @@
       input[type="text"],
       input[type="number"],
       input[type="month"],
+      input[type="date"],
       input[type="tel"],
       select {
         width: 100%;
@@ -232,6 +233,27 @@
         grid-template-columns: 1fr 1fr;
         gap: 8px;
         margin-top: 8px;
+      }
+
+      .finance-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .finance-row {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .finance-amount {
+        font-weight: 700;
+        white-space: nowrap;
       }
 
       table {
@@ -1064,6 +1086,24 @@
         return `${d}.${m}.${y}`;
       }
 
+      function getMonthBounds(monthValue) {
+        const match = String(monthValue || "").match(/^(\d{4})-(\d{2})$/);
+        if (!match) {
+          const now = new Date();
+          const y = now.getFullYear();
+          const m = now.getMonth() + 1;
+          const mm = String(m).padStart(2, "0");
+          return { start: `${y}-${mm}-01`, end: `${y}-${mm}-31` };
+        }
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        return {
+          start: `${match[1]}-${match[2]}-01`,
+          end: `${match[1]}-${match[2]}-${String(lastDay).padStart(2, "0")}`
+        };
+      }
+
       function formatMonthYear(monthValue) {
         const match = String(monthValue || "").match(/^(\d{4})-(\d{2})$/);
         if (!match) return "Выбрать месяц";
@@ -1180,6 +1220,7 @@
             `/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`
           );
           const shifts = data.shifts || [];
+          const monthBounds = getMonthBounds(state.selectedMonth);
           const employeeOptions = employeeOptionsHtml();
           const editable = canEditSchedule();
           if (!state.scheduleViewMode) {
@@ -1348,6 +1389,7 @@
               <button class="button secondary" id="monthPickerBtn">${escapeHtml(
                 formatMonthYear(state.selectedMonth)
               )}</button>
+              <button class="button secondary" id="openFinanceBtn">Финансы</button>
             </div>
             <p id="scheduleStatus" class="status mt8"></p>
             <datalist id="employeesList">${employeeOptions}</datalist>
@@ -1405,6 +1447,32 @@
                 </div>
               </div>
             </div>
+            <div id="financeModal" class="modal hidden">
+              <div class="panel">
+                <h3 class="panel-title">Финансы за период</h3>
+                <div class="row mt12">
+                  <button class="button secondary" id="financeFirstHalfBtn">1-15</button>
+                  <button class="button secondary" id="financeSecondHalfBtn">16-конец</button>
+                  <button class="button secondary" id="financeWholeMonthBtn">Весь месяц</button>
+                </div>
+                <div class="grid mt12">
+                  <div>
+                    <div class="muted">Дата с</div>
+                    <input id="financeFromInput" type="date" />
+                  </div>
+                  <div>
+                    <div class="muted">Дата по</div>
+                    <input id="financeToInput" type="date" />
+                  </div>
+                </div>
+                <p id="financeHint" class="muted mt8"></p>
+                <p id="financeError" class="status error mt8"></p>
+                <div id="financeList" class="finance-list mt12"></div>
+                <div class="row mt12">
+                  <button class="button secondary" id="closeFinanceBtn">Закрыть</button>
+                </div>
+              </div>
+            </div>
             <div id="adjustModal" class="modal hidden">
               <div class="panel">
                 <h3 id="adjustTitle" class="panel-title"></h3>
@@ -1449,6 +1517,104 @@
               monthModal.classList.add("hidden");
               renderSchedule();
             }
+          });
+
+          const financeModal = document.getElementById("financeModal");
+          const financeFromInput = document.getElementById("financeFromInput");
+          const financeToInput = document.getElementById("financeToInput");
+          const financeList = document.getElementById("financeList");
+          const financeHint = document.getElementById("financeHint");
+          const financeError = document.getElementById("financeError");
+
+          financeFromInput.min = monthBounds.start;
+          financeFromInput.max = monthBounds.end;
+          financeToInput.min = monthBounds.start;
+          financeToInput.max = monthBounds.end;
+          financeFromInput.value = monthBounds.start;
+          financeToInput.value = monthBounds.end;
+
+          const renderFinance = () => {
+            const from = financeFromInput.value || monthBounds.start;
+            const to = financeToInput.value || monthBounds.end;
+
+            financeError.textContent = "";
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+              financeError.textContent = "Выберите корректный диапазон дат";
+              financeList.innerHTML = "";
+              return;
+            }
+            if (from > to) {
+              financeError.textContent = "Дата начала не может быть больше даты окончания";
+              financeList.innerHTML = "";
+              return;
+            }
+
+            const totals = new Map();
+            for (const row of shifts) {
+              if (!row?.date || row.date < from || row.date > to) continue;
+              const p1 = String(row.executor1 || "").trim();
+              const p2 = String(row.executor2 || "").trim();
+              const sum1 =
+                Number(row.rate1 || 0) + Number(row.bonuses1 || 0) + Number(row.deductions1 || 0);
+              const sum2 =
+                Number(row.rate2 || 0) + Number(row.bonuses2 || 0) + Number(row.deductions2 || 0);
+
+              if (p1) totals.set(p1, (totals.get(p1) || 0) + sum1);
+              if (p2) totals.set(p2, (totals.get(p2) || 0) + sum2);
+            }
+
+            const rows = [...totals.entries()]
+              .map(([name, total]) => ({ name, total }))
+              .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "ru"));
+
+            financeHint.textContent = `Период: ${ruDate(from)} - ${ruDate(to)}. Ставка + доплаты - удержания.`;
+            if (!rows.length) {
+              financeList.innerHTML = `<div class="muted">За выбранный период смен не найдено.</div>`;
+              return;
+            }
+
+            financeList.innerHTML = rows
+              .map(
+                (item) => `
+                  <div class="finance-row">
+                    <div>${escapeHtml(item.name)}</div>
+                    <div class="finance-amount">${formatMoney(item.total)}</div>
+                  </div>
+                `
+              )
+              .join("");
+          };
+
+          document.getElementById("openFinanceBtn").addEventListener("click", () => {
+            financeFromInput.value = monthBounds.start;
+            financeToInput.value = monthBounds.end;
+            renderFinance();
+            financeModal.classList.remove("hidden");
+          });
+          document.getElementById("closeFinanceBtn").addEventListener("click", () => {
+            financeModal.classList.add("hidden");
+          });
+          financeModal.addEventListener("click", (event) => {
+            if (event.target === financeModal) financeModal.classList.add("hidden");
+          });
+          financeFromInput.addEventListener("change", renderFinance);
+          financeToInput.addEventListener("change", renderFinance);
+          document.getElementById("financeFirstHalfBtn").addEventListener("click", () => {
+            const firstHalfEnd = `${state.selectedMonth}-15`;
+            financeFromInput.value = monthBounds.start;
+            financeToInput.value = firstHalfEnd <= monthBounds.end ? firstHalfEnd : monthBounds.end;
+            renderFinance();
+          });
+          document.getElementById("financeSecondHalfBtn").addEventListener("click", () => {
+            const secondHalfStart = `${state.selectedMonth}-16`;
+            financeFromInput.value = secondHalfStart >= monthBounds.start ? secondHalfStart : monthBounds.start;
+            financeToInput.value = monthBounds.end;
+            renderFinance();
+          });
+          document.getElementById("financeWholeMonthBtn").addEventListener("click", () => {
+            financeFromInput.value = monthBounds.start;
+            financeToInput.value = monthBounds.end;
+            renderFinance();
           });
 
           const autosave = createRowAutoSaver(state.selectedLocation.code);
