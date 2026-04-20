@@ -192,6 +192,29 @@
         color: var(--muted);
       }
 
+      .employee-main {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .employee-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #c5ced8;
+        flex: 0 0 auto;
+      }
+
+      .employee-avatar.placeholder {
+        display: grid;
+        place-items: center;
+        background: #dce7f5;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
       .badge {
         display: inline-block;
         border-radius: 999px;
@@ -417,7 +440,8 @@
             body: JSON.stringify({
               telegramId: tgUser.telegramId,
               fullName: tgUser.fullName,
-              username: tgUser.username || ""
+              username: tgUser.username || "",
+              photoUrl: tgUser.photoUrl || ""
             })
           });
 
@@ -603,16 +627,23 @@
               .map(
                 (emp) => `
                   <div class="employee-row">
-                    <div>
-                      <div><strong>${escapeHtml(emp.fullName)}</strong>${reliabilityBadge(
-                        emp.reliability
-                      )}</div>
-                      <div class="employee-meta mt8">
-                        ${escapeHtml(positions[emp.position] || emp.position)}
-                        ${emp.phone ? ` · ${escapeHtml(emp.phone)}` : ""}
-                        ${emp.telegramContact ? ` · TG: ${escapeHtml(emp.telegramContact)}` : ""}
-                        ${emp.vkContact ? ` · VK: ${escapeHtml(emp.vkContact)}` : ""}
-                        ${emp.accessRole ? ` · Доступ: ${escapeHtml(userRoles[emp.accessRole] || emp.accessRole)}` : ""}
+                    <div class="employee-main">
+                      ${
+                        emp.avatarUrl
+                          ? `<img class="employee-avatar" src="${escapeHtml(emp.avatarUrl)}" alt="avatar" />`
+                          : `<div class="employee-avatar placeholder">${escapeHtml((emp.fullName || "?").slice(0, 1).toUpperCase())}</div>`
+                      }
+                      <div>
+                        <div><strong>${escapeHtml(emp.fullName)}</strong>${reliabilityBadge(
+                          emp.reliability
+                        )}</div>
+                        <div class="employee-meta mt8">
+                          ${escapeHtml(positions[emp.position] || emp.position)}
+                          ${emp.phone ? ` · ${escapeHtml(emp.phone)}` : ""}
+                          ${emp.telegramContact ? ` · TG: ${escapeHtml(emp.telegramContact)}` : ""}
+                          ${emp.vkContact ? ` · VK: ${escapeHtml(emp.vkContact)}` : ""}
+                          ${emp.accessRole ? ` · Доступ: ${escapeHtml(userRoles[emp.accessRole] || emp.accessRole)}` : ""}
+                        </div>
                       </div>
                     </div>
                     <button class="button secondary" data-edit-id="${emp.id}">Редактировать</button>
@@ -690,6 +721,7 @@
         const reliabilityInput = document.getElementById("reliabilityInput");
         const accessRoleInput = document.getElementById("accessRoleInput");
         const deleteEmployeeBtn = document.getElementById("deleteEmployeeBtn");
+        const saveEmployeeBtn = document.getElementById("saveEmployeeBtn");
         let editingEmployeeId = null;
 
         const openPanel = () => modal.classList.remove("hidden");
@@ -705,6 +737,7 @@
           accessRoleInput.innerHTML = accessRoleOptionsHtml("PARTICIPANT", state.user.role, false);
           accessRoleInput.value = "PARTICIPANT";
           accessRoleInput.disabled = false;
+          saveEmployeeBtn.disabled = false;
           deleteEmployeeBtn.style.display = "none";
           deleteEmployeeBtn.disabled = true;
           deleteEmployeeBtn.textContent = "Удалить сотрудника";
@@ -743,8 +776,18 @@
           accessRoleInput.disabled =
             !!employee.isProtected ||
             (state.user.role === "ADMIN" && (employee.accessRole || "PARTICIPANT") === "ADMIN");
+          const adminCannotEdit =
+            state.user.role === "ADMIN" &&
+            (employee.accessRole || "PARTICIPANT") !== "PARTICIPANT";
+          saveEmployeeBtn.disabled = adminCannotEdit;
+          if (adminCannotEdit) {
+            status.className = "status error";
+            status.textContent = "Админ может изменять и удалять только участников";
+          } else {
+            status.textContent = "";
+          }
           deleteEmployeeBtn.style.display = "inline-block";
-          deleteEmployeeBtn.disabled = !!employee.isProtected;
+          deleteEmployeeBtn.disabled = !!employee.isProtected || adminCannotEdit;
           deleteEmployeeBtn.textContent = employee.isProtected
             ? "Удаление запрещено"
             : "Удалить сотрудника";
@@ -772,7 +815,7 @@
           phoneInput.value = applyPhoneMask(phoneInput.value);
         });
 
-        document.getElementById("saveEmployeeBtn").addEventListener("click", async () => {
+        saveEmployeeBtn.addEventListener("click", async () => {
           const firstName = firstNameInput.value.trim();
           const lastName = lastNameInput.value.trim();
           const normalizedPhone = normalizePhone(phoneInput.value);

@@ -28,6 +28,7 @@ const contactSchema = z.object({
   firstName: z.string().trim().min(3).max(60),
   lastName: z.string().trim().min(3).max(60),
   telegramId: z.string().trim().max(64).optional().default(""),
+  avatarUrl: z.string().trim().max(500).optional().default(""),
   phone: z.string().trim().max(30).optional().default(""),
   telegramContact: z.string().trim().max(120).optional().default(""),
   vkContact: z.string().trim().max(200).optional().default(""),
@@ -77,6 +78,7 @@ router.post("/", (req, res, next) => {
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
       telegramId: parsed.data.telegramId,
+      avatarUrl: parsed.data.avatarUrl,
       phone: parsed.data.phone,
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
@@ -135,27 +137,28 @@ router.put("/:id", (req, res, next) => {
     const actorRole = req.user.role;
     const targetRole = targetEmployee.accessRole || Role.PARTICIPANT;
     const requestedRole = parsed.data.accessRole || Role.PARTICIPANT;
-
-    if (targetEmployee.isProtected) {
-      return res.status(403).json({
-        error: "Forbidden",
-        message: "Роль главного админа менять нельзя"
-      });
-    }
+    const isSelf = String(targetEmployee.telegramId || "").trim() === String(req.user.telegramId || "").trim();
 
     if (actorRole === Role.ADMIN) {
-      if (targetRole === Role.ADMIN && requestedRole !== Role.ADMIN) {
+      if (targetRole !== Role.PARTICIPANT) {
         return res.status(403).json({
           error: "Forbidden",
-          message: "Админ не может менять роль другого админа"
+          message: "Админ может изменять данные только у участников"
         });
       }
-      if (targetRole === Role.PARTICIPANT && requestedRole !== targetRole && requestedRole !== Role.ADMIN) {
+      if (requestedRole !== Role.PARTICIPANT && requestedRole !== Role.ADMIN) {
         return res.status(403).json({
           error: "Forbidden",
-          message: "Админ может только повысить участника до админа"
+          message: "Админ может назначить участнику только роль админа"
         });
       }
+    }
+
+    if (targetEmployee.isProtected && !(actorRole === Role.SUPERADMIN && isSelf)) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Данные главного админа может менять только он сам"
+      });
     }
 
     const result = updateEmployeeById({
@@ -163,6 +166,7 @@ router.put("/:id", (req, res, next) => {
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
       telegramId: parsed.data.telegramId,
+      avatarUrl: parsed.data.avatarUrl || targetEmployee.avatarUrl || "",
       phone: parsed.data.phone,
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
@@ -215,6 +219,39 @@ router.delete("/:id", (req, res, next) => {
       return res.status(400).json({
         error: "ValidationError",
         message: "Некорректный id сотрудника"
+      });
+    }
+
+    const currentEmployees = listEmployees();
+    const targetEmployee = currentEmployees.find((item) => item.id === id);
+    if (!targetEmployee) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Сотрудник не найден"
+      });
+    }
+    const actorRole = req.user.role;
+    const targetRole = targetEmployee.accessRole || Role.PARTICIPANT;
+    const isSelf = String(targetEmployee.telegramId || "").trim() === String(req.user.telegramId || "").trim();
+
+    if (isSelf) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Нельзя удалить самого себя из базы сотрудников"
+      });
+    }
+
+    if (actorRole === Role.ADMIN && targetRole !== Role.PARTICIPANT) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Админ может удалять только участников"
+      });
+    }
+
+    if (targetEmployee.isProtected) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Главного админа удалить нельзя"
       });
     }
 

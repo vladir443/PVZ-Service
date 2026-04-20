@@ -7,6 +7,7 @@ import {
   getEmployeeByAuth,
   getUserByTelegramId,
   isCoreAdminUsername,
+  syncEmployeeTelegramProfile,
   updateUserProfile,
   updateUserRole
 } from "../db.js";
@@ -17,7 +18,8 @@ const router = express.Router();
 const loginSchema = z.object({
   telegramId: z.string().min(1).max(64),
   fullName: z.string().min(1).max(120),
-  username: z.string().max(64).optional().default("")
+  username: z.string().max(64).optional().default(""),
+  photoUrl: z.string().max(500).optional().default("")
 });
 
 router.post("/login", async (req, res, next) => {
@@ -31,7 +33,7 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    const { telegramId, fullName, username } = parsed.data;
+    const { telegramId, fullName, username, photoUrl } = parsed.data;
 
     const employee = getEmployeeByAuth({ telegramId, username });
     if (!employee) {
@@ -42,6 +44,7 @@ router.post("/login", async (req, res, next) => {
     }
 
     bindEmployeeTelegramId({ telegramId, username });
+    syncEmployeeTelegramProfile({ telegramId, username, photoUrl });
 
     const adminIds = getAdminTelegramIds();
     const isSuperAdmin = isCoreAdminUsername(username);

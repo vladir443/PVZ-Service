@@ -74,6 +74,7 @@ db.exec(`
     first_name TEXT NOT NULL DEFAULT '',
     last_name TEXT NOT NULL DEFAULT '',
     telegram_id TEXT NOT NULL DEFAULT '',
+    avatar_url TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL DEFAULT '',
     telegram_contact TEXT NOT NULL DEFAULT '',
     vk_contact TEXT NOT NULL DEFAULT '',
@@ -105,6 +106,9 @@ if (!hasColumn("employees", "phone")) {
 }
 if (!hasColumn("employees", "telegram_id")) {
   db.exec("ALTER TABLE employees ADD COLUMN telegram_id TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("employees", "avatar_url")) {
+  db.exec("ALTER TABLE employees ADD COLUMN avatar_url TEXT NOT NULL DEFAULT '';");
 }
 if (!hasColumn("employees", "position")) {
   db.exec("ALTER TABLE employees ADD COLUMN position TEXT NOT NULL DEFAULT 'manager';");
@@ -478,6 +482,7 @@ export function listEmployees() {
       `
       SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
            , telegram_id, access_role, is_protected
+           , avatar_url
       FROM employees
       ORDER BY full_name COLLATE NOCASE ASC
       `
@@ -489,6 +494,7 @@ export function listEmployees() {
       firstName: row.first_name,
       lastName: row.last_name,
       telegramId: row.telegram_id,
+      avatarUrl: row.avatar_url,
       phone: row.phone,
       telegramContact: row.telegram_contact,
       vkContact: row.vk_contact,
@@ -504,6 +510,7 @@ export function createEmployee({
   firstName,
   lastName,
   telegramId = "",
+  avatarUrl = "",
   phone,
   telegramContact,
   vkContact,
@@ -516,8 +523,8 @@ export function createEmployee({
     .prepare(
       `
       INSERT INTO employees (
-        full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
@@ -525,6 +532,7 @@ export function createEmployee({
       firstName.trim(),
       lastName.trim(),
       telegramId.trim(),
+      avatarUrl.trim(),
       phone.trim(),
       telegramContact.trim(),
       vkContact.trim(),
@@ -536,7 +544,7 @@ export function createEmployee({
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE id = ?
       `
@@ -549,6 +557,7 @@ export function createEmployee({
     firstName: row.first_name,
     lastName: row.last_name,
     telegramId: row.telegram_id,
+    avatarUrl: row.avatar_url,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
@@ -586,6 +595,7 @@ export function updateEmployeeById({
   firstName,
   lastName,
   telegramId = "",
+  avatarUrl = "",
   phone,
   telegramContact,
   vkContact,
@@ -607,10 +617,6 @@ export function updateEmployeeById({
     return { employee: null, reason: "not_found" };
   }
 
-  if (current.is_protected === 1) {
-    return { employee: null, reason: "protected" };
-  }
-
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
   const result = db
     .prepare(
@@ -621,6 +627,7 @@ export function updateEmployeeById({
         first_name = ?,
         last_name = ?,
         telegram_id = ?,
+        avatar_url = ?,
         phone = ?,
         telegram_contact = ?,
         vk_contact = ?,
@@ -635,6 +642,7 @@ export function updateEmployeeById({
       firstName.trim(),
       lastName.trim(),
       telegramId.trim(),
+      avatarUrl.trim(),
       phone.trim(),
       telegramContact.trim(),
       vkContact.trim(),
@@ -651,7 +659,7 @@ export function updateEmployeeById({
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE id = ?
       `
@@ -666,6 +674,7 @@ export function updateEmployeeById({
       firstName: row.first_name,
       lastName: row.last_name,
       telegramId: row.telegram_id,
+      avatarUrl: row.avatar_url,
       phone: row.phone,
       telegramContact: row.telegram_contact,
       vkContact: row.vk_contact,
@@ -728,7 +737,7 @@ export function getEmployeeByTelegramId(telegramId) {
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
            , access_role
       FROM employees
       WHERE telegram_id = ?
@@ -744,6 +753,7 @@ export function getEmployeeByTelegramId(telegramId) {
     firstName: row.first_name,
     lastName: row.last_name,
     telegramId: row.telegram_id,
+    avatarUrl: row.avatar_url,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
@@ -760,7 +770,7 @@ export function getEmployeeByAuth({ telegramId, username }) {
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE telegram_id = ?
          OR lower(replace(telegram_contact, '@', '')) = ?
@@ -777,6 +787,7 @@ export function getEmployeeByAuth({ telegramId, username }) {
     firstName: row.first_name,
     lastName: row.last_name,
     telegramId: row.telegram_id,
+    avatarUrl: row.avatar_url,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
@@ -786,4 +797,25 @@ export function getEmployeeByAuth({ telegramId, username }) {
     isProtected: row.is_protected === 1,
     createdAt: row.created_at
   };
+}
+
+export function syncEmployeeTelegramProfile({ telegramId, username, photoUrl }) {
+  const normalizedUsername = normalizeUsername(username);
+  const tgId = String(telegramId || "").trim();
+  const avatarUrl = String(photoUrl || "").trim();
+
+  if (!tgId && !normalizedUsername) {
+    return;
+  }
+
+  db.prepare(
+    `
+    UPDATE employees
+    SET
+      telegram_id = CASE WHEN telegram_id = '' THEN ? ELSE telegram_id END,
+      avatar_url = CASE WHEN ? <> '' THEN ? ELSE avatar_url END
+    WHERE telegram_id = ?
+       OR lower(replace(telegram_contact, '@', '')) = ?
+    `
+  ).run(tgId, avatarUrl, avatarUrl, tgId, normalizedUsername);
 }
