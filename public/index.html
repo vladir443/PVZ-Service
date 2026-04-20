@@ -265,6 +265,11 @@
         filter: brightness(0) invert(1) opacity(0.86);
       }
 
+      .bottom-nav-icon.employees {
+        width: 24px;
+        height: 24px;
+      }
+
       .bottom-nav-btn.active .bottom-nav-icon {
         filter: invert(67%) sepia(47%) saturate(2624%) hue-rotate(190deg) brightness(101%) contrast(98%);
       }
@@ -839,7 +844,7 @@
             <span class="bottom-nav-label">График</span>
           </button>
           <button class="bottom-nav-btn ${active === "employees" ? "active" : ""} ${employeesLocked ? "disabled" : ""}" data-tab="employees" ${employeesLocked ? "aria-disabled='true'" : ""}>
-            <img class="bottom-nav-icon" src="/icons/nav-employees.png" alt="Сотрудники" />
+            <img class="bottom-nav-icon employees" src="/icons/nav-employees.png" alt="Сотрудники" />
             <span class="bottom-nav-label">Сотрудники</span>
           </button>
           <button class="bottom-nav-btn ${active === "profile" ? "active" : ""}" data-tab="profile">
@@ -1026,8 +1031,10 @@
           .slice(0, 2)
           .map((w) => w[0]?.toUpperCase() || "")
           .join("");
-        const currentHour = new Date().getHours();
-        const shiftText = currentHour < 14 ? "Сегодня: смена 14:00 - 22:00" : "Сегодня: смена до 22:00";
+        const primaryLocation = state.selectedLocation || state.locations[0] || null;
+        const start = primaryLocation?.workStart || "14:00";
+        const end = primaryLocation?.workEnd || "22:00";
+        const shiftText = `Сегодня: смена ${start} - ${end}`;
         const employeesTotal = Number(state.employees.length || 0);
         const weekPlanned = Math.max(5, Math.round((state.locations.length || 1) * 1.2));
         screen.innerHTML = `
@@ -1063,26 +1070,11 @@
               <div class="muted mt8">В базе</div>
             </div>
           </div>
-          <h2 class="mt16">Быстрые действия</h2>
-          <div class="quick-grid mt12">
-            <button id="quickScheduleBtn" class="quick-btn" type="button">Открыть график</button>
-            <button id="quickShiftBtn" class="quick-btn" type="button">Добавить смену</button>
-            <button id="quickEmployeesBtn" class="quick-btn" type="button">Сотрудники</button>
-          </div>
           <div class="warn-banner mt12">
             <div><strong>Сегодня ${Math.max(2, Math.min(5, employeesTotal || 3))} сотрудника в смене</strong></div>
             <div class="muted mt8">Не забудьте проверить график.</div>
           </div>
         `;
-        document.getElementById("quickScheduleBtn").addEventListener("click", renderLocations);
-        document.getElementById("quickShiftBtn").addEventListener("click", renderLocations);
-        document.getElementById("quickEmployeesBtn").addEventListener("click", () => {
-          if (!canManageEmployees()) {
-            showAccessDenied();
-            return;
-          }
-          renderEmployeesBase();
-        });
         renderBottomNav("home");
       }
 
@@ -1095,6 +1087,7 @@
           .slice(0, 2)
           .map((w) => w[0]?.toUpperCase() || "")
           .join("");
+        const canOpenAdminPanel = canManageEmployees();
         screen.innerHTML = `
           <h2>Профиль</h2>
           <div class="profile-hero mt12">
@@ -1130,10 +1123,99 @@
           <div class="settings-list mt12">
             <div class="settings-row"><span>Уведомления</span><span>›</span></div>
             <div class="settings-row"><span>Тема</span><span>Светлая ›</span></div>
-            <div class="settings-row"><span>Связь с админом</span><span>›</span></div>
             <div class="settings-row"><span>Безопасность</span><span>›</span></div>
+            <div class="settings-row">
+              <span>Админ-панель</span>
+              <button id="openAdminPanelBtn" class="button secondary ${canOpenAdminPanel ? "" : "disabled"}" type="button" ${canOpenAdminPanel ? "" : "disabled"}>Открыть</button>
+            </div>
+          </div>
+          <div id="adminHoursModal" class="modal hidden">
+            <div class="panel">
+              <h3 class="panel-title">Админ-панель: график ПВЗ</h3>
+              <div class="muted mt8">Измените рабочие часы пунктов. Эти часы будут показываться в смене сотрудника.</div>
+              <div class="employees-form mt12">
+                ${state.locations
+                  .map(
+                    (loc) => `
+                      <div style="grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #fff;">
+                        <div><strong>${escapeHtml(loc.title)}</strong></div>
+                        <div class="row mt8">
+                          <div style="flex:1;">
+                            <div class="muted">Начало</div>
+                            <input type="time" data-hours-start="${escapeHtml(loc.code)}" value="${escapeHtml(loc.workStart || "14:00")}" />
+                          </div>
+                          <div style="flex:1;">
+                            <div class="muted">Конец</div>
+                            <input type="time" data-hours-end="${escapeHtml(loc.code)}" value="${escapeHtml(loc.workEnd || "22:00")}" />
+                          </div>
+                          <div style="display:flex; align-items:flex-end;">
+                            <button class="button" type="button" data-save-hours="${escapeHtml(loc.code)}">Сохранить</button>
+                          </div>
+                        </div>
+                      </div>
+                    `
+                  )
+                  .join("")}
+              </div>
+              <p id="adminHoursStatus" class="status mt12"></p>
+              <div class="row mt12">
+                <button id="closeAdminPanelBtn" class="button secondary" type="button">Закрыть</button>
+              </div>
+            </div>
           </div>
         `;
+        const openAdminPanelBtn = document.getElementById("openAdminPanelBtn");
+        const adminHoursModal = document.getElementById("adminHoursModal");
+        const adminHoursStatus = document.getElementById("adminHoursStatus");
+        if (openAdminPanelBtn) {
+          openAdminPanelBtn.addEventListener("click", () => {
+            if (!canOpenAdminPanel) {
+              showAccessDenied();
+              return;
+            }
+            adminHoursModal.classList.remove("hidden");
+          });
+        }
+        for (const btn of screen.querySelectorAll("[data-save-hours]")) {
+          btn.addEventListener("click", async () => {
+            const code = btn.dataset.saveHours;
+            const startInput = screen.querySelector(`[data-hours-start='${code}']`);
+            const endInput = screen.querySelector(`[data-hours-end='${code}']`);
+            const workStart = String(startInput?.value || "").slice(0, 5);
+            const workEnd = String(endInput?.value || "").slice(0, 5);
+            if (!/^\d{2}:\d{2}$/.test(workStart) || !/^\d{2}:\d{2}$/.test(workEnd)) {
+              adminHoursStatus.className = "status error";
+              adminHoursStatus.textContent = "Введите корректные часы в формате ЧЧ:ММ";
+              return;
+            }
+            btn.disabled = true;
+            try {
+              await api(`/api/schedule/locations/${code}/hours`, {
+                method: "PUT",
+                body: JSON.stringify({ workStart, workEnd })
+              });
+              state.locations = state.locations.map((loc) =>
+                loc.code === code ? { ...loc, workStart, workEnd } : loc
+              );
+              if (state.selectedLocation?.code === code) {
+                state.selectedLocation = { ...state.selectedLocation, workStart, workEnd };
+              }
+              adminHoursStatus.className = "status ok";
+              adminHoursStatus.textContent = "График пункта обновлен";
+            } catch (error) {
+              adminHoursStatus.className = "status error";
+              adminHoursStatus.textContent = `Ошибка: ${error.message}`;
+            } finally {
+              btn.disabled = false;
+            }
+          });
+        }
+        document.getElementById("closeAdminPanelBtn")?.addEventListener("click", () => {
+          adminHoursModal.classList.add("hidden");
+        });
+        adminHoursModal?.addEventListener("click", (event) => {
+          if (event.target === adminHoursModal) adminHoursModal.classList.add("hidden");
+        });
         renderBottomNav("profile");
       }
 

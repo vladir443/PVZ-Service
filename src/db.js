@@ -46,7 +46,9 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS locations (
     code TEXT PRIMARY KEY,
-    title TEXT NOT NULL
+    title TEXT NOT NULL,
+    work_start TEXT NOT NULL DEFAULT '14:00',
+    work_end TEXT NOT NULL DEFAULT '22:00'
   );
 `);
 
@@ -183,6 +185,12 @@ if (!hasColumn("shifts", "bonuses1_meta")) {
 }
 if (!hasColumn("shifts", "bonuses2_meta")) {
   db.exec("ALTER TABLE shifts ADD COLUMN bonuses2_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("locations", "work_start")) {
+  db.exec("ALTER TABLE locations ADD COLUMN work_start TEXT NOT NULL DEFAULT '14:00';");
+}
+if (!hasColumn("locations", "work_end")) {
+  db.exec("ALTER TABLE locations ADD COLUMN work_end TEXT NOT NULL DEFAULT '22:00';");
 }
 if (!hasColumn("finance_payments", "period_from")) {
   db.exec("ALTER TABLE finance_payments ADD COLUMN period_from TEXT NOT NULL DEFAULT '';");
@@ -402,12 +410,49 @@ export function listLocations() {
   return db
     .prepare(
       `
-      SELECT code, title
+      SELECT code, title, work_start, work_end
       FROM locations
       ORDER BY title ASC
       `
     )
-    .all();
+    .all()
+    .map((row) => ({
+      code: row.code,
+      title: row.title,
+      workStart: row.work_start || "14:00",
+      workEnd: row.work_end || "22:00"
+    }));
+}
+
+function isValidTime(value) {
+  return /^\d{2}:\d{2}$/.test(String(value || ""));
+}
+
+export function updateLocationHours({ code, workStart, workEnd }) {
+  if (!isValidTime(workStart) || !isValidTime(workEnd)) {
+    throw new Error("Invalid work hours format");
+  }
+  const result = db
+    .prepare(
+      `
+      UPDATE locations
+      SET work_start = ?, work_end = ?
+      WHERE code = ?
+      `
+    )
+    .run(workStart, workEnd, code);
+
+  if (result.changes === 0) return null;
+
+  return db
+    .prepare(
+      `
+      SELECT code, title, work_start, work_end
+      FROM locations
+      WHERE code = ?
+      `
+    )
+    .get(code);
 }
 
 function getMonthDays(year, month) {

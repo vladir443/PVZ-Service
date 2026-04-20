@@ -8,6 +8,7 @@ import {
   getScheduleForMonth,
   listFinancePaymentsForMonth,
   listLocations,
+  updateLocationHours,
   upsertShift
 } from "../db.js";
 
@@ -19,6 +20,44 @@ router.get("/locations", (_req, res, next) => {
   try {
     const locations = listLocations();
     return res.json({ locations });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+const locationHoursSchema = z.object({
+  workStart: z.string().regex(/^\d{2}:\d{2}$/),
+  workEnd: z.string().regex(/^\d{2}:\d{2}$/)
+});
+
+router.put("/locations/:code/hours", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
+  try {
+    const parsed = locationHoursSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+    const updated = updateLocationHours({
+      code: req.params.code,
+      workStart: parsed.data.workStart,
+      workEnd: parsed.data.workEnd
+    });
+    if (!updated) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Location was not found"
+      });
+    }
+    return res.json({
+      location: {
+        code: updated.code,
+        title: updated.title,
+        workStart: updated.work_start,
+        workEnd: updated.work_end
+      }
+    });
   } catch (error) {
     return next(error);
   }
