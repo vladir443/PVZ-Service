@@ -1097,6 +1097,8 @@
         let overviewShift = "—";
         let overviewStatus = "Выходной";
         let upcomingCaption = "Нет запланированных смен";
+        let todayTeamTitle = "Сегодня у вас нет смены";
+        let todayTeamSub = "Пока вы не назначены на смену";
         const formatUpcomingDate = (isoDate) => {
           const value = String(isoDate || "").trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
@@ -1123,12 +1125,28 @@
             shiftText = `Сегодня: ${one.locationTitle}, ${time}`;
             overviewShift = time;
             overviewStatus = "Рабочий день";
+            const coworker = String(one.coworkerName || "").trim();
+            if (coworker) {
+              todayTeamTitle = `Сегодня ваша смена с ${coworker}`;
+              todayTeamSub = one.locationTitle || "Ваша смена";
+            } else {
+              todayTeamTitle = "Сегодня вы одни на смене";
+              todayTeamSub = one.locationTitle || "Ваша смена";
+            }
           } else if (assignments.length > 1) {
             const first = assignments[0];
             const firstTime = `${first.workStart || "14:00"} - ${first.workEnd || "22:00"}`;
             shiftText = `Сегодня: ${assignments.length} смены (${first.locationTitle} и др.)`;
             overviewShift = `${assignments.length} смены`;
             overviewStatus = firstTime;
+            const coworker = String(first.coworkerName || "").trim();
+            if (coworker) {
+              todayTeamTitle = `Сегодня ваша смена с ${coworker}`;
+              todayTeamSub = `И еще ${assignments.length - 1} смен(ы)`;
+            } else {
+              todayTeamTitle = "Сегодня вы одни на смене";
+              todayTeamSub = `И еще ${assignments.length - 1} смен(ы)`;
+            }
           }
           const upcomingDates = Array.isArray(upcomingData.dates) ? upcomingData.dates : [];
           const labels = upcomingDates.map((date) => formatUpcomingDate(date)).filter(Boolean);
@@ -1166,9 +1184,9 @@
               <div class="muted mt8">${escapeHtml(upcomingCaption)}</div>
             </div>
             <div class="overview-card purple">
-              <h3>Сотрудники</h3>
-              <div class="big">${employeesTotal || 0} человек</div>
-              <div class="muted mt8">В базе</div>
+              <h3>Смена сегодня</h3>
+              <div class="big">${escapeHtml(todayTeamTitle)}</div>
+              <div class="muted mt8">${escapeHtml(todayTeamSub)}</div>
             </div>
           </div>
           <div class="warn-banner mt12">
@@ -1847,9 +1865,19 @@
           if (!date) return;
 
           const get = (name) => tr.querySelector(`[data-f='${name}']`)?.value ?? "";
+          const executor1 = get("executor1").trim();
+          const executor2 = get("executor2").trim();
+          const status = document.getElementById("scheduleStatus");
+          if (!executor1 && executor2) {
+            const executor2Input = tr.querySelector(`[data-f='executor2']`);
+            if (executor2Input) executor2Input.value = "";
+            status.className = "status error";
+            status.textContent = "Сначала заполните Исполнитель1, потом Исполнитель2";
+            return;
+          }
           const payload = {
-            executor1: get("executor1").trim(),
-            executor2: get("executor2").trim(),
+            executor1,
+            executor2,
             rate1: Number(get("rate1") || 0),
             rate2: Number(get("rate2") || 0),
             deductions1: Number(get("deductions1") || 0),
@@ -1890,7 +1918,6 @@
             })()
           };
 
-          const status = document.getElementById("scheduleStatus");
           status.className = "status";
           status.textContent = `Сохраняем ${ruDate(date)}...`;
 

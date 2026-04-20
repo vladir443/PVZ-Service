@@ -256,6 +256,12 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
 
     const normalizedExecutor1 = parsed.data.executor1.trim();
     const normalizedExecutor2 = parsed.data.executor2.trim();
+    if (!normalizedExecutor1 && normalizedExecutor2) {
+      return res.status(409).json({
+        error: "ValidationError",
+        message: "Сначала заполните Исполнитель1, потом Исполнитель2"
+      });
+    }
     const executorsCheck = validateShiftExecutors({
       locationCode: req.params.locationCode,
       date: parsed.data.date,

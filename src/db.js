@@ -779,13 +779,18 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
 
   const assignments = [];
   for (const row of rows) {
-    const rowExecutor1 = normalizeEmployeeName(row.executor1).toLowerCase();
-    const rowExecutor2 = normalizeEmployeeName(row.executor2).toLowerCase();
+    const normalizedExecutor1 = normalizeEmployeeName(row.executor1);
+    const normalizedExecutor2 = normalizeEmployeeName(row.executor2);
+    const rowExecutor1 = normalizedExecutor1.toLowerCase();
+    const rowExecutor2 = normalizedExecutor2.toLowerCase();
     if (rowExecutor1 && aliases.has(rowExecutor1)) {
       assignments.push({
         locationCode: row.location_code,
         locationTitle: row.location_title,
         role: "executor1",
+        coworkerName: normalizedExecutor2 || "",
+        executor1: normalizedExecutor1,
+        executor2: normalizedExecutor2,
         workStart: row.work_start || "14:00",
         workEnd: row.work_end || "22:00"
       });
@@ -795,6 +800,9 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         locationCode: row.location_code,
         locationTitle: row.location_title,
         role: "executor2",
+        coworkerName: normalizedExecutor1 || "",
+        executor1: normalizedExecutor1,
+        executor2: normalizedExecutor2,
         workStart: row.work_start || "14:00",
         workEnd: row.work_end || "22:00"
       });
