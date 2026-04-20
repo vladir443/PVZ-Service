@@ -128,9 +128,10 @@
       }
 
       .dash-arrow {
-        color: #64748b;
-        font-size: 22px;
-        font-weight: 700;
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        opacity: 0.9;
       }
 
       .dash-dot {
@@ -236,6 +237,46 @@
 
       .settings-row:last-child {
         border-bottom: 0;
+      }
+
+      .inline-arrow {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+      }
+
+      .open-arrow-btn {
+        width: 34px;
+        height: 34px;
+        border: 1px solid #cfd7e3;
+        border-radius: 10px;
+        background: #fff;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .open-arrow-btn img {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+      }
+
+      .location-btn-inner {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .location-btn-arrow {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+        filter: brightness(0) invert(1);
+        opacity: 0.95;
       }
 
       .bottom-nav {
@@ -1068,7 +1109,7 @@
               <div class="muted mt8">Роль: <strong>${escapeHtml(userRoles[state.user.role] || state.user.role)}</strong></div>
               <div class="muted mt8"><span class="dash-dot"></span> ${escapeHtml(shiftText)}</div>
             </div>
-            <div class="dash-arrow">›</div>
+            <img class="dash-arrow" src="/icons/right-arrow.png" alt="Открыть" />
           </div>
           <h2 class="mt16">Обзор</h2>
           <div class="overview-grid mt12">
@@ -1139,17 +1180,24 @@
           </div>
           <h2 class="mt16">Настройки</h2>
           <div class="settings-list mt12">
-            <div class="settings-row"><span>Уведомления</span><span>›</span></div>
-            <div class="settings-row"><span>Тема</span><span>Светлая ›</span></div>
-            <div class="settings-row"><span>Безопасность</span><span>›</span></div>
+            <div class="settings-row"><span>Уведомления</span><img class="inline-arrow" src="/icons/right-arrow.png" alt="Открыть" /></div>
+            <div class="settings-row"><span>Тема</span><span style="display:flex; align-items:center; gap:6px;">Светлая <img class="inline-arrow" src="/icons/right-arrow.png" alt="Открыть" /></span></div>
+            <div class="settings-row"><span>Безопасность</span><img class="inline-arrow" src="/icons/right-arrow.png" alt="Открыть" /></div>
             <div class="settings-row">
               <span>Админ-панель</span>
-              <button id="openAdminPanelBtn" class="button secondary ${canOpenAdminPanel ? "" : "disabled"}" type="button" ${canOpenAdminPanel ? "" : "disabled"}>Открыть</button>
+              <button id="openAdminPanelBtn" class="open-arrow-btn ${canOpenAdminPanel ? "" : "disabled"}" type="button" ${canOpenAdminPanel ? "" : "disabled"}>
+                <img src="/icons/right-arrow.png" alt="Открыть" />
+              </button>
             </div>
           </div>
           <div id="adminHoursModal" class="modal hidden">
             <div class="panel">
-              <h3 class="panel-title">Админ-панель: график ПВЗ</h3>
+              <div class="row" style="justify-content: space-between;">
+                <h3 class="panel-title">Админ-панель: график ПВЗ</h3>
+                <button id="closeAdminPanelBtnTop" class="open-arrow-btn" type="button">
+                  <img src="/icons/back-arrow.png" alt="Выход" />
+                </button>
+              </div>
               <div class="muted mt8">Измените рабочие часы пунктов. Эти часы будут показываться в смене сотрудника.</div>
               <div class="employees-form mt12">
                 ${state.locations
@@ -1177,7 +1225,9 @@
               </div>
               <p id="adminHoursStatus" class="status mt12"></p>
               <div class="row mt12">
-                <button id="closeAdminPanelBtn" class="button secondary" type="button">Закрыть</button>
+                <button id="closeAdminPanelBtn" class="open-arrow-btn" type="button">
+                  <img src="/icons/back-arrow.png" alt="Выход" />
+                </button>
               </div>
             </div>
           </div>
@@ -1228,6 +1278,9 @@
             }
           });
         }
+        document.getElementById("closeAdminPanelBtnTop")?.addEventListener("click", () => {
+          adminHoursModal.classList.add("hidden");
+        });
         document.getElementById("closeAdminPanelBtn")?.addEventListener("click", () => {
           adminHoursModal.classList.add("hidden");
         });
@@ -1243,9 +1296,12 @@
           .map(
             (loc) => {
               const btnClass = loc.title.toLowerCase().startsWith("ozon") ? "ozon" : "wb";
-              return `<button class="button location-btn ${btnClass}" data-code="${escapeHtml(loc.code)}">${escapeHtml(
-                loc.title
-              )}</button>`;
+              return `<button class="button location-btn ${btnClass}" data-code="${escapeHtml(loc.code)}">
+                <span class="location-btn-inner">
+                  <span>${escapeHtml(loc.title)}</span>
+                  <img class="location-btn-arrow" src="/icons/right-arrow.png" alt="Открыть" />
+                </span>
+              </button>`;
             }
           )
           .join("");
