@@ -865,10 +865,10 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
         l.title AS location_title,
         l.work_start,
         l.work_end
-      FROM shifts
+      FROM shifts s
       JOIN locations l ON l.code = s.location_code
-      WHERE shift_date >= ?
-      ORDER BY shift_date ASC, l.title ASC
+      WHERE s.shift_date >= ?
+      ORDER BY s.shift_date ASC, l.title ASC
       `
     )
     .all(startDate);
