@@ -178,6 +178,8 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
 const financePaymentSchema = z.object({
   employeeName: z.string().trim().min(3).max(120),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amount: z.coerce.number().positive().max(1000000)
 });
 
@@ -195,6 +197,8 @@ router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN),
       locationCode: req.params.locationCode,
       employeeName: parsed.data.employeeName,
       paymentDate: parsed.data.paymentDate,
+      periodFrom: parsed.data.periodFrom,
+      periodTo: parsed.data.periodTo,
       amount: parsed.data.amount,
       createdByTelegramId: req.user?.telegramId || ""
     });
@@ -211,6 +215,8 @@ router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN),
         id: payment.id,
         employeeName: payment.employee_name,
         paymentDate: payment.payment_date,
+        periodFrom: payment.period_from || "",
+        periodTo: payment.period_to || "",
         amount: payment.amount,
         createdByTelegramId: payment.created_by_telegram_id,
         createdAt: payment.created_at

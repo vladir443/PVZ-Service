@@ -297,9 +297,22 @@
       .finance-pay-row {
         margin-top: 6px;
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr auto auto;
         gap: 8px;
         align-items: center;
+      }
+
+      .finance-history-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .finance-history-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        background: #fff;
+        font-size: 13px;
       }
 
       .finance-details.hidden {
@@ -1566,6 +1579,15 @@
                 </div>
               </div>
             </div>
+            <div id="financeHistoryModal" class="modal hidden">
+              <div class="panel">
+                <h3 id="financeHistoryTitle" class="panel-title">История выплат</h3>
+                <div id="financeHistoryList" class="finance-history-list mt12"></div>
+                <div class="row mt12">
+                  <button class="button secondary" id="closeFinanceHistoryBtn">Закрыть</button>
+                </div>
+              </div>
+            </div>
             <div id="adjustModal" class="modal hidden">
               <div class="panel">
                 <h3 id="adjustTitle" class="panel-title"></h3>
@@ -1620,6 +1642,9 @@
           const financeStatus = document.getElementById("financeStatus");
           const financeError = document.getElementById("financeError");
           const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
+          const financeHistoryModal = document.getElementById("financeHistoryModal");
+          const financeHistoryTitle = document.getElementById("financeHistoryTitle");
+          const financeHistoryList = document.getElementById("financeHistoryList");
           const canMarkPaid = editable;
           let financeShifts = shifts;
           let financePayments = [];
@@ -1643,6 +1668,32 @@
               minute: "2-digit",
               second: "2-digit"
             });
+
+          const renderFinanceHistory = (employeeName) => {
+            const history = financePayments
+              .filter((item) => String(item.employeeName || "").trim() === employeeName)
+              .sort((a, b) => String(b.paymentDate || "").localeCompare(String(a.paymentDate || "")));
+
+            financeHistoryTitle.textContent = `История выплат: ${employeeName}`;
+            if (!history.length) {
+              financeHistoryList.innerHTML = `<div class="muted">Выплат пока нет.</div>`;
+            } else {
+              financeHistoryList.innerHTML = history
+                .map((item) => {
+                  const pFrom = item.periodFrom ? ruDate(item.periodFrom) : "—";
+                  const pTo = item.periodTo ? ruDate(item.periodTo) : "—";
+                  return `
+                    <div class="finance-history-item">
+                      <div>Дата выплаты: ${ruDate(item.paymentDate)}</div>
+                      <div>За период: ${pFrom} - ${pTo}</div>
+                      <div>Сумма: ${formatMoneyUnsigned(item.amount)}</div>
+                    </div>
+                  `;
+                })
+                .join("");
+            }
+            financeHistoryModal.classList.remove("hidden");
+          };
 
           const renderFinance = () => {
             const from = financeFromInput.value || monthBounds.start;
@@ -1772,6 +1823,7 @@
                           ? `
                             <div class="finance-pay-row">
                               <input type="number" min="1" step="100" placeholder="Сумма выплаты" data-finance-paid-input="${index}" />
+                              <button class="button secondary" type="button" data-finance-history-btn="${index}">История</button>
                               <button class="button secondary" type="button" data-finance-paid-btn="${index}">Выплачено</button>
                             </div>
                           `
@@ -1798,6 +1850,16 @@
               });
             }
 
+            const historyButtons = [...financeList.querySelectorAll("[data-finance-history-btn]")];
+            for (const btn of historyButtons) {
+              btn.addEventListener("click", () => {
+                const idx = Number(btn.dataset.financeHistoryBtn);
+                const item = rows[idx];
+                if (!item) return;
+                renderFinanceHistory(item.name);
+              });
+            }
+
             const paidButtons = [...financeList.querySelectorAll("[data-finance-paid-btn]")];
             for (const btn of paidButtons) {
               btn.addEventListener("click", async () => {
@@ -1819,6 +1881,8 @@
                     body: JSON.stringify({
                       employeeName: item.name,
                       paymentDate: financeToInput.value || monthBounds.end,
+                      periodFrom: financeFromInput.value || monthBounds.start,
+                      periodTo: financeToInput.value || monthBounds.end,
                       amount
                     })
                   });
@@ -1865,6 +1929,12 @@
           });
           financeModal.addEventListener("click", (event) => {
             if (event.target === financeModal) financeModal.classList.add("hidden");
+          });
+          document.getElementById("closeFinanceHistoryBtn").addEventListener("click", () => {
+            financeHistoryModal.classList.add("hidden");
+          });
+          financeHistoryModal.addEventListener("click", (event) => {
+            if (event.target === financeHistoryModal) financeHistoryModal.classList.add("hidden");
           });
           financeFromInput.addEventListener("change", renderFinance);
           financeToInput.addEventListener("change", renderFinance);

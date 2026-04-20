@@ -102,6 +102,8 @@ db.exec(`
     location_code TEXT NOT NULL,
     employee_name TEXT NOT NULL,
     payment_date TEXT NOT NULL,
+    period_from TEXT NOT NULL DEFAULT '',
+    period_to TEXT NOT NULL DEFAULT '',
     amount REAL NOT NULL DEFAULT 0,
     created_by_telegram_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -180,6 +182,12 @@ if (!hasColumn("shifts", "bonuses1_meta")) {
 }
 if (!hasColumn("shifts", "bonuses2_meta")) {
   db.exec("ALTER TABLE shifts ADD COLUMN bonuses2_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("finance_payments", "period_from")) {
+  db.exec("ALTER TABLE finance_payments ADD COLUMN period_from TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("finance_payments", "period_to")) {
+  db.exec("ALTER TABLE finance_payments ADD COLUMN period_to TEXT NOT NULL DEFAULT '';");
 }
 
 const CORE_EMPLOYEE = {
@@ -619,7 +627,7 @@ export function listFinancePaymentsForMonth({ locationCode, month }) {
   const payments = db
     .prepare(
       `
-      SELECT id, employee_name, payment_date, amount, created_by_telegram_id, created_at
+      SELECT id, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE location_code = ?
         AND payment_date >= ?
@@ -632,6 +640,8 @@ export function listFinancePaymentsForMonth({ locationCode, month }) {
       id: row.id,
       employeeName: row.employee_name,
       paymentDate: row.payment_date,
+      periodFrom: row.period_from || "",
+      periodTo: row.period_to || "",
       amount: row.amount,
       createdByTelegramId: row.created_by_telegram_id,
       createdAt: row.created_at
@@ -644,6 +654,8 @@ export function createFinancePayment({
   locationCode,
   employeeName,
   paymentDate,
+  periodFrom,
+  periodTo,
   amount,
   createdByTelegramId
 }) {
@@ -659,25 +671,38 @@ export function createFinancePayment({
   if (!location) return null;
 
   const safeDate = parseDate(paymentDate);
+  const safePeriodFrom = parseDate(periodFrom);
+  const safePeriodTo = parseDate(periodTo);
   const safeAmount = Number(amount || 0);
   if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
     throw new Error("Payment amount must be positive");
+  }
+  if (safePeriodFrom > safePeriodTo) {
+    throw new Error("Payment period is invalid");
   }
 
   const info = db
     .prepare(
       `
       INSERT INTO finance_payments (
-        location_code, employee_name, payment_date, amount, created_by_telegram_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+        location_code, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `
     )
-    .run(locationCode, String(employeeName || "").trim(), safeDate, safeAmount, String(createdByTelegramId || ""));
+    .run(
+      locationCode,
+      String(employeeName || "").trim(),
+      safeDate,
+      safePeriodFrom,
+      safePeriodTo,
+      safeAmount,
+      String(createdByTelegramId || "")
+    );
 
   return db
     .prepare(
       `
-      SELECT id, employee_name, payment_date, amount, created_by_telegram_id, created_at
+      SELECT id, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE id = ?
       `
