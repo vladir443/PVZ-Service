@@ -733,6 +733,88 @@ export function validateShiftExecutors({
   return { ok: true };
 }
 
+export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
+  const employee = getEmployeeByTelegramId(telegramId);
+  if (!employee) {
+    return {
+      employee: null,
+      assignments: []
+    };
+  }
+
+  const targetDate = String(date || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    return {
+      employee,
+      assignments: []
+    };
+  }
+
+  const aliases = new Set();
+  const fullName = normalizeEmployeeName(employee.fullName);
+  const firstName = normalizeEmployeeName(employee.firstName);
+  const lastName = normalizeEmployeeName(employee.lastName);
+  const firstLast = normalizeEmployeeName([firstName, lastName].filter(Boolean).join(" "));
+  const lastFirst = normalizeEmployeeName([lastName, firstName].filter(Boolean).join(" "));
+  if (fullName) aliases.add(fullName.toLowerCase());
+  if (firstLast) aliases.add(firstLast.toLowerCase());
+  if (lastFirst) aliases.add(lastFirst.toLowerCase());
+
+  if (!aliases.size) {
+    return {
+      employee,
+      assignments: []
+    };
+  }
+
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        s.location_code,
+        l.title AS location_title,
+        l.work_start,
+        l.work_end,
+        s.executor1,
+        s.executor2
+      FROM shifts s
+      JOIN locations l ON l.code = s.location_code
+      WHERE s.shift_date = ?
+      ORDER BY l.title ASC
+      `
+    )
+    .all(targetDate);
+
+  const assignments = [];
+  for (const row of rows) {
+    const rowExecutor1 = normalizeEmployeeName(row.executor1).toLowerCase();
+    const rowExecutor2 = normalizeEmployeeName(row.executor2).toLowerCase();
+    if (rowExecutor1 && aliases.has(rowExecutor1)) {
+      assignments.push({
+        locationCode: row.location_code,
+        locationTitle: row.location_title,
+        role: "executor1",
+        workStart: row.work_start || "14:00",
+        workEnd: row.work_end || "22:00"
+      });
+    }
+    if (rowExecutor2 && aliases.has(rowExecutor2)) {
+      assignments.push({
+        locationCode: row.location_code,
+        locationTitle: row.location_title,
+        role: "executor2",
+        workStart: row.work_start || "14:00",
+        workEnd: row.work_end || "22:00"
+      });
+    }
+  }
+
+  return {
+    employee,
+    assignments
+  };
+}
+
 export function listFinancePaymentsForMonth({ locationCode, month }) {
   const location = db
     .prepare(

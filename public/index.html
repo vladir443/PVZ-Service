@@ -1081,7 +1081,7 @@
         }
       }
 
-      function renderMain() {
+      async function renderMain() {
         setAppTitle("PVZ Service");
         const photo = withAvatarCacheBust(state.telegramUser?.photoUrl || "");
         const initials = (state.user?.fullName || "?")
@@ -1090,10 +1090,31 @@
           .slice(0, 2)
           .map((w) => w[0]?.toUpperCase() || "")
           .join("");
-        const primaryLocation = state.selectedLocation || state.locations[0] || null;
-        const start = primaryLocation?.workStart || "14:00";
-        const end = primaryLocation?.workEnd || "22:00";
-        const shiftText = `Сегодня: смена ${start} - ${end}`;
+        const todayIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        let shiftText = "Сегодня: смена не назначена";
+        let overviewShift = "—";
+        let overviewStatus = "Выходной";
+        try {
+          const todayData = await api(`/api/schedule/me/today?date=${todayIso}`);
+          const assignments = Array.isArray(todayData.assignments) ? todayData.assignments : [];
+          if (assignments.length === 1) {
+            const one = assignments[0];
+            const time = `${one.workStart || "14:00"} - ${one.workEnd || "22:00"}`;
+            shiftText = `Сегодня: ${one.locationTitle}, ${time}`;
+            overviewShift = time;
+            overviewStatus = "Рабочий день";
+          } else if (assignments.length > 1) {
+            const first = assignments[0];
+            const firstTime = `${first.workStart || "14:00"} - ${first.workEnd || "22:00"}`;
+            shiftText = `Сегодня: ${assignments.length} смены (${first.locationTitle} и др.)`;
+            overviewShift = `${assignments.length} смены`;
+            overviewStatus = firstTime;
+          }
+        } catch {
+          // fallback значения уже заданы
+        }
         const employeesTotal = Number(state.employees.length || 0);
         const weekPlanned = Math.max(5, Math.round((state.locations.length || 1) * 1.2));
         screen.innerHTML = `
@@ -1115,8 +1136,8 @@
           <div class="overview-grid mt12">
             <div class="overview-card blue">
               <h3>Сегодня</h3>
-              <div class="big">${escapeHtml(`${start} - ${end}`)}</div>
-              <div class="muted mt8">Рабочий день</div>
+              <div class="big">${escapeHtml(overviewShift)}</div>
+              <div class="muted mt8">${escapeHtml(overviewStatus)}</div>
             </div>
             <div class="overview-card green">
               <h3>На этой неделе</h3>

@@ -5,6 +5,7 @@ import { Role } from "../lib/roles.js";
 import {
   createFinancePayment,
   deleteFinancePayment,
+  getTodayAssignmentsForTelegramId,
   getScheduleForMonth,
   listFinancePaymentsForMonth,
   listLocations,
@@ -66,6 +67,38 @@ router.put("/locations/:code/hours", requireRole(Role.ADMIN, Role.SUPERADMIN), (
 
 const monthSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/)
+});
+
+const todaySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+});
+
+router.get("/me/today", (req, res, next) => {
+  try {
+    const parsed = todaySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const todayIso =
+      parsed.data.date ||
+      new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+    const result = getTodayAssignmentsForTelegramId({
+      telegramId: req.user.telegramId,
+      date: todayIso
+    });
+
+    return res.json({
+      date: todayIso,
+      employee: result.employee,
+      assignments: result.assignments
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.get("/:locationCode", (req, res, next) => {
