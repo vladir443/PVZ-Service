@@ -1074,7 +1074,7 @@
           <div class="overview-grid mt12">
             <div class="overview-card blue">
               <h3>Сегодня</h3>
-              <div class="big">14:00 - 22:00</div>
+              <div class="big">${escapeHtml(`${start} - ${end}`)}</div>
               <div class="muted mt8">Рабочий день</div>
             </div>
             <div class="overview-card green">
@@ -1716,10 +1716,22 @@
         return `${labels[kind] || "Сумма"}: ${formatMoney(value)}`;
       }
 
-      function employeeOptionsHtml() {
-        return state.employees
-          .map((emp) => `<option value="${escapeHtml(emp.fullName)}"></option>`)
-          .join("");
+      function employeeSelectOptionsHtml(selectedValue = "") {
+        const current = String(selectedValue || "").trim();
+        const names = state.employees.map((emp) => String(emp.fullName || "").trim()).filter(Boolean);
+        if (current && !names.includes(current)) {
+          names.unshift(current);
+        }
+        const uniqueNames = [...new Set(names)];
+        return `
+          <option value="">— Пусто —</option>
+          ${uniqueNames
+            .map(
+              (name) =>
+                `<option value="${escapeHtml(name)}" ${current === name ? "selected" : ""}>${escapeHtml(name)}</option>`
+            )
+            .join("")}
+        `;
       }
 
       function createRowAutoSaver(locationCode) {
@@ -1809,7 +1821,6 @@
           const shifts = data.shifts || [];
           const payments = paymentsData.payments || [];
           const monthBounds = getMonthBounds(state.selectedMonth);
-          const employeeOptions = employeeOptionsHtml();
           const editable = canEditSchedule();
           if (!state.scheduleViewMode) {
             state.scheduleViewMode = isPhoneClient() ? "mobile" : "table";
@@ -1843,14 +1854,10 @@
                   <td class="day">${dayNameFromIso(row.date)}</td>
                   <td>${ruDate(row.date)}</td>
                   <td>
-                    <input type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
-                      row.executor1 || ""
-                    )}" />
+                    <select data-f="executor1">${employeeSelectOptionsHtml(row.executor1 || "")}</select>
                   </td>
                   <td>
-                    <input type="text" list="employeesList" data-f="executor2" value="${escapeHtml(
-                      row.executor2 || ""
-                    )}" />
+                    <select data-f="executor2">${employeeSelectOptionsHtml(row.executor2 || "")}</select>
                   </td>
                   <td><input type="number" min="0" step="100" data-f="rate1" value="${Number(
                     row.rate1 || 0
@@ -1914,15 +1921,11 @@
                   <div class="schedule-card-grid">
                     <div>
                       <div class="muted">Исполнитель1</div>
-                      <input data-shift-input="1" type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
-                        row.executor1 || ""
-                      )}" />
+                      <select data-shift-input="1" data-f="executor1">${employeeSelectOptionsHtml(row.executor1 || "")}</select>
                     </div>
                     <div>
                       <div class="muted">Исполнитель2</div>
-                      <input data-shift-input="1" type="text" list="employeesList" data-f="executor2" value="${escapeHtml(
-                        row.executor2 || ""
-                      )}" />
+                      <select data-shift-input="1" data-f="executor2">${employeeSelectOptionsHtml(row.executor2 || "")}</select>
                     </div>
                   </div>
                   <div class="schedule-card-details hidden" data-details="1">
@@ -2000,7 +2003,6 @@
               <button class="button secondary" id="openFinanceBtn">Финансы</button>
             </div>
             <p id="scheduleStatus" class="status mt8"></p>
-            <datalist id="employeesList">${employeeOptions}</datalist>
             ${
               viewMode === "mobile"
                 ? `<div class="schedule-mobile mt12">${mobileCards}</div>`
@@ -2694,7 +2696,7 @@
           });
 
           if (!editable) {
-            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input, [data-adjust-open]")) {
+            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input, tbody select, [data-adjust-open]")) {
               input.setAttribute("readonly", "readonly");
               input.setAttribute("disabled", "disabled");
             }
@@ -2702,7 +2704,7 @@
             status.className = "status";
             status.textContent = "Режим просмотра: у вас нет прав на редактирование";
           } else {
-            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input")) {
+            for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input, tbody select")) {
               input.addEventListener("input", () => autosave(input.closest("[data-date]")));
               input.addEventListener("change", () => autosave(input.closest("[data-date]")));
             }
