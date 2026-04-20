@@ -181,6 +181,7 @@ const financePaymentSchema = z.object({
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   periodFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  operationType: z.enum(["payout", "advance"]).default("payout"),
   amount: z.coerce.number().positive().max(1000000)
 });
 
@@ -200,6 +201,7 @@ router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN),
       paymentDate: parsed.data.paymentDate,
       periodFrom: parsed.data.periodFrom,
       periodTo: parsed.data.periodTo,
+      paymentType: parsed.data.operationType,
       amount: parsed.data.amount,
       createdByTelegramId: req.user?.telegramId || ""
     });
@@ -218,6 +220,7 @@ router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN),
         paymentDate: payment.payment_date,
         periodFrom: payment.period_from || "",
         periodTo: payment.period_to || "",
+        operationType: payment.payment_type || "payout",
         amount: payment.amount,
         createdByTelegramId: payment.created_by_telegram_id,
         createdAt: payment.created_at

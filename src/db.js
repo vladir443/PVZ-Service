@@ -104,6 +104,7 @@ db.exec(`
     payment_date TEXT NOT NULL,
     period_from TEXT NOT NULL DEFAULT '',
     period_to TEXT NOT NULL DEFAULT '',
+    payment_type TEXT NOT NULL DEFAULT 'payout',
     amount REAL NOT NULL DEFAULT 0,
     created_by_telegram_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -188,6 +189,9 @@ if (!hasColumn("finance_payments", "period_from")) {
 }
 if (!hasColumn("finance_payments", "period_to")) {
   db.exec("ALTER TABLE finance_payments ADD COLUMN period_to TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("finance_payments", "payment_type")) {
+  db.exec("ALTER TABLE finance_payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'payout';");
 }
 
 const CORE_EMPLOYEE = {
@@ -627,7 +631,7 @@ export function listFinancePaymentsForMonth({ locationCode, month }) {
   const payments = db
     .prepare(
       `
-      SELECT id, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
+      SELECT id, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE location_code = ?
         AND payment_date >= ?
@@ -642,6 +646,7 @@ export function listFinancePaymentsForMonth({ locationCode, month }) {
       paymentDate: row.payment_date,
       periodFrom: row.period_from || "",
       periodTo: row.period_to || "",
+      paymentType: row.payment_type || "payout",
       amount: row.amount,
       createdByTelegramId: row.created_by_telegram_id,
       createdAt: row.created_at
@@ -656,6 +661,7 @@ export function createFinancePayment({
   paymentDate,
   periodFrom,
   periodTo,
+  paymentType = "payout",
   amount,
   createdByTelegramId
 }) {
@@ -680,13 +686,17 @@ export function createFinancePayment({
   if (safePeriodFrom > safePeriodTo) {
     throw new Error("Payment period is invalid");
   }
+  const safeType = String(paymentType || "payout").toLowerCase();
+  if (safeType !== "payout" && safeType !== "advance") {
+    throw new Error("Payment type is invalid");
+  }
 
   const info = db
     .prepare(
       `
       INSERT INTO finance_payments (
-        location_code, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        location_code, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `
     )
     .run(
@@ -695,6 +705,7 @@ export function createFinancePayment({
       safeDate,
       safePeriodFrom,
       safePeriodTo,
+      safeType,
       safeAmount,
       String(createdByTelegramId || "")
     );
@@ -702,7 +713,7 @@ export function createFinancePayment({
   return db
     .prepare(
       `
-      SELECT id, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
+      SELECT id, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE id = ?
       `
@@ -719,7 +730,7 @@ export function deleteFinancePayment({ locationCode, paymentId }) {
   const existing = db
     .prepare(
       `
-      SELECT id, location_code, employee_name, payment_date, period_from, period_to, amount, created_by_telegram_id, created_at
+      SELECT id, location_code, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE id = ?
         AND location_code = ?
@@ -745,6 +756,7 @@ export function deleteFinancePayment({ locationCode, paymentId }) {
     paymentDate: existing.payment_date,
     periodFrom: existing.period_from || "",
     periodTo: existing.period_to || "",
+    paymentType: existing.payment_type || "payout",
     amount: existing.amount,
     createdByTelegramId: existing.created_by_telegram_id,
     createdAt: existing.created_at

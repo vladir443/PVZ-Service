@@ -252,6 +252,29 @@
         white-space: nowrap;
       }
 
+      .state-pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .state-pill.closed {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .state-pill.pending {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .state-pill.advance {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+
       .finance-summary {
         width: 100%;
         border: 0;
@@ -270,6 +293,10 @@
 
       .finance-summary-name {
         font-weight: 600;
+      }
+
+      .finance-summary-name .state-pill {
+        margin-left: 6px;
       }
 
       .finance-summary-right {
@@ -319,6 +346,12 @@
         margin-top: 8px;
         display: flex;
         justify-content: flex-end;
+      }
+
+      .executor-finance {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
       }
 
       .finance-details.hidden {
@@ -1226,6 +1259,19 @@
         return `${abs} ₽`;
       }
 
+      function financeStateForRow({ balance, advance, paid }) {
+        const bal = Number(balance || 0);
+        const adv = Number(advance || 0);
+        const pd = Number(paid || 0);
+        if (Math.abs(bal) < 0.01) {
+          return { cls: "closed", label: "Закрыто" };
+        }
+        if (adv > 0 && pd <= 0) {
+          return { cls: "advance", label: "Аванс" };
+        }
+        return { cls: "pending", label: "Долг" };
+      }
+
       function adjustButtonLabel(kind, value) {
         const labels = {
           deductions1: "Удержания И1",
@@ -1322,10 +1368,12 @@
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
         try {
-          const data = await api(
-            `/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`
-          );
+          const [data, paymentsData] = await Promise.all([
+            api(`/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`),
+            api(`/api/schedule/${state.selectedLocation.code}/payments?month=${state.selectedMonth}`)
+          ]);
           const shifts = data.shifts || [];
+          const payments = paymentsData.payments || [];
           const monthBounds = getMonthBounds(state.selectedMonth);
           const employeeOptions = employeeOptionsHtml();
           const editable = canEditSchedule();
@@ -1333,6 +1381,39 @@
             state.scheduleViewMode = isPhoneClient() ? "mobile" : "table";
           }
           const viewMode = state.scheduleViewMode;
+
+          const paidSnapshot = new Map();
+          for (const payment of payments) {
+            const name = String(payment.employeeName || "").trim();
+            if (!name) continue;
+            const current = paidSnapshot.get(name) || { advance: 0, payout: 0 };
+            const opType = String(payment.paymentType || "payout");
+            if (opType === "advance") {
+              current.advance += Number(payment.amount || 0);
+            } else {
+              current.payout += Number(payment.amount || 0);
+            }
+            paidSnapshot.set(name, current);
+          }
+          const financeByEmployee = new Map();
+          for (const shift of shifts) {
+            const n1 = String(shift.executor1 || "").trim();
+            const n2 = String(shift.executor2 || "").trim();
+            const accrual1 =
+              Number(shift.rate1 || 0) + Number(shift.bonuses1 || 0) + Number(shift.deductions1 || 0);
+            const accrual2 =
+              Number(shift.rate2 || 0) + Number(shift.bonuses2 || 0) + Number(shift.deductions2 || 0);
+            if (n1) financeByEmployee.set(n1, (financeByEmployee.get(n1) || 0) + accrual1);
+            if (n2) financeByEmployee.set(n2, (financeByEmployee.get(n2) || 0) + accrual2);
+          }
+          const executorFinanceHint = (name) => {
+            const fullName = String(name || "").trim();
+            if (!fullName) return "";
+            const accrued = Number(financeByEmployee.get(fullName) || 0);
+            const paid = paidSnapshot.get(fullName) || { advance: 0, payout: 0 };
+            const balance = accrued - Number(paid.advance || 0) - Number(paid.payout || 0);
+            return `<div class="executor-finance">Остаток: ${escapeHtml(formatPayoutBalance(balance))}</div>`;
+          };
 
           const rows = shifts
             .map(
@@ -1346,12 +1427,18 @@
                 >
                   <td class="day">${dayNameFromIso(row.date)}</td>
                   <td>${ruDate(row.date)}</td>
-                  <td><input type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
-                    row.executor1 || ""
-                  )}" /></td>
-                  <td><input type="text" list="employeesList" data-f="executor2" value="${escapeHtml(
-                    row.executor2 || ""
-                  )}" /></td>
+                  <td>
+                    <input type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
+                      row.executor1 || ""
+                    )}" />
+                    ${executorFinanceHint(row.executor1)}
+                  </td>
+                  <td>
+                    <input type="text" list="employeesList" data-f="executor2" value="${escapeHtml(
+                      row.executor2 || ""
+                    )}" />
+                    ${executorFinanceHint(row.executor2)}
+                  </td>
                   <td><input type="number" min="0" step="100" data-f="rate1" value="${Number(
                     row.rate1 || 0
                   )}" /></td>
@@ -1417,12 +1504,14 @@
                       <input data-shift-input="1" type="text" list="employeesList" data-f="executor1" value="${escapeHtml(
                         row.executor1 || ""
                       )}" />
+                      ${executorFinanceHint(row.executor1)}
                     </div>
                     <div>
                       <div class="muted">Исполнитель2</div>
                       <input data-shift-input="1" type="text" list="employeesList" data-f="executor2" value="${escapeHtml(
                         row.executor2 || ""
                       )}" />
+                      ${executorFinanceHint(row.executor2)}
                     </div>
                   </div>
                   <div class="schedule-card-details hidden" data-details="1">
@@ -1653,7 +1742,7 @@
           const financeHistoryList = document.getElementById("financeHistoryList");
           const canMarkPaid = editable;
           let financeShifts = shifts;
-          let financePayments = [];
+          let financePayments = payments;
           const expandedFinance = new Set();
 
           financeFromInput.min = monthBounds.start;
@@ -1692,6 +1781,7 @@
                     <div class="finance-history-item">
                       <div>Дата выплаты: ${ruDate(item.paymentDate)}</div>
                       <div>За период: ${pFrom} - ${pTo}</div>
+                      <div>Тип: ${item.paymentType === "advance" ? "Аванс" : "Выплата"}</div>
                       <div>Сумма: ${formatMoneyUnsigned(item.amount)}</div>
                       ${
                         canMarkPaid
@@ -1755,7 +1845,13 @@
               if (!pDate || pDate < from || pDate > to) continue;
               const pName = String(payment.employeeName || "").trim();
               if (!pName) continue;
-              paidTotals.set(pName, (paidTotals.get(pName) || 0) + Number(payment.amount || 0));
+              const current = paidTotals.get(pName) || { payout: 0, advance: 0 };
+              if (String(payment.paymentType || "payout") === "advance") {
+                current.advance += Number(payment.amount || 0);
+              } else {
+                current.payout += Number(payment.amount || 0);
+              }
+              paidTotals.set(pName, current);
             }
 
             const totals = new Map();
@@ -1776,7 +1872,8 @@
                   shifts: 0,
                   deductions: 0,
                   bonuses: 0,
-                  paid: paidTotals.get(p1) || 0
+                  paid: Number((paidTotals.get(p1)?.payout || 0)),
+                  advance: Number((paidTotals.get(p1)?.advance || 0))
                 };
                 current.total += rate1 + bonus1 + ded1Raw;
                 current.shifts += 1;
@@ -1790,7 +1887,8 @@
                   shifts: 0,
                   deductions: 0,
                   bonuses: 0,
-                  paid: paidTotals.get(p2) || 0
+                  paid: Number((paidTotals.get(p2)?.payout || 0)),
+                  advance: Number((paidTotals.get(p2)?.advance || 0))
                 };
                 current.total += rate2 + bonus2 + ded2Raw;
                 current.shifts += 1;
@@ -1807,7 +1905,8 @@
                 shifts: 0,
                 deductions: 0,
                 bonuses: 0,
-                paid
+                paid: Number(paid.payout || 0),
+                advance: Number(paid.advance || 0)
               });
             }
 
@@ -1815,7 +1914,8 @@
               .map(([name, stat]) => {
                 const accrued = Number(stat.total || 0);
                 const paid = Number(stat.paid || 0);
-                const balance = accrued - paid;
+                const advance = Number(stat.advance || 0);
+                const balance = accrued - paid - advance;
                 return {
                   name,
                   shifts: Number(stat.shifts || 0),
@@ -1823,12 +1923,13 @@
                   deductions: Number(stat.deductions || 0),
                   bonuses: Number(stat.bonuses || 0),
                   paid,
+                  advance,
                   balance
                 };
               })
               .sort((a, b) => b.balance - a.balance || a.name.localeCompare(b.name, "ru"));
 
-            financeHint.textContent = `Период: ${ruDate(from)} - ${ruDate(to)}. Ставка + доплаты - удержания.`;
+            financeHint.textContent = `Период: ${ruDate(from)} - ${ruDate(to)}. К выплате = (ставка + доплаты - удержания) - аванс - выплачено.`;
             if (!rows.length) {
               financeList.innerHTML = `<div class="muted">За выбранный период смен не найдено.</div>`;
               return;
@@ -1840,7 +1941,13 @@
                   <div class="finance-row">
                     <button class="finance-summary" type="button" data-finance-toggle="${index}">
                       <div class="finance-summary-left">
-                        <div class="finance-summary-name">${escapeHtml(item.name)}</div>
+                        <div class="finance-summary-name">
+                          ${escapeHtml(item.name)}
+                          ${(() => {
+                            const state = financeStateForRow(item);
+                            return `<span class="state-pill ${state.cls}">${state.label}</span>`;
+                          })()}
+                        </div>
                       </div>
                       <div class="finance-summary-right">
                         <div class="finance-amount">К выплате: ${formatPayoutBalance(item.balance)}</div>
@@ -1855,6 +1962,7 @@
                       <div>За смены: ${item.shifts} (${formatMoney(item.accrued)})</div>
                       <div>Удержано: ${formatMoneyUnsigned(item.deductions)}</div>
                       <div>Доплачено: ${formatMoneyUnsigned(item.bonuses)}</div>
+                      <div>Аванс: ${formatMoneyUnsigned(item.advance)}</div>
                       <div>Выплачено: ${formatMoneyUnsigned(item.paid)}</div>
                       ${
                         canMarkPaid
@@ -1862,6 +1970,7 @@
                             <div class="finance-pay-row">
                               <input type="number" min="1" step="100" placeholder="Сумма выплаты" data-finance-paid-input="${index}" />
                               <button class="button secondary" type="button" data-finance-history-btn="${index}">История</button>
+                              <button class="button secondary" type="button" data-finance-advance-btn="${index}">Аванс</button>
                               <button class="button secondary" type="button" data-finance-paid-btn="${index}">Выплачено</button>
                             </div>
                           `
@@ -1899,35 +2008,57 @@
             }
 
             const paidButtons = [...financeList.querySelectorAll("[data-finance-paid-btn]")];
+            const advanceButtons = [...financeList.querySelectorAll("[data-finance-advance-btn]")];
+            const addFinanceOperation = async (idx, operationType) => {
+              if (!canMarkPaid) return;
+              const item = rows[idx];
+              if (!item) return;
+              const input = financeList.querySelector(`[data-finance-paid-input='${idx}']`);
+              const amount = Number(input?.value || 0);
+              if (!Number.isFinite(amount) || amount <= 0) {
+                financeError.textContent = "Введите корректную сумму";
+                return;
+              }
+              financeError.textContent = "";
+              await api(`/api/schedule/${state.selectedLocation.code}/payments`, {
+                method: "POST",
+                body: JSON.stringify({
+                  employeeName: item.name,
+                  paymentDate: financeToInput.value || monthBounds.end,
+                  periodFrom: financeFromInput.value || monthBounds.start,
+                  periodTo: financeToInput.value || monthBounds.end,
+                  operationType,
+                  amount
+                })
+              });
+              await refreshFinanceData();
+              setFinanceStatus(
+                `${operationType === "advance" ? "Аванс" : "Выплата"} добавлен(а). Обновлено: ${nowTimeLabel()}`
+              );
+            };
+
             for (const btn of paidButtons) {
               btn.addEventListener("click", async () => {
-                if (!canMarkPaid) return;
                 const idx = Number(btn.dataset.financePaidBtn);
-                const item = rows[idx];
-                if (!item) return;
-                const input = financeList.querySelector(`[data-finance-paid-input='${idx}']`);
-                const amount = Number(input?.value || 0);
-                if (!Number.isFinite(amount) || amount <= 0) {
-                  financeError.textContent = "Введите корректную сумму выплаты";
-                  return;
-                }
-                financeError.textContent = "";
                 btn.disabled = true;
                 try {
-                  await api(`/api/schedule/${state.selectedLocation.code}/payments`, {
-                    method: "POST",
-                    body: JSON.stringify({
-                      employeeName: item.name,
-                      paymentDate: financeToInput.value || monthBounds.end,
-                      periodFrom: financeFromInput.value || monthBounds.start,
-                      periodTo: financeToInput.value || monthBounds.end,
-                      amount
-                    })
-                  });
-                  await refreshFinanceData();
-                  setFinanceStatus(`Выплата добавлена. Обновлено: ${nowTimeLabel()}`);
+                  await addFinanceOperation(idx, "payout");
                 } catch (error) {
                   financeError.textContent = `Ошибка выплаты: ${error.message}`;
+                } finally {
+                  btn.disabled = false;
+                }
+              });
+            }
+
+            for (const btn of advanceButtons) {
+              btn.addEventListener("click", async () => {
+                const idx = Number(btn.dataset.financeAdvanceBtn);
+                btn.disabled = true;
+                try {
+                  await addFinanceOperation(idx, "advance");
+                } catch (error) {
+                  financeError.textContent = `Ошибка аванса: ${error.message}`;
                 } finally {
                   btn.disabled = false;
                 }
