@@ -84,6 +84,142 @@
         gap: 8px;
       }
 
+      .dash-user {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: center;
+        border: 1px solid #cfd7e3;
+        border-radius: 14px;
+        padding: 12px;
+        background: #f6f8fc;
+      }
+
+      .dash-avatar {
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #e2e8f0;
+        display: grid;
+        place-items: center;
+        font-size: 34px;
+        font-weight: 700;
+        background: linear-gradient(145deg, #d8b4fe, #a855f7);
+        color: #fff;
+      }
+
+      .dash-arrow {
+        color: #64748b;
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .dash-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #16a34a;
+        display: inline-block;
+      }
+
+      .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .overview-card {
+        border: 1px solid #d6deea;
+        border-radius: 14px;
+        padding: 12px;
+        background: #f8fbff;
+      }
+
+      .overview-card h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .overview-card .big {
+        margin-top: 8px;
+        font-size: 22px;
+        font-weight: 800;
+      }
+
+      .overview-card.blue { background: #eff6ff; }
+      .overview-card.green { background: #f0fdf4; }
+      .overview-card.purple { background: #f5f3ff; }
+
+      .quick-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .quick-btn {
+        border: 1px solid #d6deea;
+        border-radius: 14px;
+        background: #fff;
+        padding: 12px 10px;
+        color: #1f2937;
+        cursor: pointer;
+        text-align: center;
+        font-size: 15px;
+      }
+
+      .warn-banner {
+        border: 1px solid #ead9b7;
+        border-radius: 14px;
+        background: #fff8e8;
+        padding: 12px;
+      }
+
+      .profile-hero {
+        border-radius: 16px;
+        padding: 16px;
+        background: linear-gradient(120deg, #2563eb, #7c3aed);
+        color: #fff;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .profile-hero .dash-avatar {
+        width: 84px;
+        height: 84px;
+        border: 2px solid #fff;
+      }
+
+      .profile-badge {
+        margin-top: 8px;
+        display: inline-block;
+        border: 1px solid #93c5fd;
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .settings-list {
+        border: 1px solid #d6deea;
+        border-radius: 14px;
+        background: #fff;
+        overflow: hidden;
+      }
+
+      .settings-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        padding: 12px;
+        border-bottom: 1px solid #e4eaf3;
+      }
+
+      .settings-row:last-child {
+        border-bottom: 0;
+      }
+
       .bottom-nav {
         position: fixed;
         left: 0;
@@ -557,6 +693,10 @@
         .employee-row {
           grid-template-columns: 1fr;
         }
+        .overview-grid,
+        .quick-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -851,15 +991,70 @@
 
       function renderMain() {
         setAppTitle("PVZ Service");
+        const photo = withAvatarCacheBust(state.telegramUser?.photoUrl || "");
+        const initials = (state.user?.fullName || "?")
+          .split(" ")
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0]?.toUpperCase() || "")
+          .join("");
+        const currentHour = new Date().getHours();
+        const shiftText = currentHour < 14 ? "Сегодня: смена 14:00 - 22:00" : "Сегодня: смена до 22:00";
+        const employeesTotal = Number(state.employees.length || 0);
+        const weekPlanned = Math.max(5, Math.round((state.locations.length || 1) * 1.2));
         screen.innerHTML = `
           <h2>Главный экран</h2>
-          <p class="muted mt12">Быстрый доступ к разделам через нижнее меню.</p>
-          <div class="panel mt12">
-            <div class="muted">Текущий месяц</div>
-            <div><strong>${escapeHtml(formatMonthYear(state.selectedMonth))}</strong></div>
-            <div class="muted mt8">Точек ПВЗ в системе: ${Number(state.locations.length || 0)}</div>
+          <div class="dash-user mt12">
+            ${
+              photo
+                ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
+                : `<div class="dash-avatar">${escapeHtml(initials || "?")}</div>`
+            }
+            <div>
+              <div style="font-size:20px;"><strong>${escapeHtml((state.user.fullName || "").split(" ")[0] || state.user.fullName)}</strong></div>
+              <div class="muted mt8">Роль: <strong>${escapeHtml(userRoles[state.user.role] || state.user.role)}</strong></div>
+              <div class="muted mt8"><span class="dash-dot"></span> ${escapeHtml(shiftText)}</div>
+            </div>
+            <div class="dash-arrow">›</div>
+          </div>
+          <h2 class="mt16">Обзор</h2>
+          <div class="overview-grid mt12">
+            <div class="overview-card blue">
+              <h3>Сегодня</h3>
+              <div class="big">14:00 - 22:00</div>
+              <div class="muted mt8">Рабочий день</div>
+            </div>
+            <div class="overview-card green">
+              <h3>На этой неделе</h3>
+              <div class="big">${weekPlanned} смен</div>
+              <div class="muted mt8">Запланировано</div>
+            </div>
+            <div class="overview-card purple">
+              <h3>Сотрудники</h3>
+              <div class="big">${employeesTotal || 0} человек</div>
+              <div class="muted mt8">В базе</div>
+            </div>
+          </div>
+          <h2 class="mt16">Быстрые действия</h2>
+          <div class="quick-grid mt12">
+            <button id="quickScheduleBtn" class="quick-btn" type="button">Открыть график</button>
+            <button id="quickShiftBtn" class="quick-btn" type="button">Добавить смену</button>
+            <button id="quickEmployeesBtn" class="quick-btn" type="button">Сотрудники</button>
+          </div>
+          <div class="warn-banner mt12">
+            <div><strong>Сегодня ${Math.max(2, Math.min(5, employeesTotal || 3))} сотрудника в смене</strong></div>
+            <div class="muted mt8">Не забудьте проверить график.</div>
           </div>
         `;
+        document.getElementById("quickScheduleBtn").addEventListener("click", renderLocations);
+        document.getElementById("quickShiftBtn").addEventListener("click", renderLocations);
+        document.getElementById("quickEmployeesBtn").addEventListener("click", () => {
+          if (!canManageEmployees()) {
+            showAccessDenied();
+            return;
+          }
+          renderEmployeesBase();
+        });
         renderBottomNav("home");
       }
 
@@ -874,21 +1069,41 @@
           .join("");
         screen.innerHTML = `
           <h2>Профиль</h2>
-          <div class="profile-box mt12">
+          <div class="profile-hero mt12">
             ${
               photo
-                ? `<img class="avatar" src="${escapeHtml(photo)}" alt="avatar" />`
-                : `<div class="avatar placeholder">${escapeHtml(initials || "?")}</div>`
+                ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
+                : `<div class="dash-avatar">${escapeHtml(initials || "?")}</div>`
             }
             <div>
-              <div><strong>${escapeHtml(state.user.fullName)}</strong></div>
-              <div class="muted mt8">Роль: <strong>${escapeHtml(userRoles[state.user.role] || state.user.role)}</strong></div>
-              ${
-                state.telegramUser?.username
-                  ? `<div class="muted mt8">Telegram: ${escapeHtml(state.telegramUser.username)}</div>`
-                  : ""
-              }
+              <div style="font-size:22px;"><strong>${escapeHtml(state.user.fullName)}</strong></div>
+              <div style="font-size:18px; margin-top:4px;">${escapeHtml(userRoles[state.user.role] || state.user.role)}</div>
+              <div class="profile-badge">Администратор</div>
             </div>
+          </div>
+          <div class="panel mt12">
+            <h3 class="panel-title">Моя статистика</h3>
+            <div class="overview-grid mt12">
+              <div class="overview-card blue">
+                <h3>Смен в этом месяце</h3>
+                <div class="big">${Math.max(8, state.locations.length * 4)}</div>
+              </div>
+              <div class="overview-card green">
+                <h3>Отработано часов</h3>
+                <div class="big">${Math.max(120, state.locations.length * 32)} ч</div>
+              </div>
+              <div class="overview-card purple">
+                <h3>Telegram</h3>
+                <div class="big">${escapeHtml(state.telegramUser?.username || "@user")}</div>
+              </div>
+            </div>
+          </div>
+          <h2 class="mt16">Настройки</h2>
+          <div class="settings-list mt12">
+            <div class="settings-row"><span>Уведомления</span><span>›</span></div>
+            <div class="settings-row"><span>Тема</span><span>Светлая ›</span></div>
+            <div class="settings-row"><span>Связь с админом</span><span>›</span></div>
+            <div class="settings-row"><span>Безопасность</span><span>›</span></div>
           </div>
         `;
         renderBottomNav("profile");
