@@ -66,6 +66,13 @@ router.post("/", (req, res, next) => {
       });
     }
 
+    if (req.user.role === Role.ADMIN && parsed.data.accessRole !== Role.PARTICIPANT) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Админ не может менять роли"
+      });
+    }
+
     const validationMessage = validateContacts(parsed.data);
     if (validationMessage) {
       return res.status(400).json({
@@ -146,10 +153,10 @@ router.put("/:id", (req, res, next) => {
           message: "Админ может изменять данные только у участников"
         });
       }
-      if (requestedRole !== Role.PARTICIPANT && requestedRole !== Role.ADMIN) {
+      if (requestedRole !== targetRole) {
         return res.status(403).json({
           error: "Forbidden",
-          message: "Админ может назначить участнику только роль админа"
+          message: "Админ не может менять роли"
         });
       }
     }

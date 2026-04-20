@@ -628,11 +628,17 @@
                 (emp) => `
                   <div class="employee-row">
                     <div class="employee-main">
-                      ${
-                        emp.avatarUrl
-                          ? `<img class="employee-avatar" src="${escapeHtml(emp.avatarUrl)}" alt="avatar" />`
-                          : `<div class="employee-avatar placeholder">${escapeHtml((emp.fullName || "?").slice(0, 1).toUpperCase())}</div>`
-                      }
+                      ${(() => {
+                        const effectiveAvatar =
+                          emp.avatarUrl ||
+                          (String(emp.telegramId || "") === String(state.telegramId || "")
+                            ? state.telegramUser?.photoUrl || ""
+                            : "");
+                        if (effectiveAvatar) {
+                          return `<img class="employee-avatar" src="${escapeHtml(effectiveAvatar)}" alt="avatar" />`;
+                        }
+                        return `<div class="employee-avatar placeholder">${escapeHtml((emp.fullName || "?").slice(0, 1).toUpperCase())}</div>`;
+                      })()}
                       <div>
                         <div><strong>${escapeHtml(emp.fullName)}</strong>${reliabilityBadge(
                           emp.reliability
@@ -774,8 +780,7 @@
           );
           accessRoleInput.value = employee.accessRole || "PARTICIPANT";
           accessRoleInput.disabled =
-            !!employee.isProtected ||
-            (state.user.role === "ADMIN" && (employee.accessRole || "PARTICIPANT") === "ADMIN");
+            !!employee.isProtected || state.user.role === "ADMIN";
           const adminCannotEdit =
             state.user.role === "ADMIN" &&
             (employee.accessRole || "PARTICIPANT") !== "PARTICIPANT";

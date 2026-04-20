@@ -19,7 +19,7 @@ const loginSchema = z.object({
   telegramId: z.string().min(1).max(64),
   fullName: z.string().min(1).max(120),
   username: z.string().max(64).optional().default(""),
-  photoUrl: z.string().max(500).optional().default("")
+  photoUrl: z.string().max(2000).optional().default("")
 });
 
 router.post("/login", async (req, res, next) => {
