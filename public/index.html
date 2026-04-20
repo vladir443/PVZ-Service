@@ -338,7 +338,8 @@
         locations: [],
         employees: [],
         selectedLocation: null,
-        selectedMonth: ""
+        selectedMonth: "",
+        avatarNonce: String(Date.now())
       };
 
       const screen = document.getElementById("screen");
@@ -360,6 +361,22 @@
 
       function canEditSchedule() {
         return state.user?.role === "ADMIN" || state.user?.role === "SUPERADMIN";
+      }
+
+      function canEditEmployeeFromList(employee) {
+        if (!state.user) return false;
+        if (state.user.role === "SUPERADMIN") return true;
+        if (state.user.role === "ADMIN") {
+          return (employee?.accessRole || "PARTICIPANT") === "PARTICIPANT";
+        }
+        return false;
+      }
+
+      function withAvatarCacheBust(url, nonce = state.avatarNonce) {
+        const raw = String(url || "").trim();
+        if (!raw) return "";
+        const sep = raw.includes("?") ? "&" : "?";
+        return `${raw}${sep}v=${encodeURIComponent(nonce)}`;
       }
 
       function monthNow() {
@@ -448,6 +465,7 @@
           state.user = login.user;
           state.telegramId = login.user.telegramId;
           state.selectedMonth = monthNow();
+          state.avatarNonce = String(Date.now());
 
           const locationsData = await api("/api/schedule/locations");
           state.locations = locationsData.locations || [];
@@ -461,7 +479,7 @@
 
       function renderMain() {
         setAppTitle("PVZ Service");
-        const photo = state.telegramUser?.photoUrl;
+        const photo = withAvatarCacheBust(state.telegramUser?.photoUrl || "");
         const initials = (state.user?.fullName || "?")
           .split(" ")
           .filter(Boolean)
@@ -471,7 +489,6 @@
 
         screen.innerHTML = `
           <h2>Главный экран</h2>
-          <div class="muted mt8">Версия интерфейса: ${APP_VERSION}</div>
           <div class="profile-box mt12">
             ${
               photo
@@ -629,11 +646,15 @@
                   <div class="employee-row">
                     <div class="employee-main">
                       ${(() => {
-                        const effectiveAvatar =
+                        const effectiveAvatarRaw =
                           emp.avatarUrl ||
                           (String(emp.telegramId || "") === String(state.telegramId || "")
                             ? state.telegramUser?.photoUrl || ""
                             : "");
+                        const effectiveAvatar = withAvatarCacheBust(
+                          effectiveAvatarRaw,
+                          `${state.avatarNonce}-${emp.telegramId || emp.id || "emp"}`
+                        );
                         if (effectiveAvatar) {
                           return `<img class="employee-avatar" src="${escapeHtml(effectiveAvatar)}" alt="avatar" />`;
                         }
@@ -652,7 +673,7 @@
                         </div>
                       </div>
                     </div>
-                    <button class="button secondary" data-edit-id="${emp.id}">Редактировать</button>
+                    <button class="button secondary ${canEditEmployeeFromList(emp) ? "" : "disabled"}" data-edit-id="${emp.id}" ${canEditEmployeeFromList(emp) ? "" : "disabled"}>Редактировать</button>
                   </div>
                 `
               )
