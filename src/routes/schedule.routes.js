@@ -3,7 +3,9 @@ import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
 import {
+  createFinancePayment,
   getScheduleForMonth,
+  listFinancePaymentsForMonth,
   listLocations,
   upsertShift
 } from "../db.js";
@@ -48,6 +50,34 @@ router.get("/:locationCode", (req, res, next) => {
     }
 
     return res.json(schedule);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/:locationCode/payments", (req, res, next) => {
+  try {
+    const parsed = monthSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const data = listFinancePaymentsForMonth({
+      locationCode: req.params.locationCode,
+      month: parsed.data.month
+    });
+
+    if (!data) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Location was not found"
+      });
+    }
+
+    return res.json(data);
   } catch (error) {
     return next(error);
   }
@@ -140,6 +170,52 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
     }
 
     return res.json({ shift });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+const financePaymentSchema = z.object({
+  employeeName: z.string().trim().min(3).max(120),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  amount: z.coerce.number().positive().max(1000000)
+});
+
+router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
+  try {
+    const parsed = financePaymentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const payment = createFinancePayment({
+      locationCode: req.params.locationCode,
+      employeeName: parsed.data.employeeName,
+      paymentDate: parsed.data.paymentDate,
+      amount: parsed.data.amount,
+      createdByTelegramId: req.user?.telegramId || ""
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Location was not found"
+      });
+    }
+
+    return res.status(201).json({
+      payment: {
+        id: payment.id,
+        employeeName: payment.employee_name,
+        paymentDate: payment.payment_date,
+        amount: payment.amount,
+        createdByTelegramId: payment.created_by_telegram_id,
+        createdAt: payment.created_at
+      }
+    });
   } catch (error) {
     return next(error);
   }

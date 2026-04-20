@@ -96,6 +96,19 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS finance_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location_code TEXT NOT NULL,
+    employee_name TEXT NOT NULL,
+    payment_date TEXT NOT NULL,
+    amount REAL NOT NULL DEFAULT 0,
+    created_by_telegram_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(location_code) REFERENCES locations(code)
+  );
+`);
+
 function hasColumn(table, column) {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all();
   return rows.some((row) => row.name === column);
@@ -411,6 +424,13 @@ function parseMonth(monthValue) {
   return { year, month };
 }
 
+function parseDate(dateValue) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue || ""))) {
+    throw new Error("Date must be in YYYY-MM-DD format");
+  }
+  return String(dateValue);
+}
+
 function safeParseMeta(raw) {
   try {
     const parsed = JSON.parse(String(raw || "[]"));
@@ -577,6 +597,92 @@ export function upsertShift({
       `
     )
     .get(locationCode, date);
+}
+
+export function listFinancePaymentsForMonth({ locationCode, month }) {
+  const location = db
+    .prepare(
+      `
+      SELECT code
+      FROM locations
+      WHERE code = ?
+      `
+    )
+    .get(locationCode);
+  if (!location) return null;
+
+  const { year, month: monthNum } = parseMonth(month);
+  const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+  const fromDate = `${month}-01`;
+  const toDate = `${month}-${String(lastDay).padStart(2, "0")}`;
+
+  const payments = db
+    .prepare(
+      `
+      SELECT id, employee_name, payment_date, amount, created_by_telegram_id, created_at
+      FROM finance_payments
+      WHERE location_code = ?
+        AND payment_date >= ?
+        AND payment_date <= ?
+      ORDER BY payment_date ASC, id ASC
+      `
+    )
+    .all(locationCode, fromDate, toDate)
+    .map((row) => ({
+      id: row.id,
+      employeeName: row.employee_name,
+      paymentDate: row.payment_date,
+      amount: row.amount,
+      createdByTelegramId: row.created_by_telegram_id,
+      createdAt: row.created_at
+    }));
+
+  return { payments };
+}
+
+export function createFinancePayment({
+  locationCode,
+  employeeName,
+  paymentDate,
+  amount,
+  createdByTelegramId
+}) {
+  const location = db
+    .prepare(
+      `
+      SELECT code
+      FROM locations
+      WHERE code = ?
+      `
+    )
+    .get(locationCode);
+  if (!location) return null;
+
+  const safeDate = parseDate(paymentDate);
+  const safeAmount = Number(amount || 0);
+  if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
+    throw new Error("Payment amount must be positive");
+  }
+
+  const info = db
+    .prepare(
+      `
+      INSERT INTO finance_payments (
+        location_code, employee_name, payment_date, amount, created_by_telegram_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+      `
+    )
+    .run(locationCode, String(employeeName || "").trim(), safeDate, safeAmount, String(createdByTelegramId || ""));
+
+  return db
+    .prepare(
+      `
+      SELECT id, employee_name, payment_date, amount, created_by_telegram_id, created_at
+      FROM finance_payments
+      WHERE id = ?
+      `
+    )
+    .get(info.lastInsertRowid);
 }
 
 export function listEmployees() {
