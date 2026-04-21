@@ -47,7 +47,10 @@ router.post("/login", async (req, res, next) => {
     syncEmployeeTelegramProfile({ telegramId, username, photoUrl });
 
     const adminIds = getAdminTelegramIds();
-    const isSuperAdmin = isCoreAdminUsername(username);
+    const isProtectedOwner =
+      employee.isProtected &&
+      String(employee.telegramId || "").trim() === String(telegramId || "").trim();
+    const isSuperAdmin = isCoreAdminUsername(username) || isProtectedOwner;
     const shouldBeAdmin =
       isSuperAdmin || adminIds.has(telegramId) || employee.accessRole === Role.ADMIN;
 

@@ -763,9 +763,9 @@
 
       .employee-row {
         display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 10px;
-        align-items: start;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        align-items: stretch;
         border: 1px solid #dfe7f2;
         border-radius: 16px;
         padding: 13px 14px;
@@ -789,7 +789,7 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
       }
 
       .employee-name {
@@ -837,6 +837,48 @@
         border-color: #d8e1ef;
       }
 
+      .employee-head-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+      }
+
+      .employee-edit-icon-btn {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #d2dceb;
+        border-radius: 10px;
+        background: #f7faff;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .employee-edit-icon-btn img {
+        width: 15px;
+        height: 15px;
+        object-fit: contain;
+        opacity: 0.72;
+      }
+
+      .employee-edit-icon-btn:hover {
+        background: #eef4ff;
+        border-color: #bdcbe0;
+      }
+
+      .employee-edit-icon-btn.disabled,
+      .employee-edit-icon-btn:disabled {
+        background: #eef3fb;
+        border-color: #d8e1ef;
+        cursor: not-allowed;
+      }
+
+      .employee-edit-icon-btn.disabled img,
+      .employee-edit-icon-btn:disabled img {
+        opacity: 0.38;
+      }
+
       .employees-header {
         display: flex;
         justify-content: space-between;
@@ -854,6 +896,23 @@
       .add-employee-btn:hover {
         background: linear-gradient(180deg, #eff6ff 0%, #dfeaff 100%);
         border-color: #9fb7de;
+      }
+
+      .add-employee-btn.icon-only {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+      }
+
+      .add-employee-btn.icon-only img {
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+        opacity: 0.85;
       }
 
       .employee-avatar {
@@ -1757,6 +1816,18 @@
                         <div class="employee-head">
                           <div class="employee-name">${escapeHtml(emp.fullName)}</div>
                           ${reliabilityBadge(emp.reliability)}
+                          <div class="employee-head-actions">
+                            <button
+                              class="employee-edit-icon-btn ${canEditEmployeeFromList(emp) ? "" : "disabled"}"
+                              data-edit-id="${emp.id}"
+                              ${canEditEmployeeFromList(emp) ? "" : "disabled"}
+                              type="button"
+                              aria-label="Редактировать"
+                              title="Редактировать"
+                            >
+                              <img src="/icons/employee-edit.png" alt="Редактировать" />
+                            </button>
+                          </div>
                         </div>
                         <div class="employee-roleline">
                           ${escapeHtml(positions[emp.position] || emp.position)}
@@ -1769,7 +1840,6 @@
                         </div>
                       </div>
                     </div>
-                    <button class="button secondary employee-edit-btn ${canEditEmployeeFromList(emp) ? "" : "disabled"}" data-edit-id="${emp.id}" ${canEditEmployeeFromList(emp) ? "" : "disabled"}>Редактировать</button>
                   </div>
                 `
               )
@@ -1779,11 +1849,18 @@
         screen.innerHTML = `
           <div class="employees-header">
             <h2>База сотрудников</h2>
-            <button class="button add-employee-btn" id="openAddEmployeeBtn">Добавить сотрудника</button>
+            <button class="button add-employee-btn icon-only" id="openAddEmployeeBtn" type="button" aria-label="Добавить сотрудника" title="Добавить сотрудника">
+              <img src="/icons/employee-add.png" alt="Добавить сотрудника" />
+            </button>
           </div>
           <div id="employeeModal" class="modal hidden">
             <div id="employeePanel" class="panel">
-              <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
+              <div class="row" style="justify-content:flex-start; gap:10px;">
+                <button id="closeEmployeePanelBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
+                  <img src="/icons/back-arrow.png" alt="Назад" />
+                </button>
+                <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
+              </div>
               <div class="employees-form mt12">
                 <div>
                   <div class="muted">Имя (мин 3)</div>
@@ -1915,6 +1992,7 @@
         };
 
         document.getElementById("openAddEmployeeBtn").addEventListener("click", openForCreate);
+        document.getElementById("closeEmployeePanelBtnTop").addEventListener("click", closePanel);
         document.getElementById("closeEmployeePanelBtn").addEventListener("click", closePanel);
         modal.addEventListener("click", (event) => {
           if (event.target === modal) closePanel();
