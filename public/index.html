@@ -951,6 +951,104 @@
         gap: 8px;
       }
 
+      #employeePanel {
+        border-radius: 16px;
+        border: 1px solid #dfe7f3;
+        background: linear-gradient(180deg, #fbfdff 0%, #f6faff 100%);
+        padding: 14px;
+      }
+
+      .employee-panel-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .employee-form-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .employee-form-group {
+        border: 1px solid #e2e9f4;
+        border-radius: 14px;
+        background: #ffffff;
+        padding: 12px;
+      }
+
+      .employee-form-group-title {
+        margin: 0 0 10px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #334964;
+      }
+
+      .employee-form-group-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+      }
+
+      .employee-form-field {
+        display: grid;
+        gap: 5px;
+      }
+
+      .employee-form-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #233954;
+      }
+
+      .employee-form-hint {
+        font-size: 12px;
+        color: #8090a8;
+      }
+
+      #employeePanel input[type="text"],
+      #employeePanel input[type="tel"],
+      #employeePanel select {
+        background: #fff;
+        border: 1px solid #d4dfef;
+        border-radius: 10px;
+        min-height: 40px;
+        padding: 8px 10px;
+        font-size: 14px;
+      }
+
+      #employeePanel input[type="text"]:focus,
+      #employeePanel input[type="tel"]:focus,
+      #employeePanel select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+      }
+
+      .employee-form-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .employee-save-btn {
+        background: linear-gradient(180deg, #2d74da 0%, #1f5db8 100%);
+        border: 1px solid #1e56a9;
+        color: #fff;
+        font-weight: 700;
+      }
+
+      .employee-save-btn:hover {
+        background: linear-gradient(180deg, #2569cb 0%, #1a509f 100%);
+      }
+
+      .employee-delete-btn:disabled {
+        background: #eef3fb;
+        color: #7c8ca5;
+        border: 1px solid #d9e2f0;
+        cursor: not-allowed;
+      }
+
       .modal {
         position: fixed;
         inset: 0;
@@ -1855,50 +1953,69 @@
           </div>
           <div id="employeeModal" class="modal hidden">
             <div id="employeePanel" class="panel">
-              <div class="row" style="justify-content:flex-start; gap:10px;">
+              <div class="employee-panel-head">
                 <button id="closeEmployeePanelBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
                   <img src="/icons/back-arrow.png" alt="Назад" />
                 </button>
                 <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
               </div>
-              <div class="employees-form mt12">
-                <div>
-                  <div class="muted">Имя (мин 3)</div>
-                  <input id="firstNameInput" type="text" />
+              <div class="employee-form-stack mt12">
+                <div class="employee-form-group">
+                  <p class="employee-form-group-title">Основные данные</p>
+                  <div class="employee-form-group-grid">
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Имя</div>
+                      <input id="firstNameInput" type="text" />
+                      <div class="employee-form-hint">Минимум 3 символа</div>
+                    </div>
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Фамилия</div>
+                      <input id="lastNameInput" type="text" />
+                      <div class="employee-form-hint">Минимум 3 символа</div>
+                    </div>
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Должность</div>
+                      <select id="positionInput">${positionOptionsHtml("manager")}</select>
+                    </div>
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Надежность</div>
+                      <select id="reliabilityInput">${reliabilityOptionsHtml("checking")}</select>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div class="muted">Фамилия (мин 3)</div>
-                  <input id="lastNameInput" type="text" />
+
+                <div class="employee-form-group">
+                  <p class="employee-form-group-title">Контакты</p>
+                  <div class="employee-form-group-grid">
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Телефон</div>
+                      <input id="phoneInput" type="tel" placeholder="+7 922 ***‒**‒94" inputmode="numeric" />
+                      <div class="employee-form-hint">Необязательно</div>
+                    </div>
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Telegram контакт</div>
+                      <input id="telegramInput" type="text" placeholder="@username" />
+                    </div>
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">VK контакт</div>
+                      <input id="vkInput" type="text" placeholder="https://vk.com/username" />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div class="muted">Телефон (необязательно)</div>
-                  <input id="phoneInput" type="tel" placeholder="+7 922 ***‒**‒94" inputmode="numeric" />
-                </div>
-                <div>
-                  <div class="muted">Telegram контакт</div>
-                  <input id="telegramInput" type="text" placeholder="@username" />
-                </div>
-                <div>
-                  <div class="muted">VK контакт</div>
-                  <input id="vkInput" type="text" placeholder="https://vk.com/username" />
-                </div>
-                <div>
-                  <div class="muted">Должность</div>
-                  <select id="positionInput">${positionOptionsHtml("manager")}</select>
-                </div>
-                <div>
-                  <div class="muted">Надежность</div>
-                  <select id="reliabilityInput">${reliabilityOptionsHtml("checking")}</select>
-                </div>
-                <div>
-                  <div class="muted">Роль в приложении</div>
-                  <select id="accessRoleInput">${accessRoleOptionsHtml("PARTICIPANT", state.user.role, false)}</select>
+
+                <div class="employee-form-group">
+                  <p class="employee-form-group-title">Доступ</p>
+                  <div class="employee-form-group-grid">
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Роль в приложении</div>
+                      <select id="accessRoleInput">${accessRoleOptionsHtml("PARTICIPANT", state.user.role, false)}</select>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div class="row mt12">
-                <button class="button" id="saveEmployeeBtn">Сохранить</button>
-                <button class="button danger" id="deleteEmployeeBtn">Удалить сотрудника</button>
-                <button class="button secondary" id="closeEmployeePanelBtn">Отмена</button>
+              <div class="employee-form-actions mt12">
+                <button class="button employee-save-btn" id="saveEmployeeBtn">Сохранить</button>
+                <button class="button danger employee-delete-btn" id="deleteEmployeeBtn">Удалить сотрудника</button>
               </div>
             </div>
           </div>
@@ -1993,7 +2110,6 @@
 
         document.getElementById("openAddEmployeeBtn").addEventListener("click", openForCreate);
         document.getElementById("closeEmployeePanelBtnTop").addEventListener("click", closePanel);
-        document.getElementById("closeEmployeePanelBtn").addEventListener("click", closePanel);
         modal.addEventListener("click", (event) => {
           if (event.target === modal) closePanel();
         });
