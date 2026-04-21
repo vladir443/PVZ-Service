@@ -174,6 +174,58 @@
         letter-spacing: -0.02em;
       }
 
+      .home-caption {
+        margin-top: 10px;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      .home-list {
+        margin-top: 10px;
+        display: grid;
+        gap: 7px;
+      }
+
+      .home-list-item {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px;
+        align-items: baseline;
+      }
+
+      .home-list-date {
+        font-size: 13px;
+        font-weight: 700;
+        color: #273a57;
+        white-space: nowrap;
+      }
+
+      .home-list-sep {
+        color: #7b8aa2;
+      }
+
+      .home-list-address {
+        font-size: 13px;
+        color: #64748b;
+        line-height: 1.35;
+      }
+
+      .home-main-note {
+        margin-top: 8px;
+        font-size: 14px;
+        line-height: 1.35;
+        color: #2a3f60;
+        font-weight: 600;
+      }
+
+      .home-sub-note {
+        margin-top: 6px;
+        font-size: 13px;
+        line-height: 1.35;
+        color: #7a879d;
+      }
+
       .overview-card.blue { background: #f1f6ff; }
       .overview-card.green { background: #f4f8ff; }
       .overview-card.purple { background: #f3f8ff; }
@@ -200,6 +252,11 @@
         border-radius: 16px;
         background: #f7faff;
         padding: 14px;
+      }
+
+      .warn-banner > div:first-child {
+        font-size: 15px;
+        color: #243754;
       }
 
       .profile-hero {
@@ -1109,7 +1166,7 @@
         let overviewShift = "—";
         let overviewStatus = "Выходной";
         let todayCardTitle = "Сегодня выходной";
-        let upcomingCaption = "Нет запланированных смен";
+        let upcomingLines = ["Нет запланированных смен"];
         let todayTeamTitle = "Сегодня у вас нет смены";
         let todayTeamSub = "Пока вы не назначены на смену";
         let emptyShiftLines = ["Свободных смен на ближайшие 3 дня нет"];
@@ -1186,7 +1243,7 @@
             })
             .filter(Boolean);
           if (labels.length) {
-            upcomingCaption = labels.join(", ");
+            upcomingLines = labels;
           }
 
           const nextDates = [todayIso, addDaysIso(todayIso, 1), addDaysIso(todayIso, 2)];
@@ -1242,7 +1299,33 @@
           // fallback значения уже заданы
         }
         const emptyShiftLinesHtml = emptyShiftLines
-          .map((line) => `<div class="muted mt8">${escapeHtml(line)}</div>`)
+          .map((line) => {
+            const parts = String(line || "").split(" — ");
+            const dateLabel = parts[0] || "";
+            const addrLabel = parts.slice(1).join(" — ");
+            return `
+              <div class="home-list-item">
+                <div class="home-list-date">${escapeHtml(dateLabel)} <span class="home-list-sep">—</span></div>
+                <div class="home-list-address">${escapeHtml(addrLabel)}</div>
+              </div>
+            `;
+          })
+          .join("");
+        const upcomingLinesHtml = upcomingLines
+          .map((line) => {
+            const parts = String(line || "").split(" — ");
+            if (parts.length < 2) {
+              return `<div class="home-list-address">${escapeHtml(line)}</div>`;
+            }
+            const dateLabel = parts[0] || "";
+            const addrLabel = parts.slice(1).join(" — ");
+            return `
+              <div class="home-list-item">
+                <div class="home-list-date">${escapeHtml(dateLabel)} <span class="home-list-sep">—</span></div>
+                <div class="home-list-address">${escapeHtml(addrLabel)}</div>
+              </div>
+            `;
+          })
           .join("");
         screen.innerHTML = `
           <div class="dash-user mt12" id="openProfileFromMain">
@@ -1263,17 +1346,18 @@
             <div class="overview-card blue">
               <h3>${escapeHtml(todayCardTitle)}</h3>
               <div class="big">${escapeHtml(overviewShift)}</div>
-              <div class="muted mt8">${escapeHtml(todayTeamTitle)}</div>
-              <div class="muted mt8">${escapeHtml(todayTeamSub)}</div>
+              <div class="home-caption">${escapeHtml(overviewStatus)}</div>
+              <div class="home-main-note">${escapeHtml(todayTeamTitle)}</div>
+              <div class="home-sub-note">${escapeHtml(todayTeamSub)}</div>
             </div>
             <div class="overview-card green">
               <h3>Ваши ближайшие смены</h3>
-              <div class="muted mt8">${escapeHtml(upcomingCaption)}</div>
+              <div class="home-list">${upcomingLinesHtml}</div>
             </div>
           </div>
           <div class="warn-banner mt12">
             <div><strong>Ближайшие свободные смены</strong></div>
-            ${emptyShiftLinesHtml}
+            <div class="home-list">${emptyShiftLinesHtml}</div>
           </div>
         `;
         renderBottomNav("home");
