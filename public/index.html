@@ -830,6 +830,32 @@
         border-color: #bdcbe0;
       }
 
+      .employee-edit-btn.disabled,
+      .employee-edit-btn:disabled {
+        background: #eef3fb;
+        color: #7a879d;
+        border-color: #d8e1ef;
+      }
+
+      .employees-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .add-employee-btn {
+        border: 1px solid #b8cae7;
+        background: linear-gradient(180deg, #f7fbff 0%, #eaf2ff 100%);
+        color: #1f4f92;
+        font-weight: 700;
+      }
+
+      .add-employee-btn:hover {
+        background: linear-gradient(180deg, #eff6ff 0%, #dfeaff 100%);
+        border-color: #9fb7de;
+      }
+
       .employee-avatar {
         width: 48px;
         height: 48px;
@@ -1751,10 +1777,10 @@
           : `<div class="muted">Список пока пуст.</div>`;
 
         screen.innerHTML = `
-          <div class="row">
-            <button class="button" id="openAddEmployeeBtn">Добавить сотрудника</button>
+          <div class="employees-header">
+            <h2>База сотрудников</h2>
+            <button class="button add-employee-btn" id="openAddEmployeeBtn">Добавить сотрудника</button>
           </div>
-          <h2 class="mt12">База сотрудников</h2>
           <div id="employeeModal" class="modal hidden">
             <div id="employeePanel" class="panel">
               <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
