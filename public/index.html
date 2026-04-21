@@ -817,6 +817,58 @@
         overflow-wrap: anywhere;
       }
 
+      .employee-contact-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .employee-contact-link {
+        color: #64748b;
+        text-decoration: none;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        overflow-wrap: anywhere;
+      }
+
+      a.employee-contact-link:hover,
+      a.employee-contact-link:focus-visible,
+      .employee-contact-copy-btn:hover,
+      .employee-contact-copy-btn:focus-visible {
+        color: #2f4b76;
+        text-decoration: underline;
+      }
+
+      .employee-contact-copy-btn {
+        width: 24px;
+        height: 24px;
+        border: 1px solid #d2dceb;
+        border-radius: 8px;
+        background: #f7faff;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .employee-contact-copy-btn img {
+        width: 13px;
+        height: 13px;
+        object-fit: contain;
+        opacity: 0.72;
+      }
+
+      .employee-contact-copy-btn:hover {
+        background: #eef4ff;
+        border-color: #bdcbe0;
+      }
+
       .employee-edit-btn {
         align-self: center;
         border: 1px solid #d2dceb;
@@ -1887,6 +1939,7 @@
       }
 
       async function renderEmployeesBase() {
+        setAppTitle("");
         await loadEmployees();
 
         const employeeHtml = state.employees.length
@@ -1932,9 +1985,62 @@
                           ${emp.accessRole ? ` · Доступ: ${escapeHtml(userRoles[emp.accessRole] || emp.accessRole)}` : ""}
                         </div>
                         <div class="employee-contacts">
-                          ${emp.phone ? `<div class="employee-contact-item">Телефон: ${escapeHtml(emp.phone)}</div>` : ""}
-                          ${emp.telegramContact ? `<div class="employee-contact-item">TG: ${escapeHtml(emp.telegramContact)}</div>` : ""}
-                          ${emp.vkContact ? `<div class="employee-contact-item">VK: ${escapeHtml(emp.vkContact)}</div>` : ""}
+                          ${emp.phone
+                            ? `<div class="employee-contact-row">
+                                <div class="employee-contact-link employee-contact-item">Телефон: ${escapeHtml(emp.phone)}</div>
+                                <button
+                                  type="button"
+                                  class="employee-contact-copy-btn"
+                                  data-copy-value="${escapeHtml(emp.phone)}"
+                                  data-copy-label="Номер"
+                                  aria-label="Скопировать телефон"
+                                  title="Скопировать телефон"
+                                >
+                                  <img src="/icons/copy.png" alt="Скопировать" />
+                                </button>
+                              </div>`
+                            : ""}
+                          ${(() => {
+                            const raw = String(emp.telegramContact || "").trim();
+                            if (!raw) return "";
+                            const clean = raw.replace(/^@/, "");
+                            if (!clean) return "";
+                            const href = /^\d+$/.test(clean)
+                              ? `tg://user?id=${clean}`
+                              : `https://t.me/${encodeURIComponent(clean)}`;
+                            const label = raw.startsWith("@") ? raw : `@${raw}`;
+                            return `<div class="employee-contact-row">
+                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">TG: ${escapeHtml(label)}</a>
+                              <button
+                                type="button"
+                                class="employee-contact-copy-btn"
+                                data-copy-value="${escapeHtml(label)}"
+                                data-copy-label="TG"
+                                aria-label="Скопировать TG"
+                                title="Скопировать TG"
+                              >
+                                <img src="/icons/copy.png" alt="Скопировать" />
+                              </button>
+                            </div>`;
+                          })()}
+                          ${(() => {
+                            const raw = String(emp.vkContact || "").trim();
+                            if (!raw) return "";
+                            const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+                            return `<div class="employee-contact-row">
+                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">VK: ${escapeHtml(raw)}</a>
+                              <button
+                                type="button"
+                                class="employee-contact-copy-btn"
+                                data-copy-value="${escapeHtml(href)}"
+                                data-copy-label="VK"
+                                aria-label="Скопировать VK"
+                                title="Скопировать VK"
+                              >
+                                <img src="/icons/copy.png" alt="Скопировать" />
+                              </button>
+                            </div>`;
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -2183,6 +2289,34 @@
 
         for (const editBtn of screen.querySelectorAll("[data-edit-id]")) {
           editBtn.addEventListener("click", () => openForEdit(editBtn.dataset.editId));
+        }
+
+        for (const copyBtn of screen.querySelectorAll("[data-copy-value]")) {
+          copyBtn.addEventListener("click", async () => {
+            const rawValue = String(copyBtn.dataset.copyValue || "").trim();
+            const copyLabel = String(copyBtn.dataset.copyLabel || "Данные").trim();
+            if (!rawValue) return;
+            try {
+              if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(rawValue);
+              } else {
+                const tmp = document.createElement("textarea");
+                tmp.value = rawValue;
+                tmp.setAttribute("readonly", "");
+                tmp.style.position = "absolute";
+                tmp.style.left = "-9999px";
+                document.body.appendChild(tmp);
+                tmp.select();
+                document.execCommand("copy");
+                document.body.removeChild(tmp);
+              }
+              status.className = "status ok";
+              status.textContent = `${copyLabel} скопирован`;
+            } catch {
+              status.className = "status error";
+              status.textContent = `Не удалось скопировать ${copyLabel.toLowerCase()}`;
+            }
+          });
         }
 
         deleteEmployeeBtn.addEventListener("click", async () => {
