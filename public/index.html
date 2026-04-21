@@ -440,19 +440,12 @@
         transform: translateY(-1px);
       }
       .location-btn.wb {
-        background: linear-gradient(180deg, #fdfbff 0%, #f7f3ff 100%);
-        border-left: 4px solid #8b5cf6;
+        background: linear-gradient(180deg, #fcfaff 0%, #f1eaff 100%);
+        border-left: 6px solid #7c3aed;
       }
       .location-btn.ozon {
-        background: linear-gradient(180deg, #f8fbff 0%, #eff5ff 100%);
-        border-left: 4px solid #3b82f6;
-      }
-      .location-btn.selected {
-        border-color: #9bb8df;
-        box-shadow: 0 0 0 3px #e8f0fb, 0 8px 18px rgba(24, 44, 78, 0.1);
-      }
-      .location-btn.selected .location-btn-arrow {
-        opacity: 0.7;
+        background: linear-gradient(180deg, #f7fbff 0%, #e6f0ff 100%);
+        border-left: 6px solid #2563eb;
       }
 
       .profile-box {
@@ -1549,8 +1542,7 @@
           .map(
             (loc) => {
               const btnClass = loc.title.toLowerCase().startsWith("ozon") ? "ozon" : "wb";
-              const selectedClass = state.selectedLocation?.code === loc.code ? "selected" : "";
-              return `<button class="button location-btn ${btnClass} ${selectedClass}" data-code="${escapeHtml(loc.code)}">
+              return `<button class="button location-btn ${btnClass}" data-code="${escapeHtml(loc.code)}">
                 <span class="location-btn-inner">
                   <span class="location-btn-title">${escapeHtml(loc.title)}</span>
                   <img class="location-btn-arrow" src="/icons/right-arrow.png" alt="Открыть" />
