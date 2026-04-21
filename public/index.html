@@ -1093,9 +1093,10 @@
         const todayIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000)
           .toISOString()
           .slice(0, 10);
-        let shiftText = "Сегодня: смена не назначена";
+        let shiftText = "Выходной";
         let overviewShift = "—";
         let overviewStatus = "Выходной";
+        let todayCardTitle = "Сегодня выходной";
         let upcomingCaption = "Нет запланированных смен";
         let todayTeamTitle = "Сегодня у вас нет смены";
         let todayTeamSub = "Пока вы не назначены на смену";
@@ -1135,9 +1136,10 @@
           if (assignments.length === 1) {
             const one = assignments[0];
             const time = `${one.workStart || "14:00"} - ${one.workEnd || "22:00"}`;
-            shiftText = `Сегодня: ${one.locationTitle}, ${time}`;
+            shiftText = "Работаю";
             overviewShift = time;
             overviewStatus = "Рабочий день";
+            todayCardTitle = "Сегодня рабочий день";
             const coworker = String(one.coworkerName || "").trim();
             if (coworker) {
               todayTeamTitle = `Сегодня ваша смена с ${coworker}`;
@@ -1149,9 +1151,10 @@
           } else if (assignments.length > 1) {
             const first = assignments[0];
             const firstTime = `${first.workStart || "14:00"} - ${first.workEnd || "22:00"}`;
-            shiftText = `Сегодня: ${assignments.length} смены (${first.locationTitle} и др.)`;
+            shiftText = "Работаю";
             overviewShift = `${assignments.length} смены`;
             overviewStatus = firstTime;
+            todayCardTitle = "Сегодня рабочий день";
             const coworker = String(first.coworkerName || "").trim();
             if (coworker) {
               todayTeamTitle = `Сегодня ваша смена с ${coworker}`;
@@ -1230,8 +1233,7 @@
           .map((line) => `<div class="muted mt8">${escapeHtml(line)}</div>`)
           .join("");
         screen.innerHTML = `
-          <h2>Главный экран</h2>
-          <div class="dash-user mt12">
+          <div class="dash-user mt12" id="openProfileFromMain">
             ${
               photo
                 ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
@@ -1247,7 +1249,7 @@
           <h2 class="mt16">Обзор</h2>
           <div class="overview-grid mt12">
             <div class="overview-card blue">
-              <h3>Сегодня</h3>
+              <h3>${escapeHtml(todayCardTitle)}</h3>
               <div class="big">${escapeHtml(overviewShift)}</div>
               <div class="muted mt8">${escapeHtml(overviewStatus)}</div>
               <div class="muted mt8">${escapeHtml(todayTeamTitle)}</div>
@@ -1264,6 +1266,9 @@
           </div>
         `;
         renderBottomNav("home");
+        document.getElementById("openProfileFromMain")?.addEventListener("click", () => {
+          renderProfile();
+        });
       }
 
       function renderProfile() {
