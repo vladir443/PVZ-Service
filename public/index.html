@@ -1423,11 +1423,11 @@
           </div>
           <div id="adminHoursModal" class="modal hidden">
             <div class="panel">
-              <div class="row" style="justify-content: space-between;">
-                <h3 class="panel-title">Админ-панель: график ПВЗ</h3>
+              <div class="row" style="justify-content: flex-start; gap: 10px;">
                 <button id="closeAdminPanelBtnTop" class="open-arrow-btn" type="button">
                   <img src="/icons/back-arrow.png" alt="Выход" />
                 </button>
+                <h3 class="panel-title">Админ-панель: график ПВЗ</h3>
               </div>
               <div class="muted mt8">Измените рабочие часы пунктов. Эти часы будут показываться в смене сотрудника.</div>
               <div class="employees-form mt12">
@@ -1455,11 +1455,6 @@
                   .join("")}
               </div>
               <p id="adminHoursStatus" class="status mt12"></p>
-              <div class="row mt12">
-                <button id="closeAdminPanelBtn" class="open-arrow-btn" type="button">
-                  <img src="/icons/back-arrow.png" alt="Выход" />
-                </button>
-              </div>
             </div>
           </div>
         `;
@@ -1512,9 +1507,6 @@
         document.getElementById("closeAdminPanelBtnTop")?.addEventListener("click", () => {
           adminHoursModal.classList.add("hidden");
         });
-        document.getElementById("closeAdminPanelBtn")?.addEventListener("click", () => {
-          adminHoursModal.classList.add("hidden");
-        });
         adminHoursModal?.addEventListener("click", (event) => {
           if (event.target === adminHoursModal) adminHoursModal.classList.add("hidden");
         });
@@ -1538,17 +1530,10 @@
           .join("");
 
         screen.innerHTML = `
-          <div class="row">
-            <button class="back-icon-btn" id="backMainBtn" aria-label="Назад">
-              <img src="/icons/back-arrow.png" alt="Назад" />
-            </button>
-          </div>
-          <h2 class="mt12">Выбор ПВЗ</h2>
+          <h2>Выбор ПВЗ</h2>
           <div class="location-grid mt12">${locationHtml}</div>
         `;
         renderBottomNav("schedule");
-
-        document.getElementById("backMainBtn").addEventListener("click", renderMain);
         for (const btn of screen.querySelectorAll("[data-code]")) {
           btn.addEventListener("click", () => {
             const location = state.locations.find((x) => x.code === btn.dataset.code);
@@ -1690,9 +1675,6 @@
 
         screen.innerHTML = `
           <div class="row">
-            <button class="back-icon-btn" id="backMainBtn" aria-label="Назад">
-              <img src="/icons/back-arrow.png" alt="Назад" />
-            </button>
             <button class="button" id="openAddEmployeeBtn">Добавить сотрудника</button>
           </div>
           <h2 class="mt12">База сотрудников</h2>
@@ -1744,8 +1726,6 @@
           <div class="employees-list mt12">${employeeHtml}</div>
         `;
         renderBottomNav("employees");
-
-        document.getElementById("backMainBtn").addEventListener("click", renderMain);
         const status = document.getElementById("employeeStatus");
         const modal = document.getElementById("employeeModal");
         const panel = document.getElementById("employeePanel");
