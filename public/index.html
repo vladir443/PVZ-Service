@@ -7,13 +7,13 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
       :root {
-        --bg: #eef2f7;
+        --bg: #f3f6fb;
         --card: #ffffff;
-        --line: #d5dce7;
-        --text: #1f2937;
-        --muted: #6b7280;
-        --primary: #0f766e;
-        --primary-dark: #0b5a54;
+        --line: #e3eaf4;
+        --text: #162033;
+        --muted: #66748c;
+        --primary: #0f3b75;
+        --primary-dark: #0b2f5d;
         --danger: #b42318;
       }
 
@@ -22,7 +22,7 @@
       body {
         margin: 0;
         color: var(--text);
-        background: linear-gradient(180deg, #f5f7fb 0%, #eef2f7 100%);
+        background: linear-gradient(180deg, #f8faff 0%, #f1f5fb 100%);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         overscroll-behavior-y: none;
       }
@@ -30,21 +30,22 @@
       .wrap {
         max-width: none;
         margin: 0 auto;
-        padding: 8px;
+        padding: 10px;
         min-height: 100dvh;
       }
 
       .card {
         background: var(--card);
-        border-radius: 14px;
-        padding: 14px;
+        border-radius: 18px;
+        padding: 16px;
         padding-bottom: 88px;
-        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
-        min-height: calc(100dvh - 16px);
+        border: 1px solid #e7edf7;
+        box-shadow: 0 8px 26px rgba(22, 37, 63, 0.08);
+        min-height: calc(100dvh - 20px);
       }
 
       h1 { margin: 0; font-size: 24px; }
-      h2 { margin: 0; font-size: 20px; }
+      h2 { margin: 0; font-size: 20px; letter-spacing: 0.01em; }
 
       .mt8 { margin-top: 8px; }
       .mt12 { margin-top: 12px; }
@@ -105,20 +106,22 @@
       .dash-user {
         display: grid;
         grid-template-columns: auto 1fr auto;
-        gap: 12px;
+        gap: 14px;
         align-items: center;
-        border: 1px solid #cfd7e3;
-        border-radius: 14px;
-        padding: 12px;
-        background: #f6f8fc;
+        border: 1px solid #dbe4f1;
+        border-radius: 16px;
+        padding: 14px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        box-shadow: 0 4px 14px rgba(24, 44, 78, 0.06);
+        cursor: pointer;
       }
 
       .dash-avatar {
-        width: 68px;
-        height: 68px;
+        width: 72px;
+        height: 72px;
         border-radius: 50%;
         object-fit: cover;
-        border: 2px solid #e2e8f0;
+        border: 2px solid #e8eef7;
         display: grid;
         place-items: center;
         font-size: 34px;
@@ -128,47 +131,52 @@
       }
 
       .dash-arrow {
-        width: 24px;
-        height: 24px;
+        width: 18px;
+        height: 18px;
         object-fit: contain;
-        opacity: 0.9;
+        opacity: 0.65;
       }
 
       .dash-dot {
-        width: 10px;
-        height: 10px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
-        background: #16a34a;
+        background: #22c55e;
         display: inline-block;
       }
 
       .overview-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
       }
 
       .overview-card {
-        border: 1px solid #d6deea;
-        border-radius: 14px;
-        padding: 12px;
+        border: 1px solid #e2e9f4;
+        border-radius: 16px;
+        padding: 14px;
         background: #f8fbff;
+        box-shadow: 0 3px 10px rgba(20, 37, 69, 0.04);
       }
 
       .overview-card h3 {
         margin: 0;
         font-size: 15px;
+        font-weight: 700;
+        line-height: 1.25;
       }
 
       .overview-card .big {
-        margin-top: 8px;
-        font-size: 22px;
+        margin-top: 10px;
+        font-size: 28px;
         font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
       }
 
-      .overview-card.blue { background: #eff6ff; }
-      .overview-card.green { background: #f0fdf4; }
-      .overview-card.purple { background: #f5f3ff; }
+      .overview-card.blue { background: #f1f6ff; }
+      .overview-card.green { background: #f4f8ff; }
+      .overview-card.purple { background: #f3f8ff; }
 
       .quick-grid {
         display: grid;
@@ -188,10 +196,10 @@
       }
 
       .warn-banner {
-        border: 1px solid #ead9b7;
-        border-radius: 14px;
-        background: #fff8e8;
-        padding: 12px;
+        border: 1px solid #e0e8f5;
+        border-radius: 16px;
+        background: #f7faff;
+        padding: 14px;
       }
 
       .profile-hero {
@@ -285,21 +293,22 @@
         right: 0;
         bottom: 0;
         z-index: 60;
-        background: linear-gradient(180deg, #10243a 0%, #0b1728 100%);
-        border-top: 1px solid #1f3349;
-        padding: 8px 10px calc(7px + env(safe-area-inset-bottom));
+        background: rgba(244, 248, 255, 0.96);
+        backdrop-filter: blur(8px);
+        border-top: 1px solid #dce5f3;
+        padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 8px;
+        gap: 6px;
       }
 
       .bottom-nav-btn {
         border: 0;
-        border-radius: 10px;
+        border-radius: 12px;
         background: transparent;
-        color: #dbe6f5;
+        color: #74839b;
         font-size: 12px;
-        font-weight: 600;
+        font-weight: 500;
         padding: 4px 6px 3px;
         text-align: center;
         cursor: pointer;
@@ -309,7 +318,8 @@
       }
 
       .bottom-nav-btn.active {
-        color: #60a5fa;
+        color: #1f5cb8;
+        background: #e9f1ff;
       }
 
       .bottom-nav-btn.disabled {
@@ -318,10 +328,11 @@
       }
 
       .bottom-nav-icon {
-        width: 21px;
-        height: 21px;
+        width: 20px;
+        height: 20px;
         object-fit: contain;
-        filter: brightness(0) invert(1) opacity(0.86);
+        filter: brightness(0) saturate(100%) invert(42%) sepia(11%) saturate(647%)
+          hue-rotate(173deg) brightness(94%) contrast(88%);
       }
 
       .bottom-nav-icon.employees {
@@ -330,7 +341,8 @@
       }
 
       .bottom-nav-btn.active .bottom-nav-icon {
-        filter: invert(67%) sepia(47%) saturate(2624%) hue-rotate(190deg) brightness(101%) contrast(98%);
+        filter: brightness(0) saturate(100%) invert(28%) sepia(84%) saturate(1308%)
+          hue-rotate(194deg) brightness(95%) contrast(92%);
       }
 
       .bottom-nav-label {
@@ -1251,7 +1263,6 @@
             <div class="overview-card blue">
               <h3>${escapeHtml(todayCardTitle)}</h3>
               <div class="big">${escapeHtml(overviewShift)}</div>
-              <div class="muted mt8">${escapeHtml(overviewStatus)}</div>
               <div class="muted mt8">${escapeHtml(todayTeamTitle)}</div>
               <div class="muted mt8">${escapeHtml(todayTeamSub)}</div>
             </div>
