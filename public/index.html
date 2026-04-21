@@ -758,55 +758,102 @@
 
       .employees-list {
         display: grid;
-        gap: 8px;
+        gap: 10px;
       }
 
       .employee-row {
         display: grid;
         grid-template-columns: 1fr auto;
-        gap: 8px;
-        align-items: center;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 9px 10px;
-        background: #fafcff;
-      }
-
-      .employee-meta {
-        font-size: 13px;
-        color: var(--muted);
+        gap: 10px;
+        align-items: start;
+        border: 1px solid #dfe7f2;
+        border-radius: 16px;
+        padding: 13px 14px;
+        background: #fbfdff;
+        box-shadow: 0 3px 10px rgba(20, 37, 69, 0.04);
       }
 
       .employee-main {
         display: flex;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .employee-content {
+        min-width: 0;
+        display: grid;
+        gap: 6px;
+      }
+
+      .employee-head {
+        display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .employee-name {
+        font-size: 17px;
+        font-weight: 800;
+        line-height: 1.2;
+        color: #162033;
+      }
+
+      .employee-roleline {
+        font-size: 13px;
+        line-height: 1.35;
+        color: #40526f;
+      }
+
+      .employee-contacts {
+        display: grid;
+        gap: 3px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: #7a879d;
+      }
+
+      .employee-contact-item {
+        overflow-wrap: anywhere;
+      }
+
+      .employee-edit-btn {
+        align-self: center;
+        border: 1px solid #d2dceb;
+        background: #f7faff;
+        color: #2a3f60;
+        font-weight: 600;
+      }
+
+      .employee-edit-btn:hover {
+        background: #eef4ff;
+        border-color: #bdcbe0;
       }
 
       .employee-avatar {
-        width: 40px;
-        height: 40px;
+        width: 48px;
+        height: 48px;
         border-radius: 50%;
         object-fit: cover;
-        border: 1px solid #c5ced8;
+        border: 1px solid #d4deeb;
         flex: 0 0 auto;
       }
 
       .employee-avatar.placeholder {
         display: grid;
         place-items: center;
-        background: #dce7f5;
-        font-size: 13px;
+        background: #e5edf9;
+        font-size: 14px;
         font-weight: 700;
       }
 
       .badge {
         display: inline-block;
         border-radius: 999px;
-        padding: 2px 8px;
-        font-size: 12px;
+        padding: 3px 8px;
+        font-size: 11px;
         font-weight: 600;
-        margin-left: 6px;
+        margin-left: 0;
       }
 
       .badge.reliable { background: #dff7e8; color: #157a3f; }
@@ -867,6 +914,10 @@
         h1 { font-size: 22px; }
         .employee-row {
           grid-template-columns: 1fr;
+        }
+        .employee-edit-btn {
+          width: 100%;
+          margin-top: 2px;
         }
         .overview-grid,
         .quick-grid {
@@ -1676,20 +1727,23 @@
                         }
                         return `<div class="employee-avatar placeholder">${escapeHtml((emp.fullName || "?").slice(0, 1).toUpperCase())}</div>`;
                       })()}
-                      <div>
-                        <div><strong>${escapeHtml(emp.fullName)}</strong>${reliabilityBadge(
-                          emp.reliability
-                        )}</div>
-                        <div class="employee-meta mt8">
+                      <div class="employee-content">
+                        <div class="employee-head">
+                          <div class="employee-name">${escapeHtml(emp.fullName)}</div>
+                          ${reliabilityBadge(emp.reliability)}
+                        </div>
+                        <div class="employee-roleline">
                           ${escapeHtml(positions[emp.position] || emp.position)}
-                          ${emp.phone ? ` · ${escapeHtml(emp.phone)}` : ""}
-                          ${emp.telegramContact ? ` · TG: ${escapeHtml(emp.telegramContact)}` : ""}
-                          ${emp.vkContact ? ` · VK: ${escapeHtml(emp.vkContact)}` : ""}
                           ${emp.accessRole ? ` · Доступ: ${escapeHtml(userRoles[emp.accessRole] || emp.accessRole)}` : ""}
+                        </div>
+                        <div class="employee-contacts">
+                          ${emp.phone ? `<div class="employee-contact-item">Телефон: ${escapeHtml(emp.phone)}</div>` : ""}
+                          ${emp.telegramContact ? `<div class="employee-contact-item">TG: ${escapeHtml(emp.telegramContact)}</div>` : ""}
+                          ${emp.vkContact ? `<div class="employee-contact-item">VK: ${escapeHtml(emp.vkContact)}</div>` : ""}
                         </div>
                       </div>
                     </div>
-                    <button class="button secondary ${canEditEmployeeFromList(emp) ? "" : "disabled"}" data-edit-id="${emp.id}" ${canEditEmployeeFromList(emp) ? "" : "disabled"}>Редактировать</button>
+                    <button class="button secondary employee-edit-btn ${canEditEmployeeFromList(emp) ? "" : "disabled"}" data-edit-id="${emp.id}" ${canEditEmployeeFromList(emp) ? "" : "disabled"}>Редактировать</button>
                   </div>
                 `
               )
