@@ -6,8 +6,8 @@ import {
 } from "../db.js";
 
 const REMINDER_POINTS = [
-  { code: "before_24h", hoursBefore: 24, label: "(24 часа)" },
-  { code: "before_14h", hoursBefore: 14, label: "(14)" }
+  { code: "before_24h", hoursBefore: 24, label: "через 24 часа" },
+  { code: "before_14h", hoursBefore: 14, label: "через 14 часов" }
 ];
 
 const POLL_INTERVAL_MS = 60 * 1000;
@@ -59,7 +59,7 @@ function formatCoworkerContactLine({ coworkerTelegramContact, coworkerVkContact,
   const tg = String(coworkerTelegramContact || "").trim() || "не указан";
   const vk = String(coworkerVkContact || "").trim() || "не указан";
   const phone = String(coworkerPhone || "").trim() || "не указан";
-  return `${tg}, ${vk}, ${phone}`;
+  return `тг: ${tg}, вк: ${vk}, телефон: ${phone}`;
 }
 
 async function sendTelegramMessage({ telegramId, text }) {
