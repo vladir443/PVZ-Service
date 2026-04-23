@@ -3028,14 +3028,16 @@
               </div>
 
               <div id="securityPinSection" class="panel mt12 security-section">
-                <h4 class="panel-title">PIN-код</h4>
-                <div id="securityPinBlock" class="mt12"></div>
+                <div id="securityPinBlock"></div>
               </div>
 
               <div id="securitySessionsSection" class="panel mt12 security-section hidden">
-                <h4 class="panel-title">Сессии</h4>
+                <div class="row" style="justify-content:flex-end;">
+                  <button id="refreshSessionsBtn" class="icon-button" type="button" title="Обновить" aria-label="Обновить">
+                    <img src="/icons/refresh-new.png" alt="Обновить" />
+                  </button>
+                </div>
                 <div class="row mt8">
-                  <button id="refreshSessionsBtn" class="button secondary" type="button">Обновить</button>
                   <button id="revokeOtherSessionsBtn" class="button secondary" type="button">Завершить все кроме текущей</button>
                 </div>
                 <div id="securitySessionsList" class="mt12"></div>
