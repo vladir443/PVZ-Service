@@ -4,8 +4,11 @@ import {
   changePinForUser,
   disablePinForUser,
   enablePinForUser,
+  getEmployeeByTelegramId,
   getPinPolicy,
   getPinStateByTelegramId,
+  getSuperAdminUser,
+  issueRecoveryPinForTelegramId,
   listActiveSessionsByUserId,
   listAuditLogsForViewer,
   logAuditEvent,
@@ -17,6 +20,7 @@ import {
 } from "../db.js";
 import { requireAuthAllowUnverifiedPin, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
+import { env } from "../config/env.js";
 
 const router = express.Router();
 router.use(requireAuthAllowUnverifiedPin);
@@ -50,6 +54,47 @@ const logQuerySchema = z.object({
   scope: z.enum(["PERSONAL", "SYSTEM"]).default("PERSONAL"),
   limit: z.coerce.number().int().min(1).max(200).optional().default(50)
 });
+
+function formatRecoveryContactLine(label, value) {
+  const normalized = String(value || "").trim();
+  return `${label}: ${normalized || "не указан"}`;
+}
+
+function formatMskDateTime(date = new Date()) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(date);
+}
+
+async function sendTelegramMessage({ telegramId, text }) {
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(telegramId || "").trim();
+  if (!token || !chatId) return false;
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: String(text || ""),
+      disable_web_page_preview: true
+    })
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Telegram send failed: ${response.status} ${body}`);
+  }
+
+  const data = await response.json().catch(() => ({}));
+  return !!data?.ok;
+}
 
 router.get("/state", (req, res) => {
   const pinState = getPinStateByTelegramId(req.user.telegramId);
@@ -248,7 +293,68 @@ router.post("/pin/disable", requirePinVerified, (req, res, next) => {
   }
 });
 
-router.post("/pin/recovery/request", (req, res) => {
+router.post("/pin/recovery/request", async (req, res, next) => {
+  try {
+    const superAdmin = getSuperAdminUser();
+    const recoveryResult = issueRecoveryPinForTelegramId({
+      telegramId: req.user.telegramId,
+      pinLength: 4
+    });
+
+    if (!recoveryResult.ok) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Пользователь не найден"
+      });
+    }
+
+    const employee = getEmployeeByTelegramId(req.user.telegramId);
+
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "PIN_RECOVERY_REQUESTED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetUserId: req.user.id,
+      targetTelegramId: req.user.telegramId,
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        recoveryPinLength: 4
+      },
+      systemView: "ALL_ADMINS"
+    });
+
+    if (superAdmin?.telegramId) {
+      const message = [
+        "Восстановление PIN-кода",
+        `Пользователь: ${req.user.fullName || "Сотрудник"}`,
+        `Telegram ID: ${req.user.telegramId}`,
+        formatRecoveryContactLine("Телефон", employee?.phone),
+        formatRecoveryContactLine("TG", employee?.telegramContact),
+        formatRecoveryContactLine("VK", employee?.vkContact),
+        `Новый PIN: ${recoveryResult.pin}`,
+        `Время: ${formatMskDateTime()}`
+      ].join("\n");
+
+      await sendTelegramMessage({
+        telegramId: superAdmin.telegramId,
+        text: message
+      });
+    }
+
+    return res.json({
+      ok: true,
+      message: "Запрос отправлен главному админу. Новый PIN сформирован."
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/pin/recovery/request-legacy-disabled", (req, res) => {
   logAuditEvent({
     scope: "SYSTEM",
     eventType: "PIN_RECOVERY_REQUESTED",

@@ -542,6 +542,22 @@ export function listUsers() {
   return rows.map(mapUserRow);
 }
 
+export function getSuperAdminUser() {
+  const row = db
+    .prepare(
+      `
+      SELECT id, telegram_id, full_name, role, created_at, updated_at
+           , is_super_admin, reminder_enabled, reminder_24_enabled, reminder_14_enabled
+      FROM users
+      WHERE is_super_admin = 1
+      ORDER BY id ASC
+      LIMIT 1
+      `
+    )
+    .get();
+  return mapUserRow(row);
+}
+
 export function countUsers() {
   const row = db.prepare("SELECT COUNT(*) as total FROM users").get();
   return row.total;
@@ -2186,6 +2202,46 @@ export function resetPinForTelegramId({ telegramId }) {
   ).run(user.id);
 
   return { ok: true };
+}
+
+export function issueRecoveryPinForTelegramId({ telegramId, pinLength = PIN_MIN_LENGTH }) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return { ok: false, reason: "not_found" };
+
+  const safeLength = Math.max(PIN_MIN_LENGTH, Math.min(PIN_MAX_LENGTH, Number(pinLength || PIN_MIN_LENGTH)));
+  const generatedPin = Array.from({ length: safeLength }, () => String(crypto.randomInt(0, 10))).join("");
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = createPinHash(generatedPin, salt);
+
+  db.prepare(
+    `
+    INSERT INTO security_pin_settings (user_id, pin_hash, pin_salt, pin_length, is_enabled, failed_attempts, lock_until, updated_at)
+    VALUES (?, ?, ?, ?, 1, 0, '', datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      pin_hash = excluded.pin_hash,
+      pin_salt = excluded.pin_salt,
+      pin_length = excluded.pin_length,
+      is_enabled = 1,
+      failed_attempts = 0,
+      lock_until = '',
+      updated_at = datetime('now')
+    `
+  ).run(user.id, hash, salt, safeLength);
+
+  db.prepare(
+    `
+    UPDATE user_sessions
+    SET pin_verified = 0
+    WHERE user_id = ?
+      AND (revoked_at IS NULL OR revoked_at = '')
+    `
+  ).run(user.id);
+
+  return {
+    ok: true,
+    pin: generatedPin,
+    state: getPinStateByTelegramId(telegramId)
+  };
 }
 
 export function logAuditEvent({

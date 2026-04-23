@@ -781,6 +781,16 @@
         background: #1e3a5f;
       }
 
+      body.theme-dark .pin-gate-dot.filled.success {
+        border-color: #22c55e;
+        background: #123524;
+      }
+
+      body.theme-dark .pin-gate-dot.filled.error {
+        border-color: #ef4444;
+        background: #3f1b1b;
+      }
+
       body.theme-dark .pin-gate-key {
         background: #182941;
         border-color: #32507a;
@@ -797,6 +807,14 @@
 
       body.theme-dark .pin-gate-foot {
         border-top-color: #2b4263;
+      }
+
+      body.theme-dark .pin-gate-recovery-link {
+        color: #93c5fd;
+      }
+
+      body.theme-dark .pin-gate-recovery-link img {
+        filter: brightness(0) saturate(100%) invert(82%) sepia(13%) saturate(1223%) hue-rotate(184deg) brightness(100%) contrast(97%);
       }
 
       body.theme-dark #employeePanel {
@@ -1415,6 +1433,16 @@
         background: #dbeafe;
       }
 
+      .pin-gate-dot.filled.success {
+        border-color: #16a34a;
+        background: #dcfce7;
+      }
+
+      .pin-gate-dot.filled.error {
+        border-color: #dc2626;
+        background: #fee2e2;
+      }
+
       .pin-gate-keypad {
         margin-top: 16px;
         display: grid;
@@ -1451,6 +1479,28 @@
         margin-top: 12px;
         border-top: 1px solid #e4ebf5;
         padding-top: 10px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .pin-gate-recovery-link {
+        border: 0;
+        background: transparent;
+        color: #2563eb;
+        font-size: 18px;
+        font-weight: 600;
+        padding: 8px 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+      }
+
+      .pin-gate-recovery-link img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+        filter: brightness(0) saturate(100%) invert(36%) sepia(67%) saturate(1655%) hue-rotate(204deg) brightness(96%) contrast(92%);
       }
 
       @media (max-width: 700px) {
@@ -2316,13 +2366,14 @@
       }
 
       function renderPinGate(pinState = null) {
-        setAppTitle("PVZ Service");
+        setAppTitle("");
         const pinLength = Math.max(4, Math.min(8, Number(pinState?.pinLength || 4)));
         const lockText = pinState?.lockedUntil
           ? `Вход заблокирован до ${formatDateTime(pinState.lockedUntil)}`
           : "";
         let pinValue = "";
         let verifying = false;
+        let dotsState = "idle";
         screen.innerHTML = `
           <div class="pin-gate-overlay">
             <div class="pin-gate-card">
@@ -2357,7 +2408,10 @@
               </div>
               <p id="pinGateStatus" class="status mt12" style="text-align:center;"></p>
               <div class="pin-gate-foot">
-                <button id="pinRecoveryRequestBtn" class="button secondary" type="button" style="width:100%;">Забыли PIN-код?</button>
+                <button id="pinRecoveryRequestBtn" class="pin-gate-recovery-link" type="button">
+                  <img src="/icons/pin-help.png" alt="Помощь" />
+                  <span>Забыли PIN-код?</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2376,7 +2430,15 @@
         const renderDots = () => {
           if (!dots) return;
           dots.innerHTML = Array.from({ length: pinLength })
-            .map((_, index) => `<span class="pin-gate-dot ${index < pinValue.length ? "filled" : ""}"></span>`)
+            .map((_, index) => {
+              const classes = ["pin-gate-dot"];
+              if (index < pinValue.length) {
+                classes.push("filled");
+                if (dotsState === "success") classes.push("success");
+                if (dotsState === "error") classes.push("error");
+              }
+              return `<span class="${classes.join(" ")}"></span>`;
+            })
             .join("");
         };
 
@@ -2395,11 +2457,19 @@
               body: JSON.stringify({ pin: pinValue })
             });
             state.security.pinState = data?.pinState || null;
+            dotsState = "success";
+            renderDots();
+            await new Promise((resolve) => setTimeout(resolve, 240));
             await bootstrapAfterAuth();
+            return;
           } catch (error) {
+            dotsState = "error";
+            renderDots();
             status.className = "status error";
             status.textContent = String(error?.message || "Неверный PIN");
+            await new Promise((resolve) => setTimeout(resolve, 360));
             pinValue = "";
+            dotsState = "idle";
             renderDots();
             try {
               const stateData = await api("/api/security/state");
@@ -2417,6 +2487,7 @@
             const digit = btn.getAttribute("data-pin-key");
             if (!/^\d$/.test(String(digit || ""))) return;
             if (pinValue.length >= pinLength) return;
+            dotsState = "idle";
             pinValue += digit;
             renderDots();
             status.className = "status";
@@ -2428,14 +2499,15 @@
         }
         document.getElementById("pinGateBackspaceBtn")?.addEventListener("click", () => {
           if (verifying) return;
+          dotsState = "idle";
           pinValue = pinValue.slice(0, -1);
           renderDots();
         });
         document.getElementById("pinRecoveryRequestBtn")?.addEventListener("click", async () => {
           try {
-            await api("/api/security/pin/recovery/request", { method: "POST" });
+            const data = await api("/api/security/pin/recovery/request", { method: "POST" });
             status.className = "status ok";
-            status.textContent = "Запрос отправлен. Обратитесь к главному администратору.";
+            status.textContent = String(data?.message || "Запрос отправлен главному админу.");
           } catch (error) {
             status.className = "status error";
             status.textContent = String(error?.message || "Ошибка");
