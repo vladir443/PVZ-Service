@@ -1862,8 +1862,11 @@
             }
             const nearestDateLabel = formatUpcomingDate(nearestShift?.date);
             const nearestLocation = String(nearestShift?.locationTitle || "").trim();
-            if (nearestDateLabel && nearestLocation) {
-              todayTeamSub = `Ближайшая смена: ${nearestDateLabel} — ${nearestLocation}`;
+            const nearestCoworker = String(nearestShift?.coworkerName || "").trim();
+            if (nearestCoworker) {
+              todayTeamSub = `У вас будет смена с ${nearestCoworker}`;
+            } else if (nearestDateLabel && nearestLocation) {
+              todayTeamSub = "Вы будете одни на смене";
             }
           }
           const labels = upcomingShifts

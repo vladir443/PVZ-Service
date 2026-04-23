@@ -983,6 +983,9 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
         locationCode: row.location_code,
         locationTitle: row.location_title,
         role: isE1 ? "executor1" : "executor2",
+        coworkerName: isE1
+          ? normalizeEmployeeName(row.executor2)
+          : normalizeEmployeeName(row.executor1),
         workStart: row.work_start || "14:00",
         workEnd: row.work_end || "22:00"
       });
