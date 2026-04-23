@@ -6,8 +6,8 @@ import {
 } from "../db.js";
 
 const REMINDER_POINTS = [
-  { code: "before_24h", hoursBefore: 24, label: "через 24 часа" },
-  { code: "before_14h", hoursBefore: 14, label: "через 14 часов" }
+  { code: "before_24h", hoursBefore: 24, label: "завтрашней смене" },
+  { code: "before_14h", hoursBefore: 14, label: "завтрашней смене" }
 ];
 
 const POLL_INTERVAL_MS = 60 * 1000;
@@ -105,7 +105,7 @@ function buildReminderText({
       })})`
     : "Вы одни на смене";
   return [
-    `Напоминание о смене ${pointLabel}`,
+    `Напоминание о ${pointLabel}`,
     `${employeeName || "Сотрудник"}, у вас смена ${formatRuDate(shiftDate)} с ${workStart} - ${workEnd}`,
     teammateLine,
     `ПВЗ: ${locationTitle}`,
