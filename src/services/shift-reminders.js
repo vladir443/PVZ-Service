@@ -112,14 +112,16 @@ async function processShiftRemindersTick() {
       const shouldSendBySchedule = nowMs >= triggerMs;
       if (!shouldSendBySchedule && !TEST_EVERY_MINUTE_FORCE_SEND) continue;
 
-      const alreadySent = hasShiftReminderLog({
-        telegramId: assignment.telegramId,
-        locationCode: assignment.locationCode,
-        shiftDate: assignment.shiftDate,
-        shiftRole: assignment.shiftRole,
-        reminderCode: point.code
-      });
-      if (alreadySent) continue;
+      if (!TEST_EVERY_MINUTE_FORCE_SEND) {
+        const alreadySent = hasShiftReminderLog({
+          telegramId: assignment.telegramId,
+          locationCode: assignment.locationCode,
+          shiftDate: assignment.shiftDate,
+          shiftRole: assignment.shiftRole,
+          reminderCode: point.code
+        });
+        if (alreadySent) continue;
+      }
 
       const isEnabledForPoint =
         point.code === "before_24h"
@@ -141,13 +143,15 @@ async function processShiftRemindersTick() {
           })
         });
         sentCount += 1;
-        insertShiftReminderLog({
-          telegramId: assignment.telegramId,
-          locationCode: assignment.locationCode,
-          shiftDate: assignment.shiftDate,
-          shiftRole: assignment.shiftRole,
-          reminderCode: point.code
-        });
+        if (!TEST_EVERY_MINUTE_FORCE_SEND) {
+          insertShiftReminderLog({
+            telegramId: assignment.telegramId,
+            locationCode: assignment.locationCode,
+            shiftDate: assignment.shiftDate,
+            shiftRole: assignment.shiftRole,
+            reminderCode: point.code
+          });
+        }
       } catch (error) {
         console.error("[shift-reminders] send failed:", error.message);
       }
