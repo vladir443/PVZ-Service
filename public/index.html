@@ -1554,6 +1554,20 @@
         let emptyShiftLines = ["Свободных смен на ближайшие 3 дня нет"];
         let positionLabel = positions[getCurrentEmployeeFromState()?.position] || "Сотрудник";
         let shiftDotClass = "off";
+        const formatCountdown = (shiftDate, shiftStart) => {
+          const dateValue = String(shiftDate || "").trim();
+          const timeValue = String(shiftStart || "14:00").slice(0, 5);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || !/^\d{2}:\d{2}$/.test(timeValue)) {
+            return "";
+          }
+          const target = new Date(`${dateValue}T${timeValue}:00`);
+          const diff = target.getTime() - Date.now();
+          if (!Number.isFinite(diff) || diff <= 0) return "";
+          const totalHours = Math.floor(diff / (1000 * 60 * 60));
+          const days = Math.floor(totalHours / 24);
+          const hours = totalHours % 24;
+          return `${days} д ${hours} ч`;
+        };
         const formatUpcomingDate = (isoDate) => {
           const value = String(isoDate || "").trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
@@ -1624,6 +1638,24 @@
             }
           }
           const upcomingShifts = Array.isArray(upcomingData.shifts) ? upcomingData.shifts : [];
+          if (!assignments.length && upcomingShifts.length) {
+            const nearestShift = upcomingShifts
+              .slice()
+              .sort((a, b) => {
+                const aMs = new Date(`${String(a?.date || "")}T${String(a?.workStart || "14:00").slice(0, 5)}:00`).getTime();
+                const bMs = new Date(`${String(b?.date || "")}T${String(b?.workStart || "14:00").slice(0, 5)}:00`).getTime();
+                return aMs - bMs;
+              })[0];
+            const countdown = formatCountdown(nearestShift?.date, nearestShift?.workStart);
+            if (countdown) {
+              overviewShift = `До ближайшей смены ${countdown}`;
+            }
+            const nearestDateLabel = formatUpcomingDate(nearestShift?.date);
+            const nearestLocation = String(nearestShift?.locationTitle || "").trim();
+            if (nearestDateLabel && nearestLocation) {
+              todayTeamSub = `Ближайшая смена: ${nearestDateLabel} — ${nearestLocation}`;
+            }
+          }
           const labels = upcomingShifts
             .map((item) => {
               const dateLabel = formatUpcomingDate(item?.date);
