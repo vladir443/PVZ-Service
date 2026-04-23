@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireAuthAllowUnverifiedPin } from "../middleware/auth.js";
 import {
   createUserSession,
   bindEmployeeTelegramId,
@@ -145,6 +145,26 @@ router.post("/login", async (req, res, next) => {
 
 router.get("/me", requireAuth, (req, res) => {
   return res.json({ user: req.user });
+});
+
+router.get("/session", requireAuthAllowUnverifiedPin, (req, res) => {
+  const pinState = getPinStateByTelegramId(req.user.telegramId);
+  return res.json({
+    user: req.user,
+    session: {
+      id: req.session?.id || "",
+      createdAt: req.session?.createdAt || "",
+      lastActiveAt: req.session?.lastActiveAt || "",
+      pinVerified: !!req.session?.pinVerified,
+      deviceName: req.session?.deviceName || "",
+      platform: req.session?.platform || ""
+    },
+    security: {
+      pinEnabled: !!pinState?.enabled,
+      pinRequired: !!pinState?.enabled && !req.session?.pinVerified,
+      pinState
+    }
+  });
 });
 
 const reminderSettingsSchema = z.object({
