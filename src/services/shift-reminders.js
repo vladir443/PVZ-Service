@@ -19,6 +19,11 @@ function toMskDateString(date = new Date()) {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+function toMskMinuteKey(date = new Date()) {
+  const ms = date.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 16);
+}
+
 function addDays(isoDate, days) {
   const [year, month, day] = String(isoDate || "")
     .split("-")
@@ -96,6 +101,7 @@ function buildReminderText({
 
 async function processShiftRemindersTick() {
   const nowMs = Date.now();
+  const minuteKey = toMskMinuteKey(new Date(nowMs));
   const todayMsk = toMskDateString();
   const fromDate = addDays(todayMsk, -1);
   const toDate = addDays(todayMsk, 2);
@@ -112,13 +118,24 @@ async function processShiftRemindersTick() {
       const shouldSendBySchedule = nowMs >= triggerMs;
       if (!shouldSendBySchedule && !TEST_EVERY_MINUTE_FORCE_SEND) continue;
 
-      if (!TEST_EVERY_MINUTE_FORCE_SEND) {
+      let reminderCode = point.code;
+      if (TEST_EVERY_MINUTE_FORCE_SEND) {
+        reminderCode = `${point.code}:test:${minuteKey}`;
+        const reserved = insertShiftReminderLog({
+          telegramId: assignment.telegramId,
+          locationCode: assignment.locationCode,
+          shiftDate: assignment.shiftDate,
+          shiftRole: assignment.shiftRole,
+          reminderCode
+        });
+        if (!reserved) continue;
+      } else {
         const alreadySent = hasShiftReminderLog({
           telegramId: assignment.telegramId,
           locationCode: assignment.locationCode,
           shiftDate: assignment.shiftDate,
           shiftRole: assignment.shiftRole,
-          reminderCode: point.code
+          reminderCode
         });
         if (alreadySent) continue;
       }
@@ -149,7 +166,7 @@ async function processShiftRemindersTick() {
             locationCode: assignment.locationCode,
             shiftDate: assignment.shiftDate,
             shiftRole: assignment.shiftRole,
-            reminderCode: point.code
+            reminderCode
           });
         }
       } catch (error) {
