@@ -2326,11 +2326,19 @@
           </div>
           <div id="adminHoursModal" class="modal hidden">
             <div class="panel">
-              <div class="row" style="justify-content: flex-start; gap: 10px;">
-                <button id="closeAdminPanelBtnTop" class="open-arrow-btn" type="button">
-                  <img src="/icons/back-arrow.png" alt="Выход" />
-                </button>
-                <h3 class="panel-title">Админ-панель: график ПВЗ</h3>
+              <div class="row" style="justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div class="row" style="justify-content: flex-start; gap: 10px;">
+                  <button id="closeAdminPanelBtnTop" class="open-arrow-btn" type="button">
+                    <img src="/icons/back-arrow.png" alt="Выход" />
+                  </button>
+                  <h3 class="panel-title">Админ-панель: график ПВЗ</h3>
+                </div>
+                <div class="save-icon-wrap" style="align-items:flex-end;">
+                  <button id="saveAllHoursBtn" class="save-icon-btn" type="button" aria-label="Сохранить все">
+                    <img src="/icons/save-action.png" alt="Сохранить все" />
+                  </button>
+                  <div id="saveAllHoursFeedback" class="save-feedback"></div>
+                </div>
               </div>
               <div class="muted mt8">Измените рабочие часы пунктов. Эти часы будут показываться в смене сотрудника.</div>
               <div class="employees-form mt12">
@@ -2347,12 +2355,6 @@
                           <div class="admin-hours-field">
                             <div class="muted">Конец</div>
                             <input type="time" data-hours-end="${escapeHtml(loc.code)}" value="${escapeHtml(loc.workEnd || "22:00")}" />
-                          </div>
-                          <div class="save-icon-wrap" style="align-items:flex-end;">
-                            <button class="save-icon-btn" type="button" data-save-hours="${escapeHtml(loc.code)}" aria-label="Сохранить">
-                              <img src="/icons/save-action.png" alt="Сохранить" />
-                            </button>
-                            <div class="save-feedback" data-save-hours-feedback="${escapeHtml(loc.code)}"></div>
                           </div>
                         </div>
                       </div>
@@ -2375,6 +2377,8 @@
         const openAdminPanelBtn = document.getElementById("openAdminPanelBtn");
         const adminHoursModal = document.getElementById("adminHoursModal");
         const adminHoursStatus = document.getElementById("adminHoursStatus");
+        const saveAllHoursBtn = document.getElementById("saveAllHoursBtn");
+        const saveAllHoursFeedback = document.getElementById("saveAllHoursFeedback");
         themeToggleBtn?.addEventListener("click", () => {
           toggleTheme();
           themeToggleBtn.classList.toggle("dark", state.theme === "dark");
@@ -2429,45 +2433,64 @@
               showAccessDenied();
               return;
             }
+            adminHoursStatus.className = "status";
+            adminHoursStatus.textContent = "";
+            if (saveAllHoursFeedback) {
+              saveAllHoursFeedback.textContent = "";
+              saveAllHoursFeedback.classList.remove("visible");
+            }
             adminHoursModal.classList.remove("hidden");
           });
         }
-        for (const btn of screen.querySelectorAll("[data-save-hours]")) {
-          btn.addEventListener("click", async () => {
-            const code = btn.dataset.saveHours;
-            const rowSaveFeedback = screen.querySelector(`[data-save-hours-feedback='${code}']`);
+        saveAllHoursBtn?.addEventListener("click", async () => {
+          const payloads = [];
+          for (const loc of state.locations || []) {
+            const code = String(loc.code || "");
             const startInput = screen.querySelector(`[data-hours-start='${code}']`);
             const endInput = screen.querySelector(`[data-hours-end='${code}']`);
             const workStart = String(startInput?.value || "").slice(0, 5);
             const workEnd = String(endInput?.value || "").slice(0, 5);
             if (!/^\d{2}:\d{2}$/.test(workStart) || !/^\d{2}:\d{2}$/.test(workEnd)) {
               adminHoursStatus.className = "status error";
-              adminHoursStatus.textContent = "Введите корректные часы в формате ЧЧ:ММ";
+              adminHoursStatus.textContent = `Введите корректные часы для "${loc.title}" в формате ЧЧ:ММ`;
               return;
             }
-            btn.disabled = true;
-            try {
-              await api(`/api/schedule/locations/${code}/hours`, {
-                method: "PUT",
-                body: JSON.stringify({ workStart, workEnd })
-              });
-              state.locations = state.locations.map((loc) =>
-                loc.code === code ? { ...loc, workStart, workEnd } : loc
-              );
-              if (state.selectedLocation?.code === code) {
-                state.selectedLocation = { ...state.selectedLocation, workStart, workEnd };
+            payloads.push({ code, workStart, workEnd });
+          }
+          saveAllHoursBtn.disabled = true;
+          try {
+            await Promise.all(
+              payloads.map((item) =>
+                api(`/api/schedule/locations/${item.code}/hours`, {
+                  method: "PUT",
+                  body: JSON.stringify({ workStart: item.workStart, workEnd: item.workEnd })
+                })
+              )
+            );
+            state.locations = state.locations.map((loc) => {
+              const updated = payloads.find((x) => x.code === loc.code);
+              return updated ? { ...loc, workStart: updated.workStart, workEnd: updated.workEnd } : loc;
+            });
+            if (state.selectedLocation?.code) {
+              const selected = payloads.find((x) => x.code === state.selectedLocation.code);
+              if (selected) {
+                state.selectedLocation = {
+                  ...state.selectedLocation,
+                  workStart: selected.workStart,
+                  workEnd: selected.workEnd
+                };
               }
-              adminHoursStatus.className = "status ok";
-              adminHoursStatus.textContent = "График пункта обновлен";
-              showSavedFeedback(rowSaveFeedback);
-            } catch (error) {
-              adminHoursStatus.className = "status error";
-              adminHoursStatus.textContent = `Ошибка: ${error.message}`;
-            } finally {
-              btn.disabled = false;
             }
-          });
-        }
+            adminHoursStatus.className = "status ok";
+            adminHoursStatus.textContent = "График всех пунктов обновлен";
+            showSavedFeedback(saveAllHoursFeedback);
+          } catch (error) {
+            adminHoursStatus.className = "status error";
+            adminHoursStatus.textContent = `Ошибка: ${error.message}`;
+          } finally {
+            saveAllHoursBtn.disabled = false;
+          }
+        });
         document.getElementById("closeAdminPanelBtnTop")?.addEventListener("click", () => {
           adminHoursModal.classList.add("hidden");
         });
