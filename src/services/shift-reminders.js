@@ -6,8 +6,8 @@ import {
 } from "../db.js";
 
 const REMINDER_POINTS = [
-  { code: "before_24h", hoursBefore: 24, label: "за 24 часа" },
-  { code: "before_14h", hoursBefore: 14, label: "за 14 часов" }
+  { code: "before_24h", hoursBefore: 24, label: "через 24 часа" },
+  { code: "before_14h", hoursBefore: 14, label: "через 14 часов" }
 ];
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
@@ -72,12 +72,24 @@ async function sendTelegramMessage({ telegramId, text }) {
   return !!data?.ok;
 }
 
-function buildReminderText({ employeeName, shiftDate, workStart, workEnd, locationTitle, pointLabel }) {
+function buildReminderText({
+  employeeName,
+  shiftDate,
+  workStart,
+  workEnd,
+  locationTitle,
+  pointLabel,
+  coworkerName
+}) {
+  const teammateLine = coworkerName
+    ? `У вас смена с ${coworkerName}`
+    : "Вы одни на смене";
   return [
-    `Напоминание о смене (${pointLabel})`,
+    `Напоминание о смене ${pointLabel}`,
     `${employeeName || "Сотрудник"}, у вас смена ${formatRuDate(shiftDate)}.`,
+    teammateLine,
     `ПВЗ: ${locationTitle}`,
-    `Время: ${workStart} - ${workEnd}`
+    `График: ${workStart} - ${workEnd}`
   ].join("\n");
 }
 
@@ -115,7 +127,8 @@ async function processShiftRemindersTick() {
             workStart: assignment.workStart,
             workEnd: assignment.workEnd,
             locationTitle: assignment.locationTitle,
-            pointLabel: point.label
+            pointLabel: point.label,
+            coworkerName: assignment.coworkerName
           })
         });
         insertShiftReminderLog({
@@ -156,4 +169,3 @@ export function startShiftReminders() {
   setInterval(run, POLL_INTERVAL_MS);
   console.log("[shift-reminders] started");
 }
-

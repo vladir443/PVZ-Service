@@ -1338,6 +1338,8 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         l.title AS location_title,
         l.work_start,
         l.work_end,
+        s.executor1,
+        s.executor2,
         e.telegram_id,
         e.full_name,
         'executor1' AS shift_role
@@ -1358,6 +1360,8 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         l.title AS location_title,
         l.work_start,
         l.work_end,
+        s.executor1,
+        s.executor2,
         e.telegram_id,
         e.full_name,
         'executor2' AS shift_role
@@ -1374,16 +1378,23 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
       `
     )
     .all(from, to, from, to)
-    .map((row) => ({
-      locationCode: row.location_code,
-      locationTitle: row.location_title,
-      shiftDate: row.shift_date,
-      workStart: row.work_start || "14:00",
-      workEnd: row.work_end || "22:00",
-      telegramId: String(row.telegram_id || "").trim(),
-      employeeName: row.full_name,
-      shiftRole: row.shift_role
-    }));
+    .map((row) => {
+      const normalizedExecutor1 = normalizeEmployeeName(row.executor1);
+      const normalizedExecutor2 = normalizeEmployeeName(row.executor2);
+      const coworkerName =
+        row.shift_role === "executor1" ? normalizedExecutor2 || "" : normalizedExecutor1 || "";
+      return {
+        locationCode: row.location_code,
+        locationTitle: row.location_title,
+        shiftDate: row.shift_date,
+        workStart: row.work_start || "14:00",
+        workEnd: row.work_end || "22:00",
+        telegramId: String(row.telegram_id || "").trim(),
+        employeeName: row.full_name,
+        shiftRole: row.shift_role,
+        coworkerName
+      };
+    });
 }
 
 export function hasShiftReminderLog({
