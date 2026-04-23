@@ -147,7 +147,7 @@ router.put("/:id", (req, res, next) => {
     const isSelf = String(targetEmployee.telegramId || "").trim() === String(req.user.telegramId || "").trim();
 
     if (actorRole === Role.ADMIN) {
-      if (targetRole !== Role.PARTICIPANT) {
+      if (!isSelf && targetRole !== Role.PARTICIPANT) {
         return res.status(403).json({
           error: "Forbidden",
           message: "Админ может изменять данные только у участников"

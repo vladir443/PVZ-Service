@@ -1241,6 +1241,7 @@
         telegramId: null,
         locations: [],
         employees: [],
+        currentEmployee: null,
         selectedLocation: null,
         selectedMonth: "",
         avatarNonce: String(Date.now()),
@@ -1352,9 +1353,52 @@
         if (!state.user) return false;
         if (state.user.role === "SUPERADMIN") return true;
         if (state.user.role === "ADMIN") {
+          const isSelf =
+            String(employee?.telegramId || "").trim() !== "" &&
+            String(employee?.telegramId || "").trim() === String(state.user.telegramId || "").trim();
+          if (isSelf) return true;
           return (employee?.accessRole || "PARTICIPANT") === "PARTICIPANT";
         }
         return false;
+      }
+
+      function getCurrentEmployeeFromState() {
+        if (state.currentEmployee) return state.currentEmployee;
+        const ownTelegramId = String(state.user?.telegramId || "").trim();
+        if (!ownTelegramId) return null;
+        const fromList = (state.employees || []).find(
+          (emp) => String(emp?.telegramId || "").trim() === ownTelegramId
+        );
+        return fromList || null;
+      }
+
+      function buildEmployeeAliases(employee) {
+        const normalize = (value) =>
+          String(value || "")
+            .trim()
+            .replace(/\s+/g, " ")
+            .toLowerCase();
+        const aliases = new Set();
+        const fullName = normalize(employee?.fullName);
+        const firstName = normalize(employee?.firstName);
+        const lastName = normalize(employee?.lastName);
+        const firstLast = normalize([firstName, lastName].filter(Boolean).join(" "));
+        const lastFirst = normalize([lastName, firstName].filter(Boolean).join(" "));
+        if (fullName) aliases.add(fullName);
+        if (firstLast) aliases.add(firstLast);
+        if (lastFirst) aliases.add(lastFirst);
+        return aliases;
+      }
+
+      function employeeAssignedToShift(aliases, shiftRow) {
+        const normalize = (value) =>
+          String(value || "")
+            .trim()
+            .replace(/\s+/g, " ")
+            .toLowerCase();
+        const e1 = normalize(shiftRow?.executor1);
+        const e2 = normalize(shiftRow?.executor2);
+        return (e1 && aliases.has(e1)) || (e2 && aliases.has(e2));
       }
 
       function withAvatarCacheBust(url, nonce = state.avatarNonce) {
@@ -1482,6 +1526,7 @@
         let todayTeamTitle = "Сегодня у вас нет смены";
         let todayTeamSub = "Пока вы не назначены на смену";
         let emptyShiftLines = ["Свободных смен на ближайшие 3 дня нет"];
+        let positionLabel = positions[getCurrentEmployeeFromState()?.position] || "Сотрудник";
         const formatUpcomingDate = (isoDate) => {
           const value = String(isoDate || "").trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
@@ -1513,6 +1558,10 @@
             api(`/api/schedule/me/today?date=${todayIso}`),
             api(`/api/schedule/me/upcoming?fromDate=${todayIso}&limit=4`)
           ]);
+          if (todayData?.employee) {
+            state.currentEmployee = todayData.employee;
+            positionLabel = positions[todayData.employee?.position] || positionLabel;
+          }
           const assignments = Array.isArray(todayData.assignments) ? todayData.assignments : [];
           if (assignments.length === 1) {
             const one = assignments[0];
@@ -1648,7 +1697,7 @@
             }
             <div>
               <div style="font-size:20px;"><strong>${escapeHtml((state.user.fullName || "").split(" ")[0] || state.user.fullName)}</strong></div>
-              <div class="muted mt8">Роль: <strong>${escapeHtml(userRoles[state.user.role] || state.user.role)}</strong></div>
+              <div class="muted mt8">Должность: <strong>${escapeHtml(positionLabel)}</strong></div>
               <div class="muted mt8"><span class="dash-dot"></span> ${escapeHtml(shiftText)}</div>
             </div>
             <img class="dash-arrow" src="/icons/right-arrow.png" alt="Открыть" />
@@ -1677,8 +1726,38 @@
         });
       }
 
-      function renderProfile() {
+      async function renderProfile() {
         setAppTitle("");
+        const todayIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        let employeeProfile = getCurrentEmployeeFromState();
+        try {
+          const todayData = await api(`/api/schedule/me/today?date=${todayIso}`);
+          if (todayData?.employee) {
+            state.currentEmployee = todayData.employee;
+            employeeProfile = todayData.employee;
+          }
+        } catch {}
+        const roleLabel = userRoles[state.user.role] || state.user.role;
+        const positionLabel = positions[employeeProfile?.position] || "Сотрудник";
+        let monthShiftCount = 0;
+        try {
+          const month = monthNow();
+          const aliases = buildEmployeeAliases(employeeProfile || state.user || {});
+          if (aliases.size) {
+            const schedules = await Promise.all(
+              (state.locations || []).map((loc) =>
+                api(`/api/schedule/${loc.code}?month=${month}`).catch(() => ({ shifts: [] }))
+              )
+            );
+            monthShiftCount = schedules.reduce((acc, scheduleData) => {
+              const shifts = Array.isArray(scheduleData?.shifts) ? scheduleData.shifts : [];
+              const ownCount = shifts.filter((row) => employeeAssignedToShift(aliases, row)).length;
+              return acc + ownCount;
+            }, 0);
+          }
+        } catch {}
         const photo = withAvatarCacheBust(state.telegramUser?.photoUrl || "");
         const initials = (state.user?.fullName || "?")
           .split(" ")
@@ -1697,8 +1776,9 @@
             }
             <div>
               <div style="font-size:22px;"><strong>${escapeHtml(state.user.fullName)}</strong></div>
-              <div style="font-size:18px; margin-top:4px;">${escapeHtml(userRoles[state.user.role] || state.user.role)}</div>
-              <div class="profile-badge">Администратор</div>
+              <div style="font-size:18px; margin-top:4px;">Роль: ${escapeHtml(roleLabel)}</div>
+              <div style="font-size:15px; margin-top:4px; opacity:0.95;">Должность: ${escapeHtml(positionLabel)}</div>
+              <div class="profile-badge">${escapeHtml(roleLabel)}</div>
             </div>
           </div>
           <div class="panel mt12">
@@ -1706,11 +1786,7 @@
             <div class="overview-grid mt12">
               <div class="overview-card blue">
                 <h3>Смен в этом месяце</h3>
-                <div class="big">${Math.max(8, state.locations.length * 4)}</div>
-              </div>
-              <div class="overview-card green">
-                <h3>Отработано часов</h3>
-                <div class="big">${Math.max(120, state.locations.length * 32)} ч</div>
+                <div class="big">${monthShiftCount}</div>
               </div>
               <div class="overview-card purple">
                 <h3>Telegram</h3>
