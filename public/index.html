@@ -582,6 +582,27 @@
         border-color: #355077;
       }
 
+      body.theme-dark .inline-arrow,
+      body.theme-dark .open-arrow-btn img,
+      body.theme-dark .location-btn-arrow,
+      body.theme-dark .dash-arrow,
+      body.theme-dark .back-icon-btn img {
+        filter: brightness(0) invert(1);
+        opacity: 0.95;
+      }
+
+      body.theme-dark .bottom-nav-icon.employees {
+        background: #16263f;
+        border-radius: 8px;
+        padding: 2px;
+        box-sizing: content-box;
+      }
+
+      body.theme-dark .bottom-nav-btn.active .bottom-nav-icon.employees {
+        background: #203556;
+        filter: brightness(0) invert(1);
+      }
+
       body.theme-dark .location-btn.wb {
         background: linear-gradient(180deg, #201b35 0%, #181f34 100%);
         border-left-color: #8b5cf6;
