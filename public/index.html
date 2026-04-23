@@ -27,6 +27,11 @@
         overscroll-behavior-y: none;
       }
 
+      body.modal-open {
+        overflow: hidden;
+        height: 100dvh;
+      }
+
       body.theme-dark {
         --bg: #0d1422;
         --card: #111b2d;
@@ -1915,6 +1920,7 @@
         place-items: center;
         padding: 12px;
         z-index: 120;
+        overscroll-behavior: contain;
       }
 
       .modal.hidden {
@@ -2104,6 +2110,22 @@
       const bottomNav = document.getElementById("bottomNav");
       const THEME_STORAGE_KEY = "pvz_theme";
       const SESSION_STORAGE_KEY = "pvz_session_id";
+
+      function syncModalScrollLock() {
+        const hasOpenModal = !!document.querySelector(".modal:not(.hidden)");
+        document.body.classList.toggle("modal-open", hasOpenModal);
+      }
+
+      const modalLockObserver = new MutationObserver(() => {
+        syncModalScrollLock();
+      });
+      modalLockObserver.observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["class"]
+      });
+      syncModalScrollLock();
 
       function applyTheme() {
         const isDark = state.theme === "dark";
