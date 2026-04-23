@@ -11,17 +11,12 @@ const REMINDER_POINTS = [
 ];
 
 const POLL_INTERVAL_MS = 60 * 1000;
+const REMINDER_WINDOW_MS = 60 * 1000;
 const MSK_OFFSET_HOURS = 3;
-const TEST_EVERY_MINUTE_FORCE_SEND = true;
 
 function toMskDateString(date = new Date()) {
   const ms = date.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
   return new Date(ms).toISOString().slice(0, 10);
-}
-
-function toMskMinuteKey(date = new Date()) {
-  const ms = date.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
-  return new Date(ms).toISOString().slice(0, 16);
 }
 
 function addDays(isoDate, days) {
@@ -115,50 +110,31 @@ function buildReminderText({
 
 async function processShiftRemindersTick() {
   const nowMs = Date.now();
-  const minuteKey = toMskMinuteKey(new Date(nowMs));
   const todayMsk = toMskDateString();
   const fromDate = addDays(todayMsk, -1);
   const toDate = addDays(todayMsk, 2);
 
   const assignments = listShiftAssignmentsForReminderWindow({ fromDate, toDate });
-  let sentCount = 0;
-  const forcedSentByUserPoint = new Set();
   for (const assignment of assignments) {
     const shiftStartMs = parseMskDateTimeMs(assignment.shiftDate, assignment.workStart);
     if (!Number.isFinite(shiftStartMs)) continue;
     if (nowMs >= shiftStartMs) continue;
 
     for (const point of REMINDER_POINTS) {
-      if (TEST_EVERY_MINUTE_FORCE_SEND) {
-        const userPointKey = `${assignment.telegramId}:${point.code}:${minuteKey}`;
-        if (forcedSentByUserPoint.has(userPointKey)) continue;
-        forcedSentByUserPoint.add(userPointKey);
-      }
       const triggerMs = shiftStartMs - point.hoursBefore * 60 * 60 * 1000;
-      const shouldSendBySchedule = nowMs >= triggerMs;
-      if (!shouldSendBySchedule && !TEST_EVERY_MINUTE_FORCE_SEND) continue;
+      const deltaMs = nowMs - triggerMs;
+      const shouldSendBySchedule = deltaMs >= 0 && deltaMs < REMINDER_WINDOW_MS;
+      if (!shouldSendBySchedule) continue;
 
-      let reminderCode = point.code;
-      if (TEST_EVERY_MINUTE_FORCE_SEND) {
-        reminderCode = `${point.code}:test:${minuteKey}`;
-        const reserved = insertShiftReminderLog({
-          telegramId: assignment.telegramId,
-          locationCode: assignment.locationCode,
-          shiftDate: assignment.shiftDate,
-          shiftRole: assignment.shiftRole,
-          reminderCode
-        });
-        if (!reserved) continue;
-      } else {
-        const alreadySent = hasShiftReminderLog({
-          telegramId: assignment.telegramId,
-          locationCode: assignment.locationCode,
-          shiftDate: assignment.shiftDate,
-          shiftRole: assignment.shiftRole,
-          reminderCode
-        });
-        if (alreadySent) continue;
-      }
+      const reminderCode = point.code;
+      const alreadySent = hasShiftReminderLog({
+        telegramId: assignment.telegramId,
+        locationCode: assignment.locationCode,
+        shiftDate: assignment.shiftDate,
+        shiftRole: assignment.shiftRole,
+        reminderCode
+      });
+      if (alreadySent) continue;
 
       const isEnabledForPoint =
         point.code === "before_24h"
@@ -182,23 +158,17 @@ async function processShiftRemindersTick() {
             coworkerPhone: assignment.coworkerPhone
           })
         });
-        sentCount += 1;
-        if (!TEST_EVERY_MINUTE_FORCE_SEND) {
-          insertShiftReminderLog({
-            telegramId: assignment.telegramId,
-            locationCode: assignment.locationCode,
-            shiftDate: assignment.shiftDate,
-            shiftRole: assignment.shiftRole,
-            reminderCode
-          });
-        }
+        insertShiftReminderLog({
+          telegramId: assignment.telegramId,
+          locationCode: assignment.locationCode,
+          shiftDate: assignment.shiftDate,
+          shiftRole: assignment.shiftRole,
+          reminderCode
+        });
       } catch (error) {
         console.error("[shift-reminders] send failed:", error.message);
       }
     }
-  }
-  if (TEST_EVERY_MINUTE_FORCE_SEND) {
-    console.log(`[shift-reminders] test tick sent: ${sentCount}`);
   }
 }
 
