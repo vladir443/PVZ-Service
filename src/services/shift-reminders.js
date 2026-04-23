@@ -12,6 +12,7 @@ const REMINDER_POINTS = [
 
 const POLL_INTERVAL_MS = 60 * 1000;
 const MSK_OFFSET_HOURS = 3;
+const TEST_EVERY_MINUTE_FORCE_SEND = true;
 
 function toMskDateString(date = new Date()) {
   const ms = date.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
@@ -100,6 +101,7 @@ async function processShiftRemindersTick() {
   const toDate = addDays(todayMsk, 2);
 
   const assignments = listShiftAssignmentsForReminderWindow({ fromDate, toDate });
+  let sentCount = 0;
   for (const assignment of assignments) {
     const shiftStartMs = parseMskDateTimeMs(assignment.shiftDate, assignment.workStart);
     if (!Number.isFinite(shiftStartMs)) continue;
@@ -107,7 +109,8 @@ async function processShiftRemindersTick() {
 
     for (const point of REMINDER_POINTS) {
       const triggerMs = shiftStartMs - point.hoursBefore * 60 * 60 * 1000;
-      if (nowMs < triggerMs) continue;
+      const shouldSendBySchedule = nowMs >= triggerMs;
+      if (!shouldSendBySchedule && !TEST_EVERY_MINUTE_FORCE_SEND) continue;
 
       const alreadySent = hasShiftReminderLog({
         telegramId: assignment.telegramId,
@@ -137,6 +140,7 @@ async function processShiftRemindersTick() {
             coworkerName: assignment.coworkerName
           })
         });
+        sentCount += 1;
         insertShiftReminderLog({
           telegramId: assignment.telegramId,
           locationCode: assignment.locationCode,
@@ -148,6 +152,9 @@ async function processShiftRemindersTick() {
         console.error("[shift-reminders] send failed:", error.message);
       }
     }
+  }
+  if (TEST_EVERY_MINUTE_FORCE_SEND) {
+    console.log(`[shift-reminders] test tick sent: ${sentCount}`);
   }
 }
 
