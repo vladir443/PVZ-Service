@@ -145,6 +145,14 @@
         display: inline-block;
       }
 
+      .dash-dot.on {
+        background: #22c55e;
+      }
+
+      .dash-dot.off {
+        background: #ef4444;
+      }
+
       .overview-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1527,6 +1535,7 @@
         let todayTeamSub = "Пока вы не назначены на смену";
         let emptyShiftLines = ["Свободных смен на ближайшие 3 дня нет"];
         let positionLabel = positions[getCurrentEmployeeFromState()?.position] || "Сотрудник";
+        let shiftDotClass = "off";
         const formatUpcomingDate = (isoDate) => {
           const value = String(isoDate || "").trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
@@ -1567,6 +1576,7 @@
             const one = assignments[0];
             const time = `${one.workStart || "14:00"} - ${one.workEnd || "22:00"}`;
             shiftText = "Работаю";
+            shiftDotClass = "on";
             overviewShift = time;
             overviewStatus = "Рабочий день";
             todayCardTitle = "Сегодня рабочий день";
@@ -1582,6 +1592,7 @@
             const first = assignments[0];
             const firstTime = `${first.workStart || "14:00"} - ${first.workEnd || "22:00"}`;
             shiftText = "Работаю";
+            shiftDotClass = "on";
             overviewShift = `${assignments.length} смены`;
             overviewStatus = firstTime;
             todayCardTitle = "Сегодня рабочий день";
@@ -1698,7 +1709,7 @@
             <div>
               <div style="font-size:20px;"><strong>${escapeHtml((state.user.fullName || "").split(" ")[0] || state.user.fullName)}</strong></div>
               <div class="muted mt8">Должность: <strong>${escapeHtml(positionLabel)}</strong></div>
-              <div class="muted mt8"><span class="dash-dot"></span> ${escapeHtml(shiftText)}</div>
+              <div class="muted mt8"><span class="dash-dot ${escapeHtml(shiftDotClass)}"></span> ${escapeHtml(shiftText)}</div>
             </div>
             <img class="dash-arrow" src="/icons/right-arrow.png" alt="Открыть" />
           </div>
@@ -1776,7 +1787,6 @@
             }
             <div>
               <div style="font-size:22px;"><strong>${escapeHtml(state.user.fullName)}</strong></div>
-              <div style="font-size:18px; margin-top:4px;">Роль: ${escapeHtml(roleLabel)}</div>
               <div style="font-size:15px; margin-top:4px; opacity:0.95;">Должность: ${escapeHtml(positionLabel)}</div>
               <div class="profile-badge">${escapeHtml(roleLabel)}</div>
             </div>
