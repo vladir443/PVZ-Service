@@ -27,6 +27,17 @@
         overscroll-behavior-y: none;
       }
 
+      body.theme-dark {
+        --bg: #0d1422;
+        --card: #111b2d;
+        --line: #26344c;
+        --text: #e8eef8;
+        --muted: #9aaac2;
+        --primary: #2f6ed6;
+        --primary-dark: #2356ad;
+        background: linear-gradient(180deg, #0a111d 0%, #0c1525 100%);
+      }
+
       .wrap {
         max-width: none;
         margin: 0 auto;
@@ -42,6 +53,11 @@
         border: 1px solid #e7edf7;
         box-shadow: 0 8px 26px rgba(22, 37, 63, 0.08);
         min-height: calc(100dvh - 20px);
+      }
+
+      body.theme-dark .card {
+        border-color: #24354f;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
       }
 
       h1 { margin: 0; font-size: 24px; }
@@ -315,6 +331,42 @@
         border-bottom: 0;
       }
 
+      .theme-switch {
+        width: 68px;
+        height: 34px;
+        border: 1px solid #cdd8ea;
+        border-radius: 999px;
+        background: #eaf1fd;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 3px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .theme-switch.dark {
+        background: #253956;
+        border-color: #375078;
+        justify-content: flex-end;
+      }
+
+      .theme-switch-thumb {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #fff;
+        display: grid;
+        place-items: center;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+      }
+
+      .theme-switch-thumb img {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+      }
+
       .reminder-toggle-row {
         display: flex;
         justify-content: space-between;
@@ -434,6 +486,78 @@
       .bottom-nav-label {
         line-height: 1.1;
         white-space: nowrap;
+      }
+
+      body.theme-dark .overview-card,
+      body.theme-dark .warn-banner,
+      body.theme-dark .settings-list,
+      body.theme-dark .settings-row,
+      body.theme-dark .reminder-toggle-row,
+      body.theme-dark .panel,
+      body.theme-dark .employee-row,
+      body.theme-dark .location-btn,
+      body.theme-dark .table-wrap,
+      body.theme-dark .schedule-card,
+      body.theme-dark .finance-row,
+      body.theme-dark .finance-history-item,
+      body.theme-dark .profile-box {
+        background: #152238;
+        border-color: #2a3d59;
+        color: var(--text);
+      }
+
+      body.theme-dark .dash-user {
+        background: linear-gradient(180deg, #152238 0%, #122034 100%);
+        border-color: #2a3d59;
+      }
+
+      body.theme-dark .muted,
+      body.theme-dark .home-list-address,
+      body.theme-dark .home-sub-note,
+      body.theme-dark .employee-contacts,
+      body.theme-dark .employee-roleline {
+        color: var(--muted);
+      }
+
+      body.theme-dark .home-list-date,
+      body.theme-dark .home-main-note,
+      body.theme-dark .location-btn-title,
+      body.theme-dark .employee-name {
+        color: var(--text);
+      }
+
+      body.theme-dark .bottom-nav {
+        background: rgba(10, 17, 29, 0.95);
+        border-top-color: #22334c;
+      }
+
+      body.theme-dark .bottom-nav-btn {
+        color: #9eb0c8;
+      }
+
+      body.theme-dark .bottom-nav-btn.active {
+        background: #1d2e49;
+        color: #8db8ff;
+      }
+
+      body.theme-dark input[type="text"],
+      body.theme-dark input[type="number"],
+      body.theme-dark input[type="month"],
+      body.theme-dark input[type="date"],
+      body.theme-dark input[type="tel"],
+      body.theme-dark input[type="time"],
+      body.theme-dark select,
+      body.theme-dark textarea {
+        background: #0f1a2d;
+        border-color: #334a6c;
+        color: #e8eef8;
+      }
+
+      body.theme-dark .open-arrow-btn,
+      body.theme-dark .icon-button,
+      body.theme-dark .back-icon-btn {
+        background: #1a2a43;
+        border-color: #355077;
       }
 
       .location-grid {
@@ -1265,12 +1389,33 @@
         selectedMonth: "",
         avatarNonce: String(Date.now()),
         scheduleViewMode: null,
-        activeTab: "home"
+        activeTab: "home",
+        theme: "light"
       };
 
       const screen = document.getElementById("screen");
       const appTitle = document.getElementById("appTitle");
       const bottomNav = document.getElementById("bottomNav");
+      const THEME_STORAGE_KEY = "pvz_theme";
+
+      function applyTheme() {
+        const isDark = state.theme === "dark";
+        document.body.classList.toggle("theme-dark", isDark);
+      }
+
+      function setTheme(nextTheme, { persist = true } = {}) {
+        state.theme = nextTheme === "dark" ? "dark" : "light";
+        applyTheme();
+        if (persist) {
+          try {
+            localStorage.setItem(THEME_STORAGE_KEY, state.theme);
+          } catch {}
+        }
+      }
+
+      function toggleTheme() {
+        setTheme(state.theme === "dark" ? "light" : "dark");
+      }
 
       function setAppTitle(value) {
         if (!value) {
@@ -1499,6 +1644,13 @@
 
       async function initApp() {
         try {
+          try {
+            const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+            if (savedTheme === "dark" || savedTheme === "light") {
+              state.theme = savedTheme;
+            }
+          } catch {}
+          applyTheme();
           screen.innerHTML = `<p class="muted">Подключаемся...</p>`;
           const tgUser = getTelegramUser();
           if (!tgUser) {
@@ -1857,12 +2009,25 @@
           <h2 class="mt16">Настройки</h2>
           <div class="settings-list mt12">
             <div class="settings-row">
+              <span>Тема</span>
+              <button
+                id="themeToggleBtn"
+                class="theme-switch ${state.theme === "dark" ? "dark" : ""}"
+                type="button"
+                aria-label="Переключить тему"
+                title="Переключить тему"
+              >
+                <span class="theme-switch-thumb">
+                  <img src="/icons/theme-night.png" alt="Тема" />
+                </span>
+              </button>
+            </div>
+            <div class="settings-row">
               <span>Уведомления</span>
               <button id="openNotificationsBtn" class="open-arrow-btn" type="button" aria-label="Открыть уведомления">
                 <img src="/icons/right-arrow.png" alt="Открыть" />
               </button>
             </div>
-            <div class="settings-row"><span>Тема</span><span style="display:flex; align-items:center; gap:6px;">Светлая <img class="inline-arrow" src="/icons/right-arrow.png" alt="Открыть" /></span></div>
             <div class="settings-row"><span>Безопасность</span><img class="inline-arrow" src="/icons/right-arrow.png" alt="Открыть" /></div>
             <div class="settings-row">
               <span>Админ-панель</span>
@@ -1937,6 +2102,7 @@
             </div>
           </div>
         `;
+        const themeToggleBtn = document.getElementById("themeToggleBtn");
         const openNotificationsBtn = document.getElementById("openNotificationsBtn");
         const notificationsModal = document.getElementById("notificationsModal");
         const reminder24EnabledInput = document.getElementById("reminder24EnabledInput");
@@ -1946,6 +2112,10 @@
         const openAdminPanelBtn = document.getElementById("openAdminPanelBtn");
         const adminHoursModal = document.getElementById("adminHoursModal");
         const adminHoursStatus = document.getElementById("adminHoursStatus");
+        themeToggleBtn?.addEventListener("click", () => {
+          toggleTheme();
+          themeToggleBtn.classList.toggle("dark", state.theme === "dark");
+        });
         openNotificationsBtn?.addEventListener("click", () => {
           reminderSettingsStatus.className = "status";
           reminderSettingsStatus.textContent = "";
