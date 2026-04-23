@@ -739,6 +739,14 @@
         color: #e8eef8;
       }
 
+      body.theme-dark .pin-eye-btn {
+        color: #c6d4ea;
+      }
+
+      body.theme-dark .pin-eye-btn.active {
+        color: #60a5fa;
+      }
+
       body.theme-dark .pin-danger-btn {
         background: #3b1b28;
         border-color: #7e2b45;
@@ -747,6 +755,40 @@
 
       body.theme-dark .pin-danger-btn:hover {
         background: #4a2232;
+      }
+
+      body.theme-dark .pin-gate-card {
+        background: #121f34;
+        border-color: #2c4264;
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+      }
+
+      body.theme-dark .pin-gate-title {
+        color: #e8eef8;
+      }
+
+      body.theme-dark .pin-gate-subtitle {
+        color: #9fb0c8;
+      }
+
+      body.theme-dark .pin-gate-dot {
+        border-color: #3c557a;
+        background: #15243b;
+      }
+
+      body.theme-dark .pin-gate-dot.filled {
+        border-color: #60a5fa;
+        background: #1e3a5f;
+      }
+
+      body.theme-dark .pin-gate-key {
+        background: #182941;
+        border-color: #32507a;
+        color: #e8eef8;
+      }
+
+      body.theme-dark .pin-gate-foot {
+        border-top-color: #2b4263;
       }
 
       body.theme-dark #employeePanel {
@@ -1235,6 +1277,42 @@
         color: #0f172a;
       }
 
+      .pin-input::-ms-reveal,
+      .pin-input::-ms-clear {
+        display: none;
+      }
+
+      .pin-input-wrap {
+        position: relative;
+      }
+
+      .pin-input-wrap .pin-input {
+        padding-right: 44px;
+      }
+
+      .pin-eye-btn {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 24px;
+        height: 24px;
+        border: 0;
+        background: transparent;
+        color: #1f2937;
+        font-size: 17px;
+        font-weight: 500;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0;
+        display: grid;
+        place-items: center;
+      }
+
+      .pin-eye-btn.active {
+        color: #2563eb;
+      }
+
       .pin-input:focus {
         outline: none;
         border-color: #3b82f6;
@@ -1253,6 +1331,93 @@
 
       .pin-danger-btn:hover {
         background: #ffe8e8;
+      }
+
+      .pin-gate-overlay {
+        min-height: calc(100dvh - 100px);
+        display: grid;
+        place-items: center;
+        padding: 14px 6px 4px;
+      }
+
+      .pin-gate-card {
+        width: min(560px, 100%);
+        border: 1px solid #dce6f3;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 12px 30px rgba(12, 26, 51, 0.14);
+        padding: 16px;
+      }
+
+      .pin-gate-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .pin-gate-title {
+        margin: 6px 0 0;
+        font-size: 34px;
+        font-weight: 800;
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+        text-align: center;
+      }
+
+      .pin-gate-subtitle {
+        margin-top: 10px;
+        font-size: 13px;
+        color: #607088;
+        text-align: center;
+      }
+
+      .pin-gate-dots {
+        margin-top: 18px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .pin-gate-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid #96aac6;
+        background: #fff;
+      }
+
+      .pin-gate-dot.filled {
+        border-color: #2563eb;
+        background: #dbeafe;
+      }
+
+      .pin-gate-keypad {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .pin-gate-key {
+        min-height: 56px;
+        border-radius: 14px;
+        border: 1px solid #d8e1ee;
+        background: #fbfdff;
+        font-size: 30px;
+        font-weight: 600;
+        color: #0f172a;
+        cursor: pointer;
+      }
+
+      .pin-gate-key:active {
+        transform: translateY(1px);
+      }
+
+      .pin-gate-foot {
+        margin-top: 12px;
+        border-top: 1px solid #e4ebf5;
+        padding-top: 10px;
       }
 
       .employees-list {
@@ -2106,60 +2271,114 @@
 
       function renderPinGate(pinState = null) {
         setAppTitle("PVZ Service");
+        const pinLength = Math.max(4, Math.min(8, Number(pinState?.pinLength || 4)));
         const lockText = pinState?.lockedUntil
           ? `Вход заблокирован до ${formatDateTime(pinState.lockedUntil)}`
           : "";
+        let pinValue = "";
+        let verifying = false;
         screen.innerHTML = `
-          <div class="panel">
-            <h3 class="panel-title">Введите PIN-код</h3>
-            <div class="muted mt8">Для доступа к приложению подтвердите PIN.</div>
-            ${lockText ? `<p class="status error mt8">${escapeHtml(lockText)}</p>` : ""}
-            <div class="mt12">
-              <input id="pinGateInput" type="password" inputmode="numeric" maxlength="8" placeholder="PIN (4-8 цифр)" />
+          <div class="pin-gate-overlay">
+            <div class="pin-gate-card">
+              <div class="pin-gate-head">
+                <div style="width:24px;height:24px;"></div>
+                <button id="pinGateCloseBtn" class="open-arrow-btn" type="button" aria-label="Закрыть">
+                  <img src="/icons/back-arrow.png" alt="Закрыть" />
+                </button>
+              </div>
+              <h3 class="pin-gate-title">Введите PIN-код</h3>
+              <div class="pin-gate-subtitle">Для доступа к приложению введите ваш PIN-код</div>
+              ${lockText ? `<p class="status error mt8" style="text-align:center;">${escapeHtml(lockText)}</p>` : ""}
+              <div id="pinGateDots" class="pin-gate-dots"></div>
+              <div class="pin-gate-keypad">
+                <button class="pin-gate-key" data-pin-key="1" type="button">1</button>
+                <button class="pin-gate-key" data-pin-key="2" type="button">2</button>
+                <button class="pin-gate-key" data-pin-key="3" type="button">3</button>
+                <button class="pin-gate-key" data-pin-key="4" type="button">4</button>
+                <button class="pin-gate-key" data-pin-key="5" type="button">5</button>
+                <button class="pin-gate-key" data-pin-key="6" type="button">6</button>
+                <button class="pin-gate-key" data-pin-key="7" type="button">7</button>
+                <button class="pin-gate-key" data-pin-key="8" type="button">8</button>
+                <button class="pin-gate-key" data-pin-key="9" type="button">9</button>
+                <button class="pin-gate-key" data-pin-key-empty type="button"></button>
+                <button class="pin-gate-key" data-pin-key="0" type="button">0</button>
+                <button class="pin-gate-key" id="pinGateBackspaceBtn" type="button">⌫</button>
+              </div>
+              <p id="pinGateStatus" class="status mt12" style="text-align:center;"></p>
+              <div class="pin-gate-foot">
+                <button id="pinRecoveryRequestBtn" class="button secondary" type="button" style="width:100%;">Забыли PIN-код?</button>
+              </div>
             </div>
-            <div class="row mt12">
-              <button id="pinGateSubmitBtn" class="button" type="button">Подтвердить</button>
-              <button id="pinRecoveryRequestBtn" class="button secondary" type="button">Восстановить доступ</button>
-            </div>
-            <p id="pinGateStatus" class="status mt12"></p>
           </div>
         `;
-        const pinInput = document.getElementById("pinGateInput");
-        const submitBtn = document.getElementById("pinGateSubmitBtn");
+        const dots = document.getElementById("pinGateDots");
         const status = document.getElementById("pinGateStatus");
 
+        const setKeypadDisabled = (disabled) => {
+          for (const btn of screen.querySelectorAll(".pin-gate-key")) {
+            btn.disabled = disabled;
+          }
+          const recoveryBtn = document.getElementById("pinRecoveryRequestBtn");
+          if (recoveryBtn) recoveryBtn.disabled = disabled;
+        };
+
+        const renderDots = () => {
+          if (!dots) return;
+          dots.innerHTML = Array.from({ length: pinLength })
+            .map((_, index) => `<span class="pin-gate-dot ${index < pinValue.length ? "filled" : ""}"></span>`)
+            .join("");
+        };
+
         const verify = async () => {
-          const pin = String(pinInput?.value || "").trim();
-          if (!pin) {
+          if (verifying) return;
+          if (pinValue.length !== pinLength) {
             status.className = "status error";
-            status.textContent = "Введите PIN";
+            status.textContent = `Введите ${pinLength} цифры PIN`;
             return;
           }
-          submitBtn.disabled = true;
+          verifying = true;
+          setKeypadDisabled(true);
           try {
             const data = await api("/api/security/pin/verify", {
               method: "POST",
-              body: JSON.stringify({ pin })
+              body: JSON.stringify({ pin: pinValue })
             });
             state.security.pinState = data?.pinState || null;
-            status.className = "status ok";
-            status.textContent = "PIN подтвержден";
             await bootstrapAfterAuth();
           } catch (error) {
             status.className = "status error";
             status.textContent = String(error?.message || "Неверный PIN");
+            pinValue = "";
+            renderDots();
             try {
               const stateData = await api("/api/security/state");
               state.security.pinState = stateData?.pinState || null;
             } catch {}
           } finally {
-            submitBtn.disabled = false;
+            verifying = false;
+            setKeypadDisabled(false);
           }
         };
 
-        submitBtn?.addEventListener("click", verify);
-        pinInput?.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") verify();
+        for (const btn of screen.querySelectorAll("[data-pin-key]")) {
+          btn.addEventListener("click", () => {
+            if (verifying) return;
+            const digit = btn.getAttribute("data-pin-key");
+            if (!/^\d$/.test(String(digit || ""))) return;
+            if (pinValue.length >= pinLength) return;
+            pinValue += digit;
+            renderDots();
+            status.className = "status";
+            status.textContent = "";
+            if (pinValue.length === pinLength) {
+              verify();
+            }
+          });
+        }
+        document.getElementById("pinGateBackspaceBtn")?.addEventListener("click", () => {
+          if (verifying) return;
+          pinValue = pinValue.slice(0, -1);
+          renderDots();
         });
         document.getElementById("pinRecoveryRequestBtn")?.addEventListener("click", async () => {
           try {
@@ -2171,6 +2390,10 @@
             status.textContent = String(error?.message || "Ошибка");
           }
         });
+        document.getElementById("pinGateCloseBtn")?.addEventListener("click", () => {
+          tg?.close?.();
+        });
+        renderDots();
       }
 
       async function initApp() {
@@ -2728,6 +2951,37 @@
           const lockText = pinState?.lockedUntil
             ? `<div class="status error mt8">Блокировка до ${escapeHtml(formatDateTime(pinState.lockedUntil))}</div>`
             : "";
+          const bindPinInput = (id) => {
+            const input = document.getElementById(id);
+            const toggleBtn = securityPinBlock.querySelector(`[data-pin-toggle="${id}"]`);
+            if (!input) return null;
+
+            let visible = false;
+            const applyVisibility = () => {
+              input.type = visible ? "text" : "password";
+              if (toggleBtn) {
+                toggleBtn.classList.toggle("active", visible);
+                toggleBtn.setAttribute("aria-label", visible ? "Скрыть PIN" : "Показать PIN");
+                toggleBtn.setAttribute("title", visible ? "Скрыть PIN" : "Показать PIN");
+              }
+            };
+
+            input.addEventListener("input", () => {
+              input.value = normalizePinDigits(input.value);
+            });
+
+            toggleBtn?.addEventListener("click", () => {
+              visible = !visible;
+              applyVisibility();
+              input.focus({ preventScroll: true });
+              const end = input.value.length;
+              input.setSelectionRange(end, end);
+            });
+
+            applyVisibility();
+            return input;
+          };
+
           if (!enabled) {
             securityPinBlock.innerHTML = `
               <div class="pin-shell">
@@ -2745,11 +2999,17 @@
                   <div class="pin-grid">
                     <div class="pin-field">
                       <label for="pinEnableNewInput">Новый PIN</label>
-                      <input class="pin-input" id="pinEnableNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                      <div class="pin-input-wrap">
+                        <input class="pin-input" id="pinEnableNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                        <button class="pin-eye-btn" data-pin-toggle="pinEnableNewInput" type="button" aria-label="Показать PIN">&#128065;</button>
+                      </div>
                     </div>
                     <div class="pin-field">
                       <label for="pinEnableRepeatInput">Повторите PIN</label>
-                      <input class="pin-input" id="pinEnableRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите PIN" />
+                      <div class="pin-input-wrap">
+                        <input class="pin-input" id="pinEnableRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите PIN" />
+                        <button class="pin-eye-btn" data-pin-toggle="pinEnableRepeatInput" type="button" aria-label="Показать PIN">&#128065;</button>
+                      </div>
                     </div>
                   </div>
                   <div class="row mt12">
@@ -2760,18 +3020,10 @@
               </div>
             `;
 
-            const newInput = document.getElementById("pinEnableNewInput");
-            const repeatInput = document.getElementById("pinEnableRepeatInput");
+            const newInput = bindPinInput("pinEnableNewInput");
+            const repeatInput = bindPinInput("pinEnableRepeatInput");
             const enableStatus = document.getElementById("pinEnableStatus");
             const enableBtn = document.getElementById("pinEnableBtn");
-            const syncDigits = (input) => {
-              if (!input) return;
-              input.addEventListener("input", () => {
-                input.value = normalizePinDigits(input.value);
-              });
-            };
-            syncDigits(newInput);
-            syncDigits(repeatInput);
             enableBtn?.addEventListener("click", async () => {
               const pin = normalizePinDigits(newInput?.value || "");
               const repeatPin = normalizePinDigits(repeatInput?.value || "");
@@ -2816,15 +3068,24 @@
                 <div class="pin-grid mt8">
                   <div class="pin-field">
                     <label for="pinChangeCurrentInput">Текущий PIN</label>
-                    <input class="pin-input" id="pinChangeCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Текущий PIN" />
+                    <div class="pin-input-wrap">
+                      <input class="pin-input" id="pinChangeCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Текущий PIN" />
+                      <button class="pin-eye-btn" data-pin-toggle="pinChangeCurrentInput" type="button" aria-label="Показать PIN">&#128065;</button>
+                    </div>
                   </div>
                   <div class="pin-field">
                     <label for="pinChangeNewInput">Новый PIN</label>
-                    <input class="pin-input" id="pinChangeNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                    <div class="pin-input-wrap">
+                      <input class="pin-input" id="pinChangeNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                      <button class="pin-eye-btn" data-pin-toggle="pinChangeNewInput" type="button" aria-label="Показать PIN">&#128065;</button>
+                    </div>
                   </div>
                   <div class="pin-field">
                     <label for="pinChangeRepeatInput">Повторите новый PIN</label>
-                    <input class="pin-input" id="pinChangeRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите новый PIN" />
+                    <div class="pin-input-wrap">
+                      <input class="pin-input" id="pinChangeRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите новый PIN" />
+                      <button class="pin-eye-btn" data-pin-toggle="pinChangeRepeatInput" type="button" aria-label="Показать PIN">&#128065;</button>
+                    </div>
                   </div>
                 </div>
                 <div class="row mt12">
@@ -2838,7 +3099,10 @@
                 <div class="pin-grid mt8">
                   <div class="pin-field">
                     <label for="pinDisableCurrentInput">Текущий PIN</label>
-                    <input class="pin-input" id="pinDisableCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Текущий PIN" />
+                    <div class="pin-input-wrap">
+                      <input class="pin-input" id="pinDisableCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Текущий PIN" />
+                      <button class="pin-eye-btn" data-pin-toggle="pinDisableCurrentInput" type="button" aria-label="Показать PIN">&#128065;</button>
+                    </div>
                   </div>
                 </div>
                 <div class="row mt12">
@@ -2849,17 +3113,10 @@
             </div>
           `;
 
-          const bindDigitsOnly = (id) => {
-            const input = document.getElementById(id);
-            input?.addEventListener("input", () => {
-              input.value = normalizePinDigits(input.value);
-            });
-            return input;
-          };
-          const currentInput = bindDigitsOnly("pinChangeCurrentInput");
-          const newInput = bindDigitsOnly("pinChangeNewInput");
-          const repeatInput = bindDigitsOnly("pinChangeRepeatInput");
-          const disableCurrentInput = bindDigitsOnly("pinDisableCurrentInput");
+          const currentInput = bindPinInput("pinChangeCurrentInput");
+          const newInput = bindPinInput("pinChangeNewInput");
+          const repeatInput = bindPinInput("pinChangeRepeatInput");
+          const disableCurrentInput = bindPinInput("pinDisableCurrentInput");
           const changeStatus = document.getElementById("pinChangeStatus");
           const disableStatus = document.getElementById("pinDisableStatus");
 

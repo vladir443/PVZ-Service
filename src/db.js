@@ -136,6 +136,7 @@ db.exec(`
     user_id INTEGER PRIMARY KEY,
     pin_hash TEXT NOT NULL DEFAULT '',
     pin_salt TEXT NOT NULL DEFAULT '',
+    pin_length INTEGER NOT NULL DEFAULT 4 CHECK(pin_length >= 4 AND pin_length <= 8),
     is_enabled INTEGER NOT NULL DEFAULT 0,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     lock_until TEXT NOT NULL DEFAULT '',
@@ -288,6 +289,9 @@ if (!hasColumn("finance_payments", "period_to")) {
 }
 if (!hasColumn("finance_payments", "payment_type")) {
   db.exec("ALTER TABLE finance_payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'payout';");
+}
+if (!hasColumn("security_pin_settings", "pin_length")) {
+  db.exec("ALTER TABLE security_pin_settings ADD COLUMN pin_length INTEGER NOT NULL DEFAULT 4;");
 }
 
 const CORE_EMPLOYEE = {
@@ -1738,7 +1742,7 @@ function getPinSettingsByUserId(userId) {
   const row = db
     .prepare(
       `
-      SELECT user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at
+      SELECT user_id, pin_hash, pin_salt, pin_length, is_enabled, failed_attempts, lock_until, updated_at
       FROM security_pin_settings
       WHERE user_id = ?
       LIMIT 1
@@ -1750,14 +1754,14 @@ function getPinSettingsByUserId(userId) {
     db.prepare(
       `
       INSERT INTO security_pin_settings (
-        user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at
-      ) VALUES (?, '', '', 0, 0, '', datetime('now'))
+        user_id, pin_hash, pin_salt, pin_length, is_enabled, failed_attempts, lock_until, updated_at
+      ) VALUES (?, '', '', 4, 0, 0, '', datetime('now'))
       `
     ).run(userId);
     return db
       .prepare(
         `
-        SELECT user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at
+        SELECT user_id, pin_hash, pin_salt, pin_length, is_enabled, failed_attempts, lock_until, updated_at
         FROM security_pin_settings
         WHERE user_id = ?
         LIMIT 1
@@ -1776,6 +1780,7 @@ function mapPinState(row) {
   const attemptsLeft = Math.max(0, PIN_MAX_ATTEMPTS - Number(row?.failed_attempts || 0));
   return {
     enabled: row?.is_enabled === 1,
+    pinLength: Math.max(PIN_MIN_LENGTH, Math.min(PIN_MAX_LENGTH, Number(row?.pin_length || PIN_MIN_LENGTH))),
     failedAttempts: Number(row?.failed_attempts || 0),
     attemptsLeft,
     lockedUntil: isLocked ? lockUntilIso : "",
@@ -1980,17 +1985,18 @@ export function enablePinForUser({ telegramId, pin }) {
 
   db.prepare(
     `
-    INSERT INTO security_pin_settings (user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at)
-    VALUES (?, ?, ?, 1, 0, '', datetime('now'))
+    INSERT INTO security_pin_settings (user_id, pin_hash, pin_salt, pin_length, is_enabled, failed_attempts, lock_until, updated_at)
+    VALUES (?, ?, ?, ?, 1, 0, '', datetime('now'))
     ON CONFLICT(user_id) DO UPDATE SET
       pin_hash = excluded.pin_hash,
       pin_salt = excluded.pin_salt,
+      pin_length = excluded.pin_length,
       is_enabled = 1,
       failed_attempts = 0,
       lock_until = '',
       updated_at = datetime('now')
     `
-  ).run(user.id, hash, salt);
+  ).run(user.id, hash, salt, normalizedPin.length);
 
   db.prepare(
     `
@@ -2099,6 +2105,7 @@ export function disablePinForUser({ telegramId, currentPin }) {
     SET is_enabled = 0,
         pin_hash = '',
         pin_salt = '',
+        pin_length = 4,
         failed_attempts = 0,
         lock_until = '',
         updated_at = datetime('now')
@@ -2140,13 +2147,14 @@ export function changePinForUser({ telegramId, currentPin, newPin }) {
     UPDATE security_pin_settings
     SET pin_hash = ?,
         pin_salt = ?,
+        pin_length = ?,
         is_enabled = 1,
         failed_attempts = 0,
         lock_until = '',
         updated_at = datetime('now')
     WHERE user_id = ?
     `
-  ).run(hash, salt, user.id);
+  ).run(hash, salt, normalizedNewPin.length, user.id);
 
   return { ok: true, state: getPinStateByTelegramId(telegramId) };
 }
@@ -2160,6 +2168,7 @@ export function resetPinForTelegramId({ telegramId }) {
     SET is_enabled = 0,
         pin_hash = '',
         pin_salt = '',
+        pin_length = 4,
         failed_attempts = 0,
         lock_until = '',
         updated_at = datetime('now')
