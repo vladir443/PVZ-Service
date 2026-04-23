@@ -215,7 +215,7 @@
         display: grid;
         grid-template-columns: 92px 1fr;
         gap: 8px;
-        align-items: start;
+        align-items: center;
       }
 
       .home-list-date {
@@ -224,7 +224,7 @@
         color: #273a57;
         white-space: nowrap;
         display: flex;
-        align-items: baseline;
+        align-items: center;
         gap: 5px;
       }
 
@@ -294,6 +294,10 @@
       .warn-banner > div:first-child {
         font-size: 15px;
         color: #243754;
+      }
+
+      body.theme-dark .warn-banner > div:first-child {
+        color: var(--text);
       }
 
       .profile-hero {
@@ -1643,10 +1647,14 @@
             if (!part) return "";
             const lower = part.toLowerCase();
             if (lower.startsWith("ozon")) {
-              return `<span class="brand-ozon">${escapeHtml(part)}</span>`;
+              const match = part.match(/^(ozon)\s+(.*)$/i);
+              if (!match) return `<span class="brand-ozon">ozon</span>`;
+              return `<span class="brand-ozon">${escapeHtml(match[1])}</span> ${escapeHtml(match[2])}`;
             }
             if (lower.startsWith("wb")) {
-              return `<span class="brand-wb">${escapeHtml(part)}</span>`;
+              const match = part.match(/^(wb)\s+(.*)$/i);
+              if (!match) return `<span class="brand-wb">wb</span>`;
+              return `<span class="brand-wb">${escapeHtml(match[1])}</span> ${escapeHtml(match[2])}`;
             }
             return escapeHtml(part);
           })
@@ -1750,7 +1758,7 @@
         let overviewStatus = "Выходной";
         let todayCardTitle = "Сегодня выходной";
         let upcomingLines = ["Нет запланированных смен"];
-        let todayTeamTitle = "Сегодня у вас нет смены";
+        let todayTeamTitle = "";
         let todayTeamSub = "Пока вы не назначены на смену";
         let emptyShiftLines = ["Свободных смен на ближайшие 3 дня нет"];
         let positionLabel = positions[getCurrentEmployeeFromState()?.position] || "Сотрудник";
@@ -1970,7 +1978,7 @@
             <div class="overview-card blue">
               <h3>${escapeHtml(todayCardTitle)}</h3>
               <div class="big">${escapeHtml(overviewShift)}</div>
-              <div class="home-main-note">${escapeHtml(todayTeamTitle)}</div>
+              ${todayTeamTitle ? `<div class="home-main-note">${escapeHtml(todayTeamTitle)}</div>` : ""}
               <div class="home-sub-note">${escapeHtml(todayTeamSub)}</div>
             </div>
             <div class="overview-card green">
