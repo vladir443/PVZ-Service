@@ -95,6 +95,55 @@
         cursor: not-allowed;
       }
 
+      .save-icon-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .save-icon-btn {
+        width: 38px;
+        height: 38px;
+        border: 1px solid #1e56a9;
+        border-radius: 10px;
+        background: linear-gradient(180deg, #2d74da 0%, #1f5db8 100%);
+        display: grid;
+        place-items: center;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .save-icon-btn:hover {
+        background: linear-gradient(180deg, #2569cb 0%, #1a509f 100%);
+      }
+
+      .save-icon-btn:disabled {
+        background: #94a3b8;
+        border-color: #7f93b0;
+        cursor: not-allowed;
+      }
+
+      .save-icon-btn img {
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+        filter: brightness(0) invert(1);
+      }
+
+      .save-feedback {
+        min-height: 16px;
+        font-size: 13px;
+        line-height: 1.2;
+        color: #1d9f60;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+
+      .save-feedback.visible {
+        opacity: 1;
+      }
+
       .back-icon-btn {
         width: 42px;
         height: 42px;
@@ -577,7 +626,8 @@
 
       body.theme-dark .open-arrow-btn,
       body.theme-dark .icon-button,
-      body.theme-dark .back-icon-btn {
+      body.theme-dark .back-icon-btn,
+      body.theme-dark .save-icon-btn {
         background: #1a2a43;
         border-color: #355077;
       }
@@ -620,6 +670,14 @@
       body.theme-dark .employee-contact-copy-btn:hover {
         background: #203556;
         border-color: #466592;
+      }
+
+      body.theme-dark .save-icon-btn:hover {
+        background: #203556;
+      }
+
+      body.theme-dark .save-feedback {
+        color: #6ee7b7;
       }
 
       .location-grid {
@@ -1288,17 +1346,6 @@
         flex-wrap: wrap;
       }
 
-      .employee-save-btn {
-        background: linear-gradient(180deg, #2d74da 0%, #1f5db8 100%);
-        border: 1px solid #1e56a9;
-        color: #fff;
-        font-weight: 700;
-      }
-
-      .employee-save-btn:hover {
-        background: linear-gradient(180deg, #2569cb 0%, #1a509f 100%);
-      }
-
       .employee-delete-btn:disabled {
         background: #eef3fb;
         color: #7c8ca5;
@@ -1487,6 +1534,19 @@
         }
         appTitle.textContent = value;
         appTitle.classList.remove("hidden");
+      }
+
+      function showSavedFeedback(el, text = "Сохранено") {
+        if (!el) return;
+        el.textContent = text;
+        el.classList.add("visible");
+        if (el._saveFeedbackTimer) {
+          window.clearTimeout(el._saveFeedbackTimer);
+        }
+        el._saveFeedbackTimer = window.setTimeout(() => {
+          el.classList.remove("visible");
+          el.textContent = "";
+        }, 1600);
       }
 
       function showAccessDenied() {
@@ -2151,7 +2211,12 @@
                 <input id="reminder14EnabledInput" type="checkbox" ${state.user?.reminder14Enabled !== false ? "checked" : ""} />
               </div>
               <div class="row mt12">
-                <button id="saveReminderSettingsBtn" class="button" type="button">Сохранить</button>
+                <div class="save-icon-wrap">
+                  <button id="saveReminderSettingsBtn" class="save-icon-btn" type="button" aria-label="Сохранить">
+                    <img src="/icons/save-action.png" alt="Сохранить" />
+                  </button>
+                  <div id="saveReminderSettingsFeedback" class="save-feedback"></div>
+                </div>
               </div>
               <p id="reminderSettingsStatus" class="status mt12"></p>
             </div>
@@ -2180,8 +2245,11 @@
                             <div class="muted">Конец</div>
                             <input type="time" data-hours-end="${escapeHtml(loc.code)}" value="${escapeHtml(loc.workEnd || "22:00")}" />
                           </div>
-                          <div style="display:flex; align-items:flex-end;">
-                            <button class="button" type="button" data-save-hours="${escapeHtml(loc.code)}">Сохранить</button>
+                          <div class="save-icon-wrap" style="align-items:flex-end;">
+                            <button class="save-icon-btn" type="button" data-save-hours="${escapeHtml(loc.code)}" aria-label="Сохранить">
+                              <img src="/icons/save-action.png" alt="Сохранить" />
+                            </button>
+                            <div class="save-feedback" data-save-hours-feedback="${escapeHtml(loc.code)}"></div>
                           </div>
                         </div>
                       </div>
@@ -2199,6 +2267,7 @@
         const reminder24EnabledInput = document.getElementById("reminder24EnabledInput");
         const reminder14EnabledInput = document.getElementById("reminder14EnabledInput");
         const saveReminderSettingsBtn = document.getElementById("saveReminderSettingsBtn");
+        const saveReminderSettingsFeedback = document.getElementById("saveReminderSettingsFeedback");
         const reminderSettingsStatus = document.getElementById("reminderSettingsStatus");
         const openAdminPanelBtn = document.getElementById("openAdminPanelBtn");
         const adminHoursModal = document.getElementById("adminHoursModal");
@@ -2210,6 +2279,10 @@
         openNotificationsBtn?.addEventListener("click", () => {
           reminderSettingsStatus.className = "status";
           reminderSettingsStatus.textContent = "";
+          if (saveReminderSettingsFeedback) {
+            saveReminderSettingsFeedback.textContent = "";
+            saveReminderSettingsFeedback.classList.remove("visible");
+          }
           notificationsModal?.classList.remove("hidden");
         });
         saveReminderSettingsBtn?.addEventListener("click", async () => {
@@ -2233,6 +2306,7 @@
             }
             reminderSettingsStatus.className = "status ok";
             reminderSettingsStatus.textContent = "Настройки уведомлений сохранены";
+            showSavedFeedback(saveReminderSettingsFeedback);
           } catch (error) {
             reminderSettingsStatus.className = "status error";
             reminderSettingsStatus.textContent = `Ошибка: ${error.message}`;
@@ -2258,6 +2332,7 @@
         for (const btn of screen.querySelectorAll("[data-save-hours]")) {
           btn.addEventListener("click", async () => {
             const code = btn.dataset.saveHours;
+            const rowSaveFeedback = screen.querySelector(`[data-save-hours-feedback='${code}']`);
             const startInput = screen.querySelector(`[data-hours-start='${code}']`);
             const endInput = screen.querySelector(`[data-hours-end='${code}']`);
             const workStart = String(startInput?.value || "").slice(0, 5);
@@ -2281,6 +2356,7 @@
               }
               adminHoursStatus.className = "status ok";
               adminHoursStatus.textContent = "График пункта обновлен";
+              showSavedFeedback(rowSaveFeedback);
             } catch (error) {
               adminHoursStatus.className = "status error";
               adminHoursStatus.textContent = `Ошибка: ${error.message}`;
@@ -2596,7 +2672,12 @@
                 </div>
               </div>
               <div class="employee-form-actions mt12">
-                <button class="button employee-save-btn" id="saveEmployeeBtn">Сохранить</button>
+                <div class="save-icon-wrap">
+                  <button class="save-icon-btn" id="saveEmployeeBtn" type="button" aria-label="Сохранить">
+                    <img src="/icons/save-action.png" alt="Сохранить" />
+                  </button>
+                  <div id="saveEmployeeFeedback" class="save-feedback"></div>
+                </div>
                 <button class="button danger employee-delete-btn" id="deleteEmployeeBtn">Удалить сотрудника</button>
               </div>
             </div>
@@ -2619,6 +2700,7 @@
         const accessRoleInput = document.getElementById("accessRoleInput");
         const deleteEmployeeBtn = document.getElementById("deleteEmployeeBtn");
         const saveEmployeeBtn = document.getElementById("saveEmployeeBtn");
+        const saveEmployeeFeedback = document.getElementById("saveEmployeeFeedback");
         let editingEmployeeId = null;
 
         const openPanel = () => modal.classList.remove("hidden");
@@ -2635,6 +2717,10 @@
           accessRoleInput.value = "PARTICIPANT";
           accessRoleInput.disabled = false;
           saveEmployeeBtn.disabled = false;
+          if (saveEmployeeFeedback) {
+            saveEmployeeFeedback.textContent = "";
+            saveEmployeeFeedback.classList.remove("visible");
+          }
           deleteEmployeeBtn.style.display = "none";
           deleteEmployeeBtn.disabled = true;
           deleteEmployeeBtn.textContent = "Удалить сотрудника";
@@ -2755,8 +2841,11 @@
 
             status.className = "status ok";
             status.textContent = editingEmployeeId ? "Сотрудник обновлен" : "Сотрудник добавлен";
-            closePanel();
-            renderEmployeesBase();
+            showSavedFeedback(saveEmployeeFeedback);
+            window.setTimeout(() => {
+              closePanel();
+              renderEmployeesBase();
+            }, 280);
           } catch (error) {
             status.className = "status error";
             status.textContent = mapEmployeeApiError(error);
@@ -3331,7 +3420,12 @@
                 <div id="adjustList" class="adjust-list mt12"></div>
                 <p id="adjustError" class="status error mt8"></p>
                 <div class="row mt12">
-                  <button class="button" id="saveAdjustBtn">Сохранить</button>
+                  <div class="save-icon-wrap">
+                    <button class="save-icon-btn" id="saveAdjustBtn" type="button" aria-label="Сохранить">
+                      <img src="/icons/save-action.png" alt="Сохранить" />
+                    </button>
+                    <div id="saveAdjustFeedback" class="save-feedback"></div>
+                  </div>
                   <button class="button secondary" id="closeAdjustBtn">Отмена</button>
                 </div>
               </div>
@@ -3775,6 +3869,7 @@
           const adjustList = document.getElementById("adjustList");
           const adjustError = document.getElementById("adjustError");
           const saveAdjustBtn = document.getElementById("saveAdjustBtn");
+          const saveAdjustFeedback = document.getElementById("saveAdjustFeedback");
           const closeAdjustBtn = document.getElementById("closeAdjustBtn");
           let adjustTarget = { row: null, kind: null };
 
@@ -3820,6 +3915,10 @@
             };
             adjustTitle.textContent = titleMap[kind] || "Изменения";
             adjustError.textContent = "";
+            if (saveAdjustFeedback) {
+              saveAdjustFeedback.textContent = "";
+              saveAdjustFeedback.classList.remove("visible");
+            }
 
             adjustList.innerHTML = rules
               .map((rule, index) => {
@@ -3867,11 +3966,19 @@
           closeAdjustBtn.addEventListener("click", () => {
             adjustModal.classList.add("hidden");
             adjustTarget = { row: null, kind: null };
+            if (saveAdjustFeedback) {
+              saveAdjustFeedback.textContent = "";
+              saveAdjustFeedback.classList.remove("visible");
+            }
           });
           adjustModal.addEventListener("click", (event) => {
             if (event.target === adjustModal) {
               adjustModal.classList.add("hidden");
               adjustTarget = { row: null, kind: null };
+              if (saveAdjustFeedback) {
+                saveAdjustFeedback.textContent = "";
+                saveAdjustFeedback.classList.remove("visible");
+              }
             }
           });
 
@@ -3918,8 +4025,11 @@
             writeRowMeta(row, kind, items);
             updateAdjustValue(row, kind, total);
             autosave(row);
-            adjustModal.classList.add("hidden");
-            adjustTarget = { row: null, kind: null };
+            showSavedFeedback(saveAdjustFeedback);
+            window.setTimeout(() => {
+              adjustModal.classList.add("hidden");
+              adjustTarget = { row: null, kind: null };
+            }, 240);
           });
 
           if (!editable) {
