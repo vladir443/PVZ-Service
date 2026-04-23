@@ -672,6 +672,21 @@
         border-color: #466592;
       }
 
+      body.theme-dark .employee-delete-btn {
+        background: #7f1d1d;
+        border-color: #b91c1c;
+      }
+
+      body.theme-dark .employee-delete-btn:hover {
+        background: #991b1b;
+        border-color: #dc2626;
+      }
+
+      body.theme-dark .employee-delete-btn:disabled {
+        background: #1a2a43;
+        border-color: #355077;
+      }
+
       body.theme-dark .save-icon-btn:hover {
         background: #203556;
       }
@@ -683,6 +698,26 @@
       body.theme-dark .admin-hours-card {
         background: #18263d;
         border-color: #2f4568;
+      }
+
+      body.theme-dark #employeePanel {
+        border-color: #2f4568;
+        background: #18263d;
+      }
+
+      body.theme-dark .employee-form-group {
+        border-color: #2f4568;
+        background: #1b2b45;
+      }
+
+      body.theme-dark .employee-form-group-title,
+      body.theme-dark .employee-form-label,
+      body.theme-dark #employeePanel .panel-title {
+        color: #e8eef8;
+      }
+
+      body.theme-dark .employee-form-hint {
+        color: #9fb0c9;
       }
 
       .location-grid {
@@ -1363,11 +1398,39 @@
         flex-wrap: wrap;
       }
 
+      .employee-delete-btn {
+        width: 38px;
+        height: 38px;
+        border: 1px solid #dc2626;
+        border-radius: 10px;
+        background: #dc2626;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .employee-delete-btn:hover {
+        background: #b91c1c;
+        border-color: #b91c1c;
+      }
+
+      .employee-delete-btn img {
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+        filter: brightness(0) invert(1);
+      }
+
       .employee-delete-btn:disabled {
         background: #eef3fb;
-        color: #7c8ca5;
         border: 1px solid #d9e2f0;
         cursor: not-allowed;
+      }
+
+      .employee-delete-btn:disabled img {
+        filter: none;
+        opacity: 0.55;
       }
 
       .modal {
@@ -1573,6 +1636,15 @@
           return;
         }
         window.alert(message);
+      }
+
+      function confirmAction(message) {
+        if (typeof tg?.showConfirm === "function") {
+          return new Promise((resolve) => {
+            tg.showConfirm(message, (ok) => resolve(!!ok));
+          });
+        }
+        return Promise.resolve(window.confirm(message));
       }
 
       function renderBottomNav(active = state.activeTab) {
@@ -2695,7 +2767,9 @@
                   </button>
                   <div id="saveEmployeeFeedback" class="save-feedback"></div>
                 </div>
-                <button class="button danger employee-delete-btn" id="deleteEmployeeBtn">Удалить сотрудника</button>
+                <button class="employee-delete-btn" id="deleteEmployeeBtn" type="button" aria-label="Удалить сотрудника" title="Удалить сотрудника">
+                  <img src="/icons/delete-action.png" alt="Удалить" />
+                </button>
               </div>
             </div>
           </div>
@@ -2740,7 +2814,7 @@
           }
           deleteEmployeeBtn.style.display = "none";
           deleteEmployeeBtn.disabled = true;
-          deleteEmployeeBtn.textContent = "Удалить сотрудника";
+          deleteEmployeeBtn.title = "Удалить сотрудника";
         };
 
         const openForCreate = () => {
@@ -2787,7 +2861,7 @@
           }
           deleteEmployeeBtn.style.display = "inline-block";
           deleteEmployeeBtn.disabled = !!employee.isProtected || adminCannotEdit;
-          deleteEmployeeBtn.textContent = employee.isProtected
+          deleteEmployeeBtn.title = employee.isProtected
             ? "Удаление запрещено"
             : "Удалить сотрудника";
           openPanel();
@@ -2903,6 +2977,8 @@
 
         deleteEmployeeBtn.addEventListener("click", async () => {
           if (!editingEmployeeId || deleteEmployeeBtn.disabled) return;
+          const confirmed = await confirmAction("Точно хотите удалить сотрудника?");
+          if (!confirmed) return;
           try {
             await api(`/api/employees/${editingEmployeeId}`, { method: "DELETE" });
             status.className = "status ok";
