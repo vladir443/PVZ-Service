@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { env } from "./config/env.js";
 import { DbRole, Role, fromDbRole, toDbRole } from "./lib/roles.js";
 
@@ -127,6 +128,58 @@ db.exec(`
     reminder_code TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(telegram_id, location_code, shift_date, shift_role, reminder_code)
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS security_pin_settings (
+    user_id INTEGER PRIMARY KEY,
+    pin_hash TEXT NOT NULL DEFAULT '',
+    pin_salt TEXT NOT NULL DEFAULT '',
+    is_enabled INTEGER NOT NULL DEFAULT 0,
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    lock_until TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    telegram_id TEXT NOT NULL,
+    device_name TEXT NOT NULL DEFAULT '',
+    platform TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    ip_address TEXT NOT NULL DEFAULT '',
+    pin_verified INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
+    revoked_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS security_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope TEXT NOT NULL CHECK(scope IN ('PERSONAL', 'SYSTEM')),
+    event_type TEXT NOT NULL,
+    actor_user_id INTEGER,
+    actor_telegram_id TEXT NOT NULL DEFAULT '',
+    actor_role TEXT NOT NULL DEFAULT '',
+    target_user_id INTEGER,
+    target_telegram_id TEXT NOT NULL DEFAULT '',
+    session_id TEXT NOT NULL DEFAULT '',
+    ip_address TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    meta_json TEXT NOT NULL DEFAULT '{}',
+    system_view TEXT NOT NULL DEFAULT 'TARGET_USER' CHECK(system_view IN ('TARGET_USER', 'ALL_ADMINS', 'ALL_USERS', 'SUPERADMIN_ONLY')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(actor_user_id) REFERENCES users(id),
+    FOREIGN KEY(target_user_id) REFERENCES users(id)
   );
 `);
 
@@ -1633,4 +1686,638 @@ export function syncEmployeeTelegramProfile({ telegramId, username, photoUrl }) 
        OR lower(replace(telegram_contact, '@', '')) = ?
     `
   ).run(tgId, avatarUrl, avatarUrl, tgId, normalizedUsername);
+}
+
+const PIN_MIN_LENGTH = 4;
+const PIN_MAX_LENGTH = 8;
+const PIN_MAX_ATTEMPTS = 5;
+const PIN_LOCK_MINUTES = 15;
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function normalizeIp(value) {
+  return String(value || "").trim().slice(0, 120);
+}
+
+function normalizeUserAgent(value) {
+  return String(value || "").trim().slice(0, 400);
+}
+
+function normalizePin(value) {
+  return String(value || "").replace(/\s+/g, "");
+}
+
+function isValidPinFormat(pin) {
+  return /^\d+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH;
+}
+
+function createPinHash(pin, salt) {
+  return crypto.scryptSync(pin, salt, 64).toString("hex");
+}
+
+function createSessionId() {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+function getUserById(userId) {
+  return db
+    .prepare(
+      `
+      SELECT id, telegram_id, full_name, role, is_super_admin
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `
+    )
+    .get(userId);
+}
+
+function getPinSettingsByUserId(userId) {
+  const row = db
+    .prepare(
+      `
+      SELECT user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at
+      FROM security_pin_settings
+      WHERE user_id = ?
+      LIMIT 1
+      `
+    )
+    .get(userId);
+
+  if (!row) {
+    db.prepare(
+      `
+      INSERT INTO security_pin_settings (
+        user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at
+      ) VALUES (?, '', '', 0, 0, '', datetime('now'))
+      `
+    ).run(userId);
+    return db
+      .prepare(
+        `
+        SELECT user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at
+        FROM security_pin_settings
+        WHERE user_id = ?
+        LIMIT 1
+        `
+      )
+      .get(userId);
+  }
+
+  return row;
+}
+
+function mapPinState(row) {
+  const lockUntilIso = String(row?.lock_until || "").trim();
+  const lockUntilTs = lockUntilIso ? Date.parse(lockUntilIso) : NaN;
+  const isLocked = Number.isFinite(lockUntilTs) && lockUntilTs > Date.now();
+  const attemptsLeft = Math.max(0, PIN_MAX_ATTEMPTS - Number(row?.failed_attempts || 0));
+  return {
+    enabled: row?.is_enabled === 1,
+    failedAttempts: Number(row?.failed_attempts || 0),
+    attemptsLeft,
+    lockedUntil: isLocked ? lockUntilIso : "",
+    isLocked
+  };
+}
+
+export function getPinStateByTelegramId(telegramId) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return null;
+  const row = getPinSettingsByUserId(user.id);
+  return mapPinState(row);
+}
+
+export function createUserSession({
+  telegramId,
+  deviceName = "",
+  platform = "",
+  userAgent = "",
+  ipAddress = ""
+}) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return null;
+  const pinState = getPinStateByTelegramId(telegramId);
+  const sessionId = createSessionId();
+  db.prepare(
+    `
+    INSERT INTO user_sessions (
+      session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address, pin_verified, created_at, last_active_at, revoked_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), '')
+    `
+  ).run(
+    sessionId,
+    user.id,
+    user.telegramId,
+    String(deviceName || "").trim().slice(0, 120),
+    String(platform || "").trim().slice(0, 60),
+    normalizeUserAgent(userAgent),
+    normalizeIp(ipAddress),
+    pinState?.enabled ? 0 : 1
+  );
+
+  return db
+    .prepare(
+      `
+      SELECT id, session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address, pin_verified, created_at, last_active_at
+      FROM user_sessions
+      WHERE session_id = ?
+      LIMIT 1
+      `
+    )
+    .get(sessionId);
+}
+
+export function getActiveSessionWithUser({ telegramId, sessionId }) {
+  const safeTelegramId = String(telegramId || "").trim();
+  const safeSessionId = String(sessionId || "").trim();
+  if (!safeTelegramId || !safeSessionId) return null;
+
+  const row = db
+    .prepare(
+      `
+      SELECT
+        s.id AS session_db_id,
+        s.session_id,
+        s.user_id,
+        s.telegram_id,
+        s.device_name,
+        s.platform,
+        s.user_agent,
+        s.ip_address,
+        s.pin_verified,
+        s.created_at AS session_created_at,
+        s.last_active_at,
+        u.id,
+        u.telegram_id,
+        u.full_name,
+        u.role,
+        u.is_super_admin,
+        u.reminder_24_enabled,
+        u.reminder_14_enabled,
+        u.created_at,
+        u.updated_at
+      FROM user_sessions s
+      JOIN users u ON u.id = s.user_id
+      WHERE s.session_id = ?
+        AND s.telegram_id = ?
+        AND (s.revoked_at IS NULL OR s.revoked_at = '')
+      LIMIT 1
+      `
+    )
+    .get(safeSessionId, safeTelegramId);
+
+  if (!row) return null;
+
+  const user = mapUserRow(row);
+  return {
+    user,
+    session: {
+      id: row.session_id,
+      dbId: row.session_db_id,
+      userId: row.user_id,
+      deviceName: row.device_name,
+      platform: row.platform,
+      userAgent: row.user_agent,
+      ipAddress: row.ip_address,
+      pinVerified: row.pin_verified === 1,
+      createdAt: row.session_created_at,
+      lastActiveAt: row.last_active_at
+    }
+  };
+}
+
+export function touchSession(sessionId) {
+  db.prepare(
+    `
+    UPDATE user_sessions
+    SET last_active_at = datetime('now')
+    WHERE session_id = ?
+      AND (revoked_at IS NULL OR revoked_at = '')
+    `
+  ).run(String(sessionId || "").trim());
+}
+
+export function setSessionPinVerified({ sessionId, verified }) {
+  db.prepare(
+    `
+    UPDATE user_sessions
+    SET pin_verified = ?, last_active_at = datetime('now')
+    WHERE session_id = ?
+      AND (revoked_at IS NULL OR revoked_at = '')
+    `
+  ).run(verified ? 1 : 0, String(sessionId || "").trim());
+}
+
+export function revokeSession({ userId, sessionId }) {
+  const result = db
+    .prepare(
+      `
+      UPDATE user_sessions
+      SET revoked_at = datetime('now')
+      WHERE user_id = ?
+        AND session_id = ?
+        AND (revoked_at IS NULL OR revoked_at = '')
+      `
+    )
+    .run(userId, String(sessionId || "").trim());
+  return result.changes > 0;
+}
+
+export function revokeOtherSessions({ userId, currentSessionId }) {
+  const result = db
+    .prepare(
+      `
+      UPDATE user_sessions
+      SET revoked_at = datetime('now')
+      WHERE user_id = ?
+        AND session_id <> ?
+        AND (revoked_at IS NULL OR revoked_at = '')
+      `
+    )
+    .run(userId, String(currentSessionId || "").trim());
+  return result.changes;
+}
+
+export function listActiveSessionsByUserId({ userId, currentSessionId = "" }) {
+  const rows = db
+    .prepare(
+      `
+      SELECT session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address, pin_verified, created_at, last_active_at
+      FROM user_sessions
+      WHERE user_id = ?
+        AND (revoked_at IS NULL OR revoked_at = '')
+      ORDER BY datetime(last_active_at) DESC, id DESC
+      `
+    )
+    .all(userId);
+
+  const current = String(currentSessionId || "").trim();
+  return rows.map((row) => ({
+    id: row.session_id,
+    deviceName: row.device_name || "Устройство",
+    platform: row.platform || "",
+    userAgent: row.user_agent || "",
+    ipAddress: row.ip_address || "",
+    pinVerified: row.pin_verified === 1,
+    createdAt: row.created_at,
+    lastActiveAt: row.last_active_at,
+    isCurrent: current && row.session_id === current
+  }));
+}
+
+export function enablePinForUser({ telegramId, pin }) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return { ok: false, reason: "not_found" };
+  const normalizedPin = normalizePin(pin);
+  if (!isValidPinFormat(normalizedPin)) {
+    return { ok: false, reason: "invalid_pin" };
+  }
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = createPinHash(normalizedPin, salt);
+
+  db.prepare(
+    `
+    INSERT INTO security_pin_settings (user_id, pin_hash, pin_salt, is_enabled, failed_attempts, lock_until, updated_at)
+    VALUES (?, ?, ?, 1, 0, '', datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      pin_hash = excluded.pin_hash,
+      pin_salt = excluded.pin_salt,
+      is_enabled = 1,
+      failed_attempts = 0,
+      lock_until = '',
+      updated_at = datetime('now')
+    `
+  ).run(user.id, hash, salt);
+
+  db.prepare(
+    `
+    UPDATE user_sessions
+    SET pin_verified = CASE WHEN user_id = ? THEN pin_verified ELSE pin_verified END
+    WHERE user_id = ?
+      AND (revoked_at IS NULL OR revoked_at = '')
+    `
+  ).run(user.id, user.id);
+
+  return { ok: true, state: getPinStateByTelegramId(telegramId) };
+}
+
+function comparePin({ row, pin }) {
+  if (!row?.pin_hash || !row?.pin_salt) return false;
+  const incomingHash = createPinHash(pin, row.pin_salt);
+  try {
+    return crypto.timingSafeEqual(Buffer.from(incomingHash, "hex"), Buffer.from(row.pin_hash, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+export function verifyPinForUser({ telegramId, pin }) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return { ok: false, reason: "not_found" };
+
+  const row = getPinSettingsByUserId(user.id);
+  if (!row || row.is_enabled !== 1) {
+    return { ok: false, reason: "not_enabled", state: mapPinState(row || {}) };
+  }
+
+  const state = mapPinState(row);
+  if (state.isLocked) {
+    return { ok: false, reason: "locked", state };
+  }
+
+  const normalizedPin = normalizePin(pin);
+  if (!isValidPinFormat(normalizedPin)) {
+    return { ok: false, reason: "invalid_pin", state };
+  }
+
+  const isMatch = comparePin({ row, pin: normalizedPin });
+  if (isMatch) {
+    db.prepare(
+      `
+      UPDATE security_pin_settings
+      SET failed_attempts = 0,
+          lock_until = '',
+          updated_at = datetime('now')
+      WHERE user_id = ?
+      `
+    ).run(user.id);
+    return { ok: true, state: getPinStateByTelegramId(telegramId) };
+  }
+
+  const nextFailedAttempts = Number(row.failed_attempts || 0) + 1;
+  if (nextFailedAttempts >= PIN_MAX_ATTEMPTS) {
+    const lockUntil = new Date(Date.now() + PIN_LOCK_MINUTES * 60 * 1000).toISOString();
+    db.prepare(
+      `
+      UPDATE security_pin_settings
+      SET failed_attempts = ?,
+          lock_until = ?,
+          updated_at = datetime('now')
+      WHERE user_id = ?
+      `
+    ).run(nextFailedAttempts, lockUntil, user.id);
+    return {
+      ok: false,
+      reason: "locked",
+      state: getPinStateByTelegramId(telegramId)
+    };
+  }
+
+  db.prepare(
+    `
+    UPDATE security_pin_settings
+    SET failed_attempts = ?,
+        updated_at = datetime('now')
+    WHERE user_id = ?
+    `
+  ).run(nextFailedAttempts, user.id);
+
+  return {
+    ok: false,
+    reason: "invalid_pin",
+    state: getPinStateByTelegramId(telegramId)
+  };
+}
+
+export function disablePinForUser({ telegramId, currentPin }) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return { ok: false, reason: "not_found" };
+  const row = getPinSettingsByUserId(user.id);
+  if (!row || row.is_enabled !== 1) return { ok: false, reason: "not_enabled" };
+
+  const normalizedPin = normalizePin(currentPin);
+  if (!isValidPinFormat(normalizedPin) || !comparePin({ row, pin: normalizedPin })) {
+    return { ok: false, reason: "invalid_pin" };
+  }
+
+  db.prepare(
+    `
+    UPDATE security_pin_settings
+    SET is_enabled = 0,
+        pin_hash = '',
+        pin_salt = '',
+        failed_attempts = 0,
+        lock_until = '',
+        updated_at = datetime('now')
+    WHERE user_id = ?
+    `
+  ).run(user.id);
+
+  db.prepare(
+    `
+    UPDATE user_sessions
+    SET pin_verified = 1
+    WHERE user_id = ?
+      AND (revoked_at IS NULL OR revoked_at = '')
+    `
+  ).run(user.id);
+
+  return { ok: true, state: getPinStateByTelegramId(telegramId) };
+}
+
+export function changePinForUser({ telegramId, currentPin, newPin }) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return { ok: false, reason: "not_found" };
+  const row = getPinSettingsByUserId(user.id);
+  if (!row || row.is_enabled !== 1) return { ok: false, reason: "not_enabled" };
+
+  const normalizedCurrentPin = normalizePin(currentPin);
+  const normalizedNewPin = normalizePin(newPin);
+  if (!isValidPinFormat(normalizedCurrentPin) || !comparePin({ row, pin: normalizedCurrentPin })) {
+    return { ok: false, reason: "invalid_current_pin" };
+  }
+  if (!isValidPinFormat(normalizedNewPin)) {
+    return { ok: false, reason: "invalid_new_pin" };
+  }
+
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = createPinHash(normalizedNewPin, salt);
+  db.prepare(
+    `
+    UPDATE security_pin_settings
+    SET pin_hash = ?,
+        pin_salt = ?,
+        is_enabled = 1,
+        failed_attempts = 0,
+        lock_until = '',
+        updated_at = datetime('now')
+    WHERE user_id = ?
+    `
+  ).run(hash, salt, user.id);
+
+  return { ok: true, state: getPinStateByTelegramId(telegramId) };
+}
+
+export function resetPinForTelegramId({ telegramId }) {
+  const user = getUserByTelegramId(telegramId);
+  if (!user) return { ok: false, reason: "not_found" };
+  db.prepare(
+    `
+    UPDATE security_pin_settings
+    SET is_enabled = 0,
+        pin_hash = '',
+        pin_salt = '',
+        failed_attempts = 0,
+        lock_until = '',
+        updated_at = datetime('now')
+    WHERE user_id = ?
+    `
+  ).run(user.id);
+
+  db.prepare(
+    `
+    UPDATE user_sessions
+    SET pin_verified = 1
+    WHERE user_id = ?
+      AND (revoked_at IS NULL OR revoked_at = '')
+    `
+  ).run(user.id);
+
+  return { ok: true };
+}
+
+export function logAuditEvent({
+  scope = "PERSONAL",
+  eventType,
+  actorUser = null,
+  actorTelegramId = "",
+  actorRole = "",
+  targetUserId = null,
+  targetTelegramId = "",
+  sessionId = "",
+  ipAddress = "",
+  userAgent = "",
+  meta = {},
+  systemView = "TARGET_USER"
+}) {
+  if (!eventType) return;
+  const normalizedScope = scope === "SYSTEM" ? "SYSTEM" : "PERSONAL";
+  const safeSystemView = ["TARGET_USER", "ALL_ADMINS", "ALL_USERS", "SUPERADMIN_ONLY"].includes(systemView)
+    ? systemView
+    : "TARGET_USER";
+  db.prepare(
+    `
+    INSERT INTO security_audit_logs (
+      scope, event_type, actor_user_id, actor_telegram_id, actor_role, target_user_id, target_telegram_id, session_id, ip_address, user_agent, meta_json, system_view, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `
+  ).run(
+    normalizedScope,
+    String(eventType).slice(0, 120),
+    actorUser?.id ?? null,
+    String(actorTelegramId || actorUser?.telegramId || "").slice(0, 64),
+    String(actorRole || actorUser?.role || "").slice(0, 24),
+    targetUserId ?? null,
+    String(targetTelegramId || "").slice(0, 64),
+    String(sessionId || "").slice(0, 120),
+    normalizeIp(ipAddress),
+    normalizeUserAgent(userAgent),
+    JSON.stringify(meta || {}),
+    safeSystemView
+  );
+}
+
+function parseAuditMeta(value) {
+  try {
+    return JSON.parse(String(value || "{}"));
+  } catch {
+    return {};
+  }
+}
+
+export function listAuditLogsForViewer({ viewerUser, scope = "PERSONAL", limit = 50 }) {
+  if (!viewerUser?.id) return [];
+  const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+  const normalizedScope = scope === "SYSTEM" ? "SYSTEM" : "PERSONAL";
+
+  let rows = [];
+  if (normalizedScope === "PERSONAL") {
+    rows = db
+      .prepare(
+        `
+        SELECT *
+        FROM security_audit_logs
+        WHERE scope = 'PERSONAL'
+          AND actor_user_id = ?
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT ?
+        `
+      )
+      .all(viewerUser.id, safeLimit);
+  } else if (viewerUser.role === Role.SUPERADMIN) {
+    rows = db
+      .prepare(
+        `
+        SELECT *
+        FROM security_audit_logs
+        WHERE scope = 'SYSTEM'
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT ?
+        `
+      )
+      .all(safeLimit);
+  } else if (viewerUser.role === Role.ADMIN) {
+    rows = db
+      .prepare(
+        `
+        SELECT *
+        FROM security_audit_logs
+        WHERE scope = 'SYSTEM'
+          AND (
+            system_view IN ('ALL_ADMINS', 'ALL_USERS')
+            OR actor_user_id = ?
+            OR target_user_id = ?
+          )
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT ?
+        `
+      )
+      .all(viewerUser.id, viewerUser.id, safeLimit);
+  } else {
+    rows = db
+      .prepare(
+        `
+        SELECT *
+        FROM security_audit_logs
+        WHERE scope = 'SYSTEM'
+          AND (
+            system_view = 'ALL_USERS'
+            OR actor_user_id = ?
+            OR target_user_id = ?
+          )
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT ?
+        `
+      )
+      .all(viewerUser.id, viewerUser.id, safeLimit);
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    scope: row.scope,
+    eventType: row.event_type,
+    actorUserId: row.actor_user_id,
+    actorTelegramId: row.actor_telegram_id,
+    actorRole: row.actor_role,
+    targetUserId: row.target_user_id,
+    targetTelegramId: row.target_telegram_id,
+    sessionId: row.session_id,
+    ipAddress: row.ip_address,
+    userAgent: row.user_agent,
+    meta: parseAuditMeta(row.meta_json),
+    systemView: row.system_view,
+    createdAt: row.created_at
+  }));
+}
+
+export function getPinPolicy() {
+  return {
+    minLength: PIN_MIN_LENGTH,
+    maxLength: PIN_MAX_LENGTH,
+    maxAttempts: PIN_MAX_ATTEMPTS,
+    lockMinutes: PIN_LOCK_MINUTES
+  };
 }

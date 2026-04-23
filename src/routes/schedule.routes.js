@@ -10,6 +10,7 @@ import {
   getScheduleForMonth,
   listFinancePaymentsForMonth,
   listLocations,
+  logAuditEvent,
   updateLocationHours,
   validateShiftExecutors,
   upsertShift
@@ -53,6 +54,23 @@ router.put("/locations/:code/hours", requireRole(Role.ADMIN, Role.SUPERADMIN), (
         message: "Location was not found"
       });
     }
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "LOCATION_HOURS_UPDATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        locationCode: updated.code,
+        locationTitle: updated.title,
+        workStart: updated.work_start,
+        workEnd: updated.work_end
+      },
+      systemView: "ALL_ADMINS"
+    });
     return res.json({
       location: {
         code: updated.code,
@@ -299,6 +317,23 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
         message: "Location was not found"
       });
     }
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "SHIFT_UPDATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        locationCode: req.params.locationCode,
+        date: parsed.data.date,
+        executor1: normalizedExecutor1,
+        executor2: normalizedExecutor2
+      },
+      systemView: "ALL_ADMINS"
+    });
 
     return res.json({ shift });
   } catch (error) {
@@ -342,6 +377,24 @@ router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN),
         message: "Location was not found"
       });
     }
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "FINANCE_PAYMENT_CREATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        locationCode: req.params.locationCode,
+        employeeName: parsed.data.employeeName,
+        paymentDate: parsed.data.paymentDate,
+        operationType: parsed.data.operationType,
+        amount: parsed.data.amount
+      },
+      systemView: "ALL_ADMINS"
+    });
 
     return res.status(201).json({
       payment: {
@@ -385,6 +438,24 @@ router.delete(
           message: "Payment was not found"
         });
       }
+      logAuditEvent({
+        scope: "SYSTEM",
+        eventType: "FINANCE_PAYMENT_DELETED",
+        actorUser: req.user,
+        actorTelegramId: req.user.telegramId,
+        actorRole: req.user.role,
+        sessionId: req.session?.id || "",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: {
+          locationCode: req.params.locationCode,
+          paymentId: deleted.id,
+          employeeName: deleted.employeeName,
+          amount: deleted.amount,
+          operationType: deleted.paymentType
+        },
+        systemView: "ALL_ADMINS"
+      });
 
       return res.json({ deleted });
     } catch (error) {

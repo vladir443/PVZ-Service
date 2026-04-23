@@ -2,11 +2,14 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import {
+  createUserSession,
   bindEmployeeTelegramId,
   createUser,
+  getPinStateByTelegramId,
   getEmployeeByAuth,
   getUserByTelegramId,
   isCoreAdminUsername,
+  logAuditEvent,
   syncEmployeeTelegramProfile,
   updateUserReminderSettings,
   updateUserProfile,
@@ -20,7 +23,9 @@ const loginSchema = z.object({
   telegramId: z.string().min(1).max(64),
   fullName: z.string().min(1).max(120),
   username: z.string().max(64).optional().default(""),
-  photoUrl: z.string().max(2000).optional().default("")
+  photoUrl: z.string().max(2000).optional().default(""),
+  deviceName: z.string().max(120).optional().default(""),
+  platform: z.string().max(60).optional().default("")
 });
 
 router.post("/login", async (req, res, next) => {
@@ -34,10 +39,22 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    const { telegramId, fullName, username, photoUrl } = parsed.data;
+    const { telegramId, fullName, username, photoUrl, deviceName, platform } = parsed.data;
 
     const employee = getEmployeeByAuth({ telegramId, username });
     if (!employee) {
+      logAuditEvent({
+        scope: "SYSTEM",
+        eventType: "AUTH_LOGIN_DENIED",
+        actorTelegramId: telegramId,
+        actorRole: "",
+        targetTelegramId: telegramId,
+        sessionId: "",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: { reason: "employee_not_found" },
+        systemView: "SUPERADMIN_ONLY"
+      });
       return res.status(403).json({
         error: "Forbidden",
         message: "Доступ закрыт: вас нет в базе сотрудников"
@@ -75,7 +92,52 @@ router.post("/login", async (req, res, next) => {
       }
     }
 
-    return res.json({ user });
+    const session = createUserSession({
+      telegramId: user.telegramId,
+      deviceName: deviceName || `${req.headers["sec-ch-ua-platform"] || "device"}`,
+      platform: platform || "",
+      userAgent: req.headers["user-agent"] || "",
+      ipAddress: req.ip || ""
+    });
+    const pinState = getPinStateByTelegramId(user.telegramId);
+    const pinRequired = !!pinState?.enabled;
+    logAuditEvent({
+      scope: "PERSONAL",
+      eventType: "AUTH_LOGIN_SUCCESS",
+      actorUser: user,
+      actorTelegramId: user.telegramId,
+      actorRole: user.role,
+      targetUserId: user.id,
+      targetTelegramId: user.telegramId,
+      sessionId: session?.session_id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        deviceName: session?.device_name || deviceName || "",
+        platform: session?.platform || platform || "",
+        pinRequired
+      },
+      systemView: "TARGET_USER"
+    });
+
+    return res.json({
+      user,
+      session: session
+        ? {
+            id: session.session_id,
+            createdAt: session.created_at,
+            lastActiveAt: session.last_active_at,
+            pinVerified: session.pin_verified === 1,
+            deviceName: session.device_name || "",
+            platform: session.platform || ""
+          }
+        : null,
+      security: {
+        pinEnabled: !!pinState?.enabled,
+        pinRequired,
+        pinState
+      }
+    });
   } catch (error) {
     return next(error);
   }
@@ -134,6 +196,24 @@ router.put("/me/reminders", requireAuth, (req, res, next) => {
         message: "Пользователь не найден"
       });
     }
+
+    logAuditEvent({
+      scope: "PERSONAL",
+      eventType: "REMINDER_SETTINGS_UPDATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetUserId: req.user.id,
+      targetTelegramId: req.user.telegramId,
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        enabled24,
+        enabled14
+      },
+      systemView: "TARGET_USER"
+    });
 
     return res.json({ user });
   } catch (error) {

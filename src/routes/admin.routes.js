@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import {
   getUserByTelegramId,
+  logAuditEvent,
   listUsers,
   updateUserRole
 } from "../db.js";
@@ -69,6 +70,24 @@ router.patch("/users/:telegramId/role", async (req, res, next) => {
       telegramId: req.params.telegramId,
       role: parsed.data.role,
       isSuperAdmin: false
+    });
+
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "USER_ROLE_CHANGED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetUserId: targetUser.id,
+      targetTelegramId: targetUser.telegramId,
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        fromRole: targetUser.role,
+        toRole: parsed.data.role
+      },
+      systemView: "ALL_ADMINS"
     });
 
     return res.json({ user });

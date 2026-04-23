@@ -5,6 +5,7 @@ import {
   deleteEmployeeById,
   getUserByTelegramId,
   listEmployees,
+  logAuditEvent,
   updateUserRole,
   updateEmployeeById
 } from "../db.js";
@@ -111,6 +112,24 @@ router.post("/", (req, res, next) => {
       position: parsed.data.position,
       reliability: parsed.data.reliability,
       accessRole: parsed.data.accessRole
+    });
+
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "EMPLOYEE_CREATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetTelegramId: employee.telegramId || "",
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        employeeId: employee.id,
+        fullName: employee.fullName,
+        accessRole: employee.accessRole
+      },
+      systemView: "ALL_ADMINS"
     });
 
     return res.status(201).json({ employee });
@@ -226,6 +245,24 @@ router.put("/:id", (req, res, next) => {
       }
     }
 
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "EMPLOYEE_UPDATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetTelegramId: result.employee.telegramId || "",
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        employeeId: result.employee.id,
+        fullName: result.employee.fullName,
+        accessRole: result.employee.accessRole
+      },
+      systemView: "ALL_ADMINS"
+    });
+
     return res.json({ employee: result.employee });
   } catch (error) {
     if (String(error.message || "").includes("UNIQUE")) {
@@ -295,6 +332,24 @@ router.delete("/:id", (req, res, next) => {
         message: "Сотрудник не найден"
       });
     }
+
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "EMPLOYEE_DELETED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetTelegramId: targetEmployee.telegramId || "",
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: {
+        employeeId: targetEmployee.id,
+        fullName: targetEmployee.fullName,
+        accessRole: targetEmployee.accessRole || Role.PARTICIPANT
+      },
+      systemView: "ALL_ADMINS"
+    });
 
     return res.status(204).send();
   } catch (error) {

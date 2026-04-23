@@ -1585,6 +1585,7 @@
         telegramUser: null,
         user: null,
         telegramId: null,
+        sessionId: "",
         locations: [],
         employees: [],
         currentEmployee: null,
@@ -1593,13 +1594,17 @@
         avatarNonce: String(Date.now()),
         scheduleViewMode: null,
         activeTab: "home",
-        theme: "light"
+        theme: "light",
+        security: {
+          pinState: null
+        }
       };
 
       const screen = document.getElementById("screen");
       const appTitle = document.getElementById("appTitle");
       const bottomNav = document.getElementById("bottomNav");
       const THEME_STORAGE_KEY = "pvz_theme";
+      const SESSION_STORAGE_KEY = "pvz_session_id";
 
       function applyTheme() {
         const isDark = state.theme === "dark";
@@ -1830,6 +1835,20 @@
           .replaceAll("'", "&#39;");
       }
 
+      function formatDateTime(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "—";
+        const dt = new Date(raw);
+        if (!Number.isFinite(dt.getTime())) return raw;
+        return dt.toLocaleString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      }
+
       function renderLocationLabelHtml(value) {
         const raw = String(value || "");
         if (!raw.trim()) return "";
@@ -1861,10 +1880,14 @@
           ...(options.headers || {})
         };
         if (state.telegramId) headers["x-telegram-id"] = state.telegramId;
+        if (state.sessionId) headers["x-session-id"] = state.sessionId;
 
         const response = await fetch(path, { ...options, headers });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
+          if (response.status === 423 && data?.pinRequired) {
+            throw new Error("Требуется PIN-код");
+          }
           throw new Error(data?.message || data?.error || "Ошибка API");
         }
         return data;
@@ -1892,6 +1915,82 @@
         }
       }
 
+      async function bootstrapAfterAuth() {
+        const locationsData = await api("/api/schedule/locations");
+        state.locations = locationsData.locations || [];
+        await loadEmployeesSafe();
+        renderMain();
+      }
+
+      function renderPinGate(pinState = null) {
+        setAppTitle("PVZ Service");
+        const lockText = pinState?.lockedUntil
+          ? `Вход заблокирован до ${formatDateTime(pinState.lockedUntil)}`
+          : "";
+        screen.innerHTML = `
+          <div class="panel">
+            <h3 class="panel-title">Введите PIN-код</h3>
+            <div class="muted mt8">Для доступа к приложению подтвердите PIN.</div>
+            ${lockText ? `<p class="status error mt8">${escapeHtml(lockText)}</p>` : ""}
+            <div class="mt12">
+              <input id="pinGateInput" type="password" inputmode="numeric" maxlength="8" placeholder="PIN (4-8 цифр)" />
+            </div>
+            <div class="row mt12">
+              <button id="pinGateSubmitBtn" class="button" type="button">Подтвердить</button>
+              <button id="pinRecoveryRequestBtn" class="button secondary" type="button">Восстановить доступ</button>
+            </div>
+            <p id="pinGateStatus" class="status mt12"></p>
+          </div>
+        `;
+        const pinInput = document.getElementById("pinGateInput");
+        const submitBtn = document.getElementById("pinGateSubmitBtn");
+        const status = document.getElementById("pinGateStatus");
+
+        const verify = async () => {
+          const pin = String(pinInput?.value || "").trim();
+          if (!pin) {
+            status.className = "status error";
+            status.textContent = "Введите PIN";
+            return;
+          }
+          submitBtn.disabled = true;
+          try {
+            const data = await api("/api/security/pin/verify", {
+              method: "POST",
+              body: JSON.stringify({ pin })
+            });
+            state.security.pinState = data?.pinState || null;
+            status.className = "status ok";
+            status.textContent = "PIN подтвержден";
+            await bootstrapAfterAuth();
+          } catch (error) {
+            status.className = "status error";
+            status.textContent = String(error?.message || "Неверный PIN");
+            try {
+              const stateData = await api("/api/security/state");
+              state.security.pinState = stateData?.pinState || null;
+            } catch {}
+          } finally {
+            submitBtn.disabled = false;
+          }
+        };
+
+        submitBtn?.addEventListener("click", verify);
+        pinInput?.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") verify();
+        });
+        document.getElementById("pinRecoveryRequestBtn")?.addEventListener("click", async () => {
+          try {
+            await api("/api/security/pin/recovery/request", { method: "POST" });
+            status.className = "status ok";
+            status.textContent = "Запрос отправлен. Обратитесь к главному администратору.";
+          } catch (error) {
+            status.className = "status error";
+            status.textContent = String(error?.message || "Ошибка");
+          }
+        });
+      }
+
       async function initApp() {
         try {
           try {
@@ -1915,20 +2014,28 @@
               telegramId: tgUser.telegramId,
               fullName: tgUser.fullName,
               username: tgUser.username || "",
-              photoUrl: tgUser.photoUrl || ""
+              photoUrl: tgUser.photoUrl || "",
+              deviceName: tg?.platform || navigator.platform || "device",
+              platform: tg?.platform || ""
             })
           });
 
           state.user = login.user;
           state.telegramId = login.user.telegramId;
+          state.sessionId = String(login?.session?.id || "");
+          try {
+            localStorage.setItem(SESSION_STORAGE_KEY, state.sessionId);
+          } catch {}
           state.selectedMonth = monthNow();
           state.avatarNonce = String(Date.now());
+          state.security.pinState = login?.security?.pinState || null;
 
-          const locationsData = await api("/api/schedule/locations");
-          state.locations = locationsData.locations || [];
-          await loadEmployeesSafe();
+          if (login?.security?.pinRequired) {
+            renderPinGate(login?.security?.pinState || null);
+            return;
+          }
 
-          renderMain();
+          await bootstrapAfterAuth();
         } catch (error) {
           screen.innerHTML = `<p class="status error">Ошибка: ${escapeHtml(error.message)}</p>`;
         }
@@ -2282,12 +2389,67 @@
                 <img src="/icons/right-arrow.png" alt="Открыть" />
               </button>
             </div>
-            <div class="settings-row"><span>Безопасность</span><img class="inline-arrow" src="/icons/right-arrow.png" alt="Открыть" /></div>
+            <div class="settings-row">
+              <span>Безопасность</span>
+              <button id="openSecurityBtn" class="open-arrow-btn" type="button" aria-label="Открыть безопасность">
+                <img src="/icons/right-arrow.png" alt="Открыть" />
+              </button>
+            </div>
             <div class="settings-row">
               <span>Админ-панель</span>
               <button id="openAdminPanelBtn" class="open-arrow-btn ${canOpenAdminPanel ? "" : "disabled"}" type="button" ${canOpenAdminPanel ? "" : "disabled"}>
                 <img src="/icons/right-arrow.png" alt="Открыть" />
               </button>
+            </div>
+          </div>
+          <div id="securityModal" class="modal hidden">
+            <div class="panel">
+              <div class="row" style="justify-content: flex-start; gap: 10px;">
+                <button id="closeSecurityBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
+                  <img src="/icons/back-arrow.png" alt="Назад" />
+                </button>
+                <h3 class="panel-title">Безопасность</h3>
+              </div>
+              <div class="panel mt12">
+                <h4 class="panel-title">PIN-код</h4>
+                <p id="securityPinState" class="muted mt8"></p>
+                <div class="grid mt12">
+                  <div>
+                    <div class="muted">Текущий PIN</div>
+                    <input id="pinCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Только для смены/отключения" />
+                  </div>
+                  <div>
+                    <div class="muted">Новый PIN</div>
+                    <input id="pinNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                  </div>
+                </div>
+                <div class="row mt12">
+                  <button id="pinEnableBtn" class="button" type="button">Включить</button>
+                  <button id="pinChangeBtn" class="button secondary" type="button">Сменить</button>
+                  <button id="pinDisableBtn" class="button secondary" type="button">Отключить</button>
+                </div>
+                <p id="securityPinStatus" class="status mt8"></p>
+              </div>
+
+              <div class="panel mt12">
+                <h4 class="panel-title">Сессии</h4>
+                <div class="row mt8">
+                  <button id="refreshSessionsBtn" class="button secondary" type="button">Обновить</button>
+                  <button id="revokeOtherSessionsBtn" class="button secondary" type="button">Завершить все кроме текущей</button>
+                </div>
+                <div id="securitySessionsList" class="mt12"></div>
+                <p id="securitySessionsStatus" class="status mt8"></p>
+              </div>
+
+              <div class="panel mt12">
+                <h4 class="panel-title">Журнал действий</h4>
+                <div class="row mt8">
+                  <button id="logsPersonalBtn" class="button secondary" type="button">Персональный</button>
+                  <button id="logsSystemBtn" class="button secondary" type="button">Системный</button>
+                </div>
+                <div id="securityLogsList" class="mt12"></div>
+                <p id="securityLogsStatus" class="status mt8"></p>
+              </div>
             </div>
           </div>
           <div id="notificationsModal" class="modal hidden">
@@ -2379,9 +2541,224 @@
         const adminHoursStatus = document.getElementById("adminHoursStatus");
         const saveAllHoursBtn = document.getElementById("saveAllHoursBtn");
         const saveAllHoursFeedback = document.getElementById("saveAllHoursFeedback");
+        const openSecurityBtn = document.getElementById("openSecurityBtn");
+        const securityModal = document.getElementById("securityModal");
+        const securityPinState = document.getElementById("securityPinState");
+        const securityPinStatus = document.getElementById("securityPinStatus");
+        const pinCurrentInput = document.getElementById("pinCurrentInput");
+        const pinNewInput = document.getElementById("pinNewInput");
+        const pinEnableBtn = document.getElementById("pinEnableBtn");
+        const pinChangeBtn = document.getElementById("pinChangeBtn");
+        const pinDisableBtn = document.getElementById("pinDisableBtn");
+        const refreshSessionsBtn = document.getElementById("refreshSessionsBtn");
+        const revokeOtherSessionsBtn = document.getElementById("revokeOtherSessionsBtn");
+        const securitySessionsList = document.getElementById("securitySessionsList");
+        const securitySessionsStatus = document.getElementById("securitySessionsStatus");
+        const logsPersonalBtn = document.getElementById("logsPersonalBtn");
+        const logsSystemBtn = document.getElementById("logsSystemBtn");
+        const securityLogsList = document.getElementById("securityLogsList");
+        const securityLogsStatus = document.getElementById("securityLogsStatus");
+
+        const renderPinStateText = (pinState) => {
+          if (!securityPinState) return;
+          if (!pinState?.enabled) {
+            securityPinState.textContent = "PIN выключен";
+            return;
+          }
+          if (pinState.lockedUntil) {
+            securityPinState.textContent = `PIN включен. Блокировка до ${formatDateTime(pinState.lockedUntil)}. Осталось попыток: ${pinState.attemptsLeft}`;
+            return;
+          }
+          securityPinState.textContent = `PIN включен. Осталось попыток: ${pinState.attemptsLeft}`;
+        };
+
+        const loadSecurityState = async () => {
+          const data = await api("/api/security/state");
+          state.security.pinState = data?.pinState || null;
+          renderPinStateText(state.security.pinState);
+        };
+
+        const loadSessions = async () => {
+          const data = await api("/api/security/sessions");
+          const items = data?.sessions || [];
+          if (!items.length) {
+            securitySessionsList.innerHTML = `<div class="muted">Активных сессий нет</div>`;
+            return;
+          }
+          securitySessionsList.innerHTML = items
+            .map(
+              (item) => `
+                <div class="panel mt8" style="padding:8px;">
+                  <div><strong>${escapeHtml(item.deviceName || "Устройство")}</strong>${item.isCurrent ? " (текущая)" : ""}</div>
+                  <div class="muted mt8">Last active: ${escapeHtml(formatDateTime(item.lastActiveAt))}</div>
+                  <div class="muted">Создана: ${escapeHtml(formatDateTime(item.createdAt))}</div>
+                  ${item.isCurrent ? "" : `<div class="row mt8"><button class="button secondary" type="button" data-revoke-session="${escapeHtml(item.id)}">Завершить</button></div>`}
+                </div>
+              `
+            )
+            .join("");
+          for (const btn of securitySessionsList.querySelectorAll("[data-revoke-session]")) {
+            btn.addEventListener("click", async () => {
+              const id = btn.getAttribute("data-revoke-session");
+              try {
+                await api(`/api/security/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+                securitySessionsStatus.className = "status ok";
+                securitySessionsStatus.textContent = "Сессия завершена";
+                await loadSessions();
+              } catch (error) {
+                securitySessionsStatus.className = "status error";
+                securitySessionsStatus.textContent = `Ошибка: ${error.message}`;
+              }
+            });
+          }
+        };
+
+        const loadLogs = async (scope) => {
+          const data = await api(`/api/security/journal?scope=${encodeURIComponent(scope)}&limit=50`);
+          const logs = data?.logs || [];
+          logsPersonalBtn.classList.toggle("button", scope === "PERSONAL");
+          logsPersonalBtn.classList.toggle("secondary", scope !== "PERSONAL");
+          logsSystemBtn.classList.toggle("button", scope === "SYSTEM");
+          logsSystemBtn.classList.toggle("secondary", scope !== "SYSTEM");
+          if (!logs.length) {
+            securityLogsList.innerHTML = `<div class="muted">Записей нет</div>`;
+            return;
+          }
+          securityLogsList.innerHTML = logs
+            .map(
+              (log) => `
+                <div class="panel mt8" style="padding:8px;">
+                  <div><strong>${escapeHtml(log.eventType)}</strong></div>
+                  <div class="muted mt8">${escapeHtml(formatDateTime(log.createdAt))}</div>
+                  <div class="muted">${escapeHtml(JSON.stringify(log.meta || {}))}</div>
+                </div>
+              `
+            )
+            .join("");
+        };
+
         themeToggleBtn?.addEventListener("click", () => {
           toggleTheme();
           themeToggleBtn.classList.toggle("dark", state.theme === "dark");
+        });
+        openSecurityBtn?.addEventListener("click", async () => {
+          securityPinStatus.className = "status";
+          securityPinStatus.textContent = "";
+          securitySessionsStatus.className = "status";
+          securitySessionsStatus.textContent = "";
+          securityLogsStatus.className = "status";
+          securityLogsStatus.textContent = "";
+          securityModal?.classList.remove("hidden");
+          try {
+            await loadSecurityState();
+            await loadSessions();
+            await loadLogs("PERSONAL");
+          } catch (error) {
+            securityLogsStatus.className = "status error";
+            securityLogsStatus.textContent = `Ошибка: ${error.message}`;
+          }
+        });
+        document.getElementById("closeSecurityBtnTop")?.addEventListener("click", () => {
+          securityModal?.classList.add("hidden");
+        });
+        securityModal?.addEventListener("click", (event) => {
+          if (event.target === securityModal) securityModal.classList.add("hidden");
+        });
+        pinEnableBtn?.addEventListener("click", async () => {
+          try {
+            const pin = String(pinNewInput?.value || "").trim();
+            const data = await api("/api/security/pin/enable", {
+              method: "POST",
+              body: JSON.stringify({ pin })
+            });
+            state.security.pinState = data?.pinState || null;
+            renderPinStateText(state.security.pinState);
+            securityPinStatus.className = "status ok";
+            securityPinStatus.textContent = "PIN включен";
+            pinCurrentInput.value = "";
+            pinNewInput.value = "";
+          } catch (error) {
+            securityPinStatus.className = "status error";
+            securityPinStatus.textContent = `Ошибка: ${error.message}`;
+          }
+        });
+        pinChangeBtn?.addEventListener("click", async () => {
+          try {
+            const currentPin = String(pinCurrentInput?.value || "").trim();
+            const newPin = String(pinNewInput?.value || "").trim();
+            const data = await api("/api/security/pin/change", {
+              method: "POST",
+              body: JSON.stringify({ currentPin, newPin })
+            });
+            state.security.pinState = data?.pinState || null;
+            renderPinStateText(state.security.pinState);
+            securityPinStatus.className = "status ok";
+            securityPinStatus.textContent = "PIN изменен";
+            pinCurrentInput.value = "";
+            pinNewInput.value = "";
+          } catch (error) {
+            securityPinStatus.className = "status error";
+            securityPinStatus.textContent = `Ошибка: ${error.message}`;
+          }
+        });
+        pinDisableBtn?.addEventListener("click", async () => {
+          try {
+            const currentPin = String(pinCurrentInput?.value || "").trim();
+            const data = await api("/api/security/pin/disable", {
+              method: "POST",
+              body: JSON.stringify({ currentPin })
+            });
+            state.security.pinState = data?.pinState || null;
+            renderPinStateText(state.security.pinState);
+            securityPinStatus.className = "status ok";
+            securityPinStatus.textContent = "PIN отключен";
+            pinCurrentInput.value = "";
+            pinNewInput.value = "";
+          } catch (error) {
+            securityPinStatus.className = "status error";
+            securityPinStatus.textContent = `Ошибка: ${error.message}`;
+          }
+        });
+        refreshSessionsBtn?.addEventListener("click", async () => {
+          try {
+            await loadSessions();
+            securitySessionsStatus.className = "status ok";
+            securitySessionsStatus.textContent = "Сессии обновлены";
+          } catch (error) {
+            securitySessionsStatus.className = "status error";
+            securitySessionsStatus.textContent = `Ошибка: ${error.message}`;
+          }
+        });
+        revokeOtherSessionsBtn?.addEventListener("click", async () => {
+          try {
+            const data = await api("/api/security/sessions/revoke-others", { method: "POST" });
+            securitySessionsStatus.className = "status ok";
+            securitySessionsStatus.textContent = `Завершено сессий: ${Number(data?.revokedCount || 0)}`;
+            await loadSessions();
+          } catch (error) {
+            securitySessionsStatus.className = "status error";
+            securitySessionsStatus.textContent = `Ошибка: ${error.message}`;
+          }
+        });
+        logsPersonalBtn?.addEventListener("click", async () => {
+          try {
+            await loadLogs("PERSONAL");
+            securityLogsStatus.className = "status";
+            securityLogsStatus.textContent = "";
+          } catch (error) {
+            securityLogsStatus.className = "status error";
+            securityLogsStatus.textContent = `Ошибка: ${error.message}`;
+          }
+        });
+        logsSystemBtn?.addEventListener("click", async () => {
+          try {
+            await loadLogs("SYSTEM");
+            securityLogsStatus.className = "status";
+            securityLogsStatus.textContent = "";
+          } catch (error) {
+            securityLogsStatus.className = "status error";
+            securityLogsStatus.textContent = `Ошибка: ${error.message}`;
+          }
         });
         openNotificationsBtn?.addEventListener("click", () => {
           reminderSettingsStatus.className = "status";

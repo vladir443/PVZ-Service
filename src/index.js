@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import scheduleRoutes from "./routes/schedule.routes.js";
 import employeesRoutes from "./routes/employees.routes.js";
+import securityRoutes from "./routes/security.routes.js";
 import { startShiftReminders } from "./services/shift-reminders.js";
 
 const app = express();
@@ -32,6 +33,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/schedule", scheduleRoutes);
 app.use("/api/employees", employeesRoutes);
+app.use("/api/security", securityRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
