@@ -38,6 +38,7 @@ db.exec(`
     full_name TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('ADMIN', 'EMPLOYEE')) DEFAULT 'EMPLOYEE',
     is_super_admin INTEGER NOT NULL DEFAULT 0,
+    reminder_enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -134,6 +135,9 @@ function hasColumn(table, column) {
 
 if (!hasColumn("users", "is_super_admin")) {
   db.exec("ALTER TABLE users ADD COLUMN is_super_admin INTEGER NOT NULL DEFAULT 0;");
+}
+if (!hasColumn("users", "reminder_enabled")) {
+  db.exec("ALTER TABLE users ADD COLUMN reminder_enabled INTEGER NOT NULL DEFAULT 1;");
 }
 
 if (!hasColumn("employees", "first_name")) {
@@ -330,6 +334,7 @@ function mapUserRow(row) {
     telegramId: row.telegram_id,
     fullName: row.full_name,
     role: fromDbRole(row.role, row.is_super_admin === 1),
+    reminderEnabled: row.reminder_enabled !== 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -340,7 +345,7 @@ export function getUserByTelegramId(telegramId) {
     .prepare(
       `
       SELECT id, telegram_id, full_name, role, created_at, updated_at
-           , is_super_admin
+           , is_super_admin, reminder_enabled
       FROM users
       WHERE telegram_id = ?
       `
@@ -353,8 +358,8 @@ export function getUserByTelegramId(telegramId) {
 export function createUser({ telegramId, fullName, role, isSuperAdmin = false }) {
   db.prepare(
     `
-    INSERT INTO users (telegram_id, full_name, role, is_super_admin, updated_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
+    INSERT INTO users (telegram_id, full_name, role, is_super_admin, reminder_enabled, updated_at)
+    VALUES (?, ?, ?, ?, 1, datetime('now'))
     `
   ).run(telegramId, fullName, toDbRole(role), isSuperAdmin ? 1 : 0);
 
@@ -392,12 +397,30 @@ export function updateUserRole({ telegramId, role, isSuperAdmin }) {
   return getUserByTelegramId(telegramId);
 }
 
+export function updateUserReminderEnabled({ telegramId, enabled }) {
+  const result = db
+    .prepare(
+      `
+      UPDATE users
+      SET reminder_enabled = ?, updated_at = datetime('now')
+      WHERE telegram_id = ?
+      `
+    )
+    .run(enabled ? 1 : 0, String(telegramId || "").trim());
+
+  if (result.changes === 0) {
+    return null;
+  }
+
+  return getUserByTelegramId(telegramId);
+}
+
 export function listUsers() {
   const rows = db
     .prepare(
       `
       SELECT id, telegram_id, full_name, role, created_at, updated_at
-           , is_super_admin
+           , is_super_admin, reminder_enabled
       FROM users
       ORDER BY created_at DESC
       `
@@ -1347,10 +1370,13 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
       JOIN locations l ON l.code = s.location_code
       JOIN employees e
         ON lower(trim(e.full_name)) = lower(trim(s.executor1))
+      LEFT JOIN users u
+        ON trim(u.telegram_id) = trim(e.telegram_id)
       WHERE s.shift_date >= ?
         AND s.shift_date <= ?
         AND trim(s.executor1) <> ''
         AND trim(e.telegram_id) <> ''
+        AND (u.telegram_id IS NULL OR u.reminder_enabled = 1)
 
       UNION ALL
 
@@ -1369,10 +1395,13 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
       JOIN locations l ON l.code = s.location_code
       JOIN employees e
         ON lower(trim(e.full_name)) = lower(trim(s.executor2))
+      LEFT JOIN users u
+        ON trim(u.telegram_id) = trim(e.telegram_id)
       WHERE s.shift_date >= ?
         AND s.shift_date <= ?
         AND trim(s.executor2) <> ''
         AND trim(e.telegram_id) <> ''
+        AND (u.telegram_id IS NULL OR u.reminder_enabled = 1)
 
       ORDER BY shift_date ASC, location_title ASC
       `

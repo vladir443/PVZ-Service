@@ -8,6 +8,7 @@ import {
   getUserByTelegramId,
   isCoreAdminUsername,
   syncEmployeeTelegramProfile,
+  updateUserReminderEnabled,
   updateUserProfile,
   updateUserRole
 } from "../db.js";
@@ -82,6 +83,38 @@ router.post("/login", async (req, res, next) => {
 
 router.get("/me", requireAuth, (req, res) => {
   return res.json({ user: req.user });
+});
+
+const reminderSettingsSchema = z.object({
+  enabled: z.coerce.boolean()
+});
+
+router.put("/me/reminders", requireAuth, (req, res, next) => {
+  try {
+    const parsed = reminderSettingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const user = updateUserReminderEnabled({
+      telegramId: req.user.telegramId,
+      enabled: parsed.data.enabled
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Пользователь не найден"
+      });
+    }
+
+    return res.json({ user });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 export default router;
