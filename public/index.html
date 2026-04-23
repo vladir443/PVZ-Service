@@ -680,6 +680,11 @@
         color: #6ee7b7;
       }
 
+      body.theme-dark .admin-hours-card {
+        background: #18263d;
+        border-color: #2f4568;
+      }
+
       .location-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1264,6 +1269,18 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 8px;
+      }
+
+      .admin-hours-card {
+        grid-column: 1 / -1;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: #ffffff;
+      }
+
+      .admin-hours-field {
+        flex: 1;
       }
 
       #employeePanel {
@@ -2234,14 +2251,14 @@
                 ${state.locations
                   .map(
                     (loc) => `
-                      <div style="grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #fff;">
+                      <div class="admin-hours-card">
                         <div><strong>${escapeHtml(loc.title)}</strong></div>
                         <div class="row mt8">
-                          <div style="flex:1;">
+                          <div class="admin-hours-field">
                             <div class="muted">Начало</div>
                             <input type="time" data-hours-start="${escapeHtml(loc.code)}" value="${escapeHtml(loc.workStart || "14:00")}" />
                           </div>
-                          <div style="flex:1;">
+                          <div class="admin-hours-field">
                             <div class="muted">Конец</div>
                             <input type="time" data-hours-end="${escapeHtml(loc.code)}" value="${escapeHtml(loc.workEnd || "22:00")}" />
                           </div>
