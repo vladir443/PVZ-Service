@@ -108,12 +108,18 @@ async function processShiftRemindersTick() {
 
   const assignments = listShiftAssignmentsForReminderWindow({ fromDate, toDate });
   let sentCount = 0;
+  const forcedSentByUserPoint = new Set();
   for (const assignment of assignments) {
     const shiftStartMs = parseMskDateTimeMs(assignment.shiftDate, assignment.workStart);
     if (!Number.isFinite(shiftStartMs)) continue;
     if (nowMs >= shiftStartMs) continue;
 
     for (const point of REMINDER_POINTS) {
+      if (TEST_EVERY_MINUTE_FORCE_SEND) {
+        const userPointKey = `${assignment.telegramId}:${point.code}:${minuteKey}`;
+        if (forcedSentByUserPoint.has(userPointKey)) continue;
+        forcedSentByUserPoint.add(userPointKey);
+      }
       const triggerMs = shiftStartMs - point.hoursBefore * 60 * 60 * 1000;
       const shouldSendBySchedule = nowMs >= triggerMs;
       if (!shouldSendBySchedule && !TEST_EVERY_MINUTE_FORCE_SEND) continue;
