@@ -238,6 +238,16 @@
         line-height: 1.35;
       }
 
+      .brand-ozon {
+        color: #2563eb;
+        font-weight: 700;
+      }
+
+      .brand-wb {
+        color: #7c3aed;
+        font-weight: 700;
+      }
+
       .home-main-note {
         margin-top: 8px;
         font-size: 14px;
@@ -526,6 +536,14 @@
         color: var(--text);
       }
 
+      body.theme-dark .brand-ozon {
+        color: #60a5fa;
+      }
+
+      body.theme-dark .brand-wb {
+        color: #c4b5fd;
+      }
+
       body.theme-dark .bottom-nav {
         background: rgba(10, 17, 29, 0.95);
         border-top-color: #22334c;
@@ -558,6 +576,16 @@
       body.theme-dark .back-icon-btn {
         background: #1a2a43;
         border-color: #355077;
+      }
+
+      body.theme-dark .location-btn.wb {
+        background: linear-gradient(180deg, #201b35 0%, #181f34 100%);
+        border-left-color: #8b5cf6;
+      }
+
+      body.theme-dark .location-btn.ozon {
+        background: linear-gradient(180deg, #14253f 0%, #162137 100%);
+        border-left-color: #3b82f6;
       }
 
       .location-grid {
@@ -1605,6 +1633,27 @@
           .replaceAll("'", "&#39;");
       }
 
+      function renderLocationLabelHtml(value) {
+        const raw = String(value || "");
+        if (!raw.trim()) return "";
+        return raw
+          .split(",")
+          .map((chunk) => {
+            const part = chunk.trim();
+            if (!part) return "";
+            const lower = part.toLowerCase();
+            if (lower.startsWith("ozon")) {
+              return `<span class="brand-ozon">${escapeHtml(part)}</span>`;
+            }
+            if (lower.startsWith("wb")) {
+              return `<span class="brand-wb">${escapeHtml(part)}</span>`;
+            }
+            return escapeHtml(part);
+          })
+          .filter(Boolean)
+          .join(", ");
+      }
+
       async function api(path, options = {}) {
         const headers = {
           "Content-Type": "application/json",
@@ -1800,7 +1849,8 @@
               })[0];
             const countdown = formatCountdown(nearestShift?.date, nearestShift?.workStart);
             if (countdown) {
-              overviewShift = `До ближайшей смены ${countdown}`;
+              todayCardTitle = "До ближайшей смены";
+              overviewShift = countdown;
             }
             const nearestDateLabel = formatUpcomingDate(nearestShift?.date);
             const nearestLocation = String(nearestShift?.locationTitle || "").trim();
@@ -1880,7 +1930,7 @@
             return `
               <div class="home-list-item">
                 <div class="home-list-date">${escapeHtml(dateLabel)} <span class="home-list-sep">—</span></div>
-                <div class="home-list-address">${escapeHtml(addrLabel)}</div>
+                <div class="home-list-address">${renderLocationLabelHtml(addrLabel)}</div>
               </div>
             `;
           })
@@ -1889,14 +1939,14 @@
           .map((line) => {
             const parts = String(line || "").split(" — ");
             if (parts.length < 2) {
-              return `<div class="home-list-address">${escapeHtml(line)}</div>`;
+              return `<div class="home-list-address">${renderLocationLabelHtml(line)}</div>`;
             }
             const dateLabel = parts[0] || "";
             const addrLabel = parts.slice(1).join(" — ");
             return `
               <div class="home-list-item">
                 <div class="home-list-date">${escapeHtml(dateLabel)} <span class="home-list-sep">—</span></div>
-                <div class="home-list-address">${escapeHtml(addrLabel)}</div>
+                <div class="home-list-address">${renderLocationLabelHtml(addrLabel)}</div>
               </div>
             `;
           })
@@ -1929,7 +1979,7 @@
             </div>
           </div>
           <div class="warn-banner mt12">
-            <div><strong>Ближайшие свободные смены</strong></div>
+            <div><strong>Свободные смены</strong></div>
             <div class="home-list">${emptyShiftLinesHtml}</div>
           </div>
         `;
