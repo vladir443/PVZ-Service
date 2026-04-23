@@ -720,6 +720,20 @@
         color: #9fb0c9;
       }
 
+      body.theme-dark #employeePanel input[type="text"],
+      body.theme-dark #employeePanel input[type="tel"],
+      body.theme-dark #employeePanel select {
+        background: #ffffff;
+        border-color: #cfd9e8;
+        color: #111827;
+      }
+
+      body.theme-dark #employeePanel input[type="text"]::placeholder,
+      body.theme-dark #employeePanel input[type="tel"]::placeholder {
+        color: #6b7280;
+        opacity: 1;
+      }
+
       .location-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1394,7 +1408,7 @@
       .employee-form-actions {
         display: flex;
         gap: 8px;
-        align-items: center;
+        align-items: flex-start;
         flex-wrap: wrap;
       }
 
@@ -2767,9 +2781,12 @@
                   </button>
                   <div id="saveEmployeeFeedback" class="save-feedback"></div>
                 </div>
-                <button class="employee-delete-btn" id="deleteEmployeeBtn" type="button" aria-label="Удалить сотрудника" title="Удалить сотрудника">
-                  <img src="/icons/delete-action.png" alt="Удалить" />
-                </button>
+                <div class="save-icon-wrap">
+                  <button class="employee-delete-btn" id="deleteEmployeeBtn" type="button" aria-label="Удалить сотрудника" title="Удалить сотрудника">
+                    <img src="/icons/delete-action.png" alt="Удалить" />
+                  </button>
+                  <div class="save-feedback"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -2790,6 +2807,7 @@
         const reliabilityInput = document.getElementById("reliabilityInput");
         const accessRoleInput = document.getElementById("accessRoleInput");
         const deleteEmployeeBtn = document.getElementById("deleteEmployeeBtn");
+        const deleteEmployeeWrap = deleteEmployeeBtn?.closest(".save-icon-wrap");
         const saveEmployeeBtn = document.getElementById("saveEmployeeBtn");
         const saveEmployeeFeedback = document.getElementById("saveEmployeeFeedback");
         let editingEmployeeId = null;
@@ -2812,7 +2830,7 @@
             saveEmployeeFeedback.textContent = "";
             saveEmployeeFeedback.classList.remove("visible");
           }
-          deleteEmployeeBtn.style.display = "none";
+          if (deleteEmployeeWrap) deleteEmployeeWrap.style.display = "none";
           deleteEmployeeBtn.disabled = true;
           deleteEmployeeBtn.title = "Удалить сотрудника";
         };
@@ -2859,7 +2877,7 @@
           } else {
             status.textContent = "";
           }
-          deleteEmployeeBtn.style.display = "inline-block";
+          if (deleteEmployeeWrap) deleteEmployeeWrap.style.display = "flex";
           deleteEmployeeBtn.disabled = !!employee.isProtected || adminCannotEdit;
           deleteEmployeeBtn.title = employee.isProtected
             ? "Удаление запрещено"
