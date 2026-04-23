@@ -591,18 +591,6 @@
         opacity: 0.95;
       }
 
-      body.theme-dark .bottom-nav-icon.employees {
-        background: #16263f;
-        border-radius: 8px;
-        padding: 2px;
-        box-sizing: content-box;
-      }
-
-      body.theme-dark .bottom-nav-btn.active .bottom-nav-icon.employees {
-        background: #203556;
-        filter: brightness(0) invert(1);
-      }
-
       body.theme-dark .location-btn.wb {
         background: linear-gradient(180deg, #201b35 0%, #181f34 100%);
         border-left-color: #8b5cf6;
@@ -611,6 +599,27 @@
       body.theme-dark .location-btn.ozon {
         background: linear-gradient(180deg, #14253f 0%, #162137 100%);
         border-left-color: #3b82f6;
+      }
+
+      body.theme-dark .add-employee-btn.icon-only,
+      body.theme-dark .employee-edit-icon-btn,
+      body.theme-dark .employee-contact-copy-btn {
+        background: #1a2a43;
+        border-color: #355077;
+      }
+
+      body.theme-dark .add-employee-btn.icon-only img,
+      body.theme-dark .employee-edit-icon-btn img,
+      body.theme-dark .employee-contact-copy-btn img {
+        filter: brightness(0) invert(1);
+        opacity: 0.95;
+      }
+
+      body.theme-dark .add-employee-btn.icon-only:hover,
+      body.theme-dark .employee-edit-icon-btn:hover,
+      body.theme-dark .employee-contact-copy-btn:hover {
+        background: #203556;
+        border-color: #466592;
       }
 
       .location-grid {
