@@ -700,6 +700,22 @@
         border-color: #2f4568;
       }
 
+      body.theme-dark .pin-section {
+        background: #1b2b45;
+        border-color: #2f4568;
+      }
+
+      body.theme-dark .pin-section-title,
+      body.theme-dark .pin-field label {
+        color: #e8eef8;
+      }
+
+      body.theme-dark .pin-status-badge.off {
+        background: #1a2a43;
+        color: #c4d3ea;
+        border-color: #355077;
+      }
+
       body.theme-dark #employeePanel {
         border-color: #2f4568;
         background: #18263d;
@@ -1072,6 +1088,64 @@
 
       .status.ok { color: #1d9f60; }
       .status.error { color: var(--danger); }
+
+      .pin-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid transparent;
+      }
+
+      .pin-status-badge.on {
+        background: #e8f8ee;
+        color: #166534;
+        border-color: #bde8cb;
+      }
+
+      .pin-status-badge.off {
+        background: #eef2f7;
+        color: #334155;
+        border-color: #d6deea;
+      }
+
+      .pin-layout {
+        display: grid;
+        gap: 12px;
+      }
+
+      .pin-section {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: #ffffff;
+      }
+
+      .pin-section-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .pin-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 1fr;
+      }
+
+      .pin-field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .pin-field label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #243750;
+      }
 
       .employees-list {
         display: grid;
@@ -2412,23 +2486,7 @@
               </div>
               <div class="panel mt12">
                 <h4 class="panel-title">PIN-код</h4>
-                <p id="securityPinState" class="muted mt8"></p>
-                <div class="grid mt12">
-                  <div>
-                    <div class="muted">Текущий PIN</div>
-                    <input id="pinCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Только для смены/отключения" />
-                  </div>
-                  <div>
-                    <div class="muted">Новый PIN</div>
-                    <input id="pinNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
-                  </div>
-                </div>
-                <div class="row mt12">
-                  <button id="pinEnableBtn" class="button" type="button">Включить</button>
-                  <button id="pinChangeBtn" class="button secondary" type="button">Сменить</button>
-                  <button id="pinDisableBtn" class="button secondary" type="button">Отключить</button>
-                </div>
-                <p id="securityPinStatus" class="status mt8"></p>
+                <div id="securityPinBlock" class="mt12"></div>
               </div>
 
               <div class="panel mt12">
@@ -2543,13 +2601,7 @@
         const saveAllHoursFeedback = document.getElementById("saveAllHoursFeedback");
         const openSecurityBtn = document.getElementById("openSecurityBtn");
         const securityModal = document.getElementById("securityModal");
-        const securityPinState = document.getElementById("securityPinState");
-        const securityPinStatus = document.getElementById("securityPinStatus");
-        const pinCurrentInput = document.getElementById("pinCurrentInput");
-        const pinNewInput = document.getElementById("pinNewInput");
-        const pinEnableBtn = document.getElementById("pinEnableBtn");
-        const pinChangeBtn = document.getElementById("pinChangeBtn");
-        const pinDisableBtn = document.getElementById("pinDisableBtn");
+        const securityPinBlock = document.getElementById("securityPinBlock");
         const refreshSessionsBtn = document.getElementById("refreshSessionsBtn");
         const revokeOtherSessionsBtn = document.getElementById("revokeOtherSessionsBtn");
         const securitySessionsList = document.getElementById("securitySessionsList");
@@ -2559,23 +2611,192 @@
         const securityLogsList = document.getElementById("securityLogsList");
         const securityLogsStatus = document.getElementById("securityLogsStatus");
 
-        const renderPinStateText = (pinState) => {
-          if (!securityPinState) return;
-          if (!pinState?.enabled) {
-            securityPinState.textContent = "PIN выключен";
+        const normalizePinDigits = (value) => String(value || "").replace(/\D/g, "").slice(0, 8);
+        const isPinLengthValid = (pin) => /^\d{4,8}$/.test(String(pin || ""));
+
+        const renderPinBlock = (pinState) => {
+          if (!securityPinBlock) return;
+          const enabled = !!pinState?.enabled;
+          const lockText = pinState?.lockedUntil
+            ? `<div class="status error mt8">Блокировка до ${escapeHtml(formatDateTime(pinState.lockedUntil))}</div>`
+            : "";
+          if (!enabled) {
+            securityPinBlock.innerHTML = `
+              <div class="pin-layout">
+                <div class="row" style="justify-content: space-between; align-items: center;">
+                  <span class="pin-status-badge off">PIN выключен</span>
+                </div>
+                <div class="muted">Задайте PIN-код для входа в приложение.</div>
+                ${lockText}
+                <div class="pin-section">
+                  <div class="pin-grid">
+                    <div class="pin-field">
+                      <label for="pinEnableNewInput">Новый PIN</label>
+                      <input id="pinEnableNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                    </div>
+                    <div class="pin-field">
+                      <label for="pinEnableRepeatInput">Повторите PIN</label>
+                      <input id="pinEnableRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите PIN" />
+                    </div>
+                  </div>
+                  <div class="row mt12">
+                    <button id="pinEnableBtn" class="button" type="button">Включить PIN</button>
+                  </div>
+                  <p id="pinEnableStatus" class="status mt8"></p>
+                </div>
+              </div>
+            `;
+
+            const newInput = document.getElementById("pinEnableNewInput");
+            const repeatInput = document.getElementById("pinEnableRepeatInput");
+            const enableStatus = document.getElementById("pinEnableStatus");
+            const enableBtn = document.getElementById("pinEnableBtn");
+            const syncDigits = (input) => {
+              if (!input) return;
+              input.addEventListener("input", () => {
+                input.value = normalizePinDigits(input.value);
+              });
+            };
+            syncDigits(newInput);
+            syncDigits(repeatInput);
+            enableBtn?.addEventListener("click", async () => {
+              const pin = normalizePinDigits(newInput?.value || "");
+              const repeatPin = normalizePinDigits(repeatInput?.value || "");
+              if (!isPinLengthValid(pin)) {
+                enableStatus.className = "status error";
+                enableStatus.textContent = "PIN должен быть от 4 до 8 цифр";
+                return;
+              }
+              if (pin !== repeatPin) {
+                enableStatus.className = "status error";
+                enableStatus.textContent = "PIN и подтверждение не совпадают";
+                return;
+              }
+              try {
+                const data = await api("/api/security/pin/enable", {
+                  method: "POST",
+                  body: JSON.stringify({ pin })
+                });
+                state.security.pinState = data?.pinState || null;
+                renderPinBlock(state.security.pinState);
+              } catch (error) {
+                enableStatus.className = "status error";
+                enableStatus.textContent = `Ошибка: ${error.message}`;
+              }
+            });
             return;
           }
-          if (pinState.lockedUntil) {
-            securityPinState.textContent = `PIN включен. Блокировка до ${formatDateTime(pinState.lockedUntil)}. Осталось попыток: ${pinState.attemptsLeft}`;
-            return;
-          }
-          securityPinState.textContent = `PIN включен. Осталось попыток: ${pinState.attemptsLeft}`;
+
+          securityPinBlock.innerHTML = `
+            <div class="pin-layout">
+              <div class="row" style="justify-content: space-between; align-items: center;">
+                <span class="pin-status-badge on">PIN включен</span>
+              </div>
+              <div class="muted">PIN запрашивается при входе в приложение.</div>
+              ${lockText}
+              <div class="pin-section">
+                <p class="pin-section-title">Сменить PIN</p>
+                <div class="pin-grid mt8">
+                  <div class="pin-field">
+                    <label for="pinChangeCurrentInput">Текущий PIN</label>
+                    <input id="pinChangeCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Текущий PIN" />
+                  </div>
+                  <div class="pin-field">
+                    <label for="pinChangeNewInput">Новый PIN</label>
+                    <input id="pinChangeNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                  </div>
+                  <div class="pin-field">
+                    <label for="pinChangeRepeatInput">Повторите новый PIN</label>
+                    <input id="pinChangeRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите новый PIN" />
+                  </div>
+                </div>
+                <div class="row mt12">
+                  <button id="pinChangeBtn" class="button" type="button">Сменить PIN</button>
+                </div>
+                <p id="pinChangeStatus" class="status mt8"></p>
+              </div>
+              <div class="pin-section">
+                <p class="pin-section-title">Отключить PIN</p>
+                <div class="pin-grid mt8">
+                  <div class="pin-field">
+                    <label for="pinDisableCurrentInput">Текущий PIN</label>
+                    <input id="pinDisableCurrentInput" type="password" inputmode="numeric" maxlength="8" placeholder="Текущий PIN" />
+                  </div>
+                </div>
+                <div class="row mt12">
+                  <button id="pinDisableBtn" class="button danger" type="button">Отключить PIN</button>
+                </div>
+                <p id="pinDisableStatus" class="status mt8"></p>
+              </div>
+            </div>
+          `;
+
+          const bindDigitsOnly = (id) => {
+            const input = document.getElementById(id);
+            input?.addEventListener("input", () => {
+              input.value = normalizePinDigits(input.value);
+            });
+            return input;
+          };
+          const currentInput = bindDigitsOnly("pinChangeCurrentInput");
+          const newInput = bindDigitsOnly("pinChangeNewInput");
+          const repeatInput = bindDigitsOnly("pinChangeRepeatInput");
+          const disableCurrentInput = bindDigitsOnly("pinDisableCurrentInput");
+          const changeStatus = document.getElementById("pinChangeStatus");
+          const disableStatus = document.getElementById("pinDisableStatus");
+
+          document.getElementById("pinChangeBtn")?.addEventListener("click", async () => {
+            const currentPin = normalizePinDigits(currentInput?.value || "");
+            const newPin = normalizePinDigits(newInput?.value || "");
+            const repeatNewPin = normalizePinDigits(repeatInput?.value || "");
+            if (!isPinLengthValid(currentPin) || !isPinLengthValid(newPin)) {
+              changeStatus.className = "status error";
+              changeStatus.textContent = "PIN должен быть от 4 до 8 цифр";
+              return;
+            }
+            if (newPin !== repeatNewPin) {
+              changeStatus.className = "status error";
+              changeStatus.textContent = "Новый PIN и подтверждение не совпадают";
+              return;
+            }
+            try {
+              const data = await api("/api/security/pin/change", {
+                method: "POST",
+                body: JSON.stringify({ currentPin, newPin })
+              });
+              state.security.pinState = data?.pinState || null;
+              renderPinBlock(state.security.pinState);
+            } catch (error) {
+              changeStatus.className = "status error";
+              changeStatus.textContent = `Ошибка: ${error.message}`;
+            }
+          });
+
+          document.getElementById("pinDisableBtn")?.addEventListener("click", async () => {
+            const currentPin = normalizePinDigits(disableCurrentInput?.value || "");
+            if (!isPinLengthValid(currentPin)) {
+              disableStatus.className = "status error";
+              disableStatus.textContent = "Введите корректный текущий PIN";
+              return;
+            }
+            try {
+              const data = await api("/api/security/pin/disable", {
+                method: "POST",
+                body: JSON.stringify({ currentPin })
+              });
+              state.security.pinState = data?.pinState || null;
+              renderPinBlock(state.security.pinState);
+            } catch (error) {
+              disableStatus.className = "status error";
+              disableStatus.textContent = `Ошибка: ${error.message}`;
+            }
+          });
         };
 
         const loadSecurityState = async () => {
           const data = await api("/api/security/state");
           state.security.pinState = data?.pinState || null;
-          renderPinStateText(state.security.pinState);
+          renderPinBlock(state.security.pinState);
         };
 
         const loadSessions = async () => {
@@ -2642,8 +2863,6 @@
           themeToggleBtn.classList.toggle("dark", state.theme === "dark");
         });
         openSecurityBtn?.addEventListener("click", async () => {
-          securityPinStatus.className = "status";
-          securityPinStatus.textContent = "";
           securitySessionsStatus.className = "status";
           securitySessionsStatus.textContent = "";
           securityLogsStatus.className = "status";
@@ -2663,61 +2882,6 @@
         });
         securityModal?.addEventListener("click", (event) => {
           if (event.target === securityModal) securityModal.classList.add("hidden");
-        });
-        pinEnableBtn?.addEventListener("click", async () => {
-          try {
-            const pin = String(pinNewInput?.value || "").trim();
-            const data = await api("/api/security/pin/enable", {
-              method: "POST",
-              body: JSON.stringify({ pin })
-            });
-            state.security.pinState = data?.pinState || null;
-            renderPinStateText(state.security.pinState);
-            securityPinStatus.className = "status ok";
-            securityPinStatus.textContent = "PIN включен";
-            pinCurrentInput.value = "";
-            pinNewInput.value = "";
-          } catch (error) {
-            securityPinStatus.className = "status error";
-            securityPinStatus.textContent = `Ошибка: ${error.message}`;
-          }
-        });
-        pinChangeBtn?.addEventListener("click", async () => {
-          try {
-            const currentPin = String(pinCurrentInput?.value || "").trim();
-            const newPin = String(pinNewInput?.value || "").trim();
-            const data = await api("/api/security/pin/change", {
-              method: "POST",
-              body: JSON.stringify({ currentPin, newPin })
-            });
-            state.security.pinState = data?.pinState || null;
-            renderPinStateText(state.security.pinState);
-            securityPinStatus.className = "status ok";
-            securityPinStatus.textContent = "PIN изменен";
-            pinCurrentInput.value = "";
-            pinNewInput.value = "";
-          } catch (error) {
-            securityPinStatus.className = "status error";
-            securityPinStatus.textContent = `Ошибка: ${error.message}`;
-          }
-        });
-        pinDisableBtn?.addEventListener("click", async () => {
-          try {
-            const currentPin = String(pinCurrentInput?.value || "").trim();
-            const data = await api("/api/security/pin/disable", {
-              method: "POST",
-              body: JSON.stringify({ currentPin })
-            });
-            state.security.pinState = data?.pinState || null;
-            renderPinStateText(state.security.pinState);
-            securityPinStatus.className = "status ok";
-            securityPinStatus.textContent = "PIN отключен";
-            pinCurrentInput.value = "";
-            pinNewInput.value = "";
-          } catch (error) {
-            securityPinStatus.className = "status error";
-            securityPinStatus.textContent = `Ошибка: ${error.message}`;
-          }
         });
         refreshSessionsBtn?.addEventListener("click", async () => {
           try {
@@ -3183,7 +3347,7 @@
                 </div>
                 <div class="save-icon-wrap">
                   <button class="employee-delete-btn" id="deleteEmployeeBtn" type="button" aria-label="Удалить сотрудника" title="Удалить сотрудника">
-                    <img src="/icons/delete-action.png" alt="Удалить" />
+                    <img src="/icons/delete-bin.png" alt="Удалить" />
                   </button>
                   <div class="save-feedback"></div>
                 </div>
@@ -3889,7 +4053,7 @@
                 <div class="panel-head">
                   <h3 class="panel-title">Финансы за период</h3>
                   <button class="icon-button" id="refreshFinanceBtn" type="button" title="Обновить">
-                    <img src="/icons/refresh-icon-10848.png" alt="Обновить" />
+                    <img src="/icons/refresh-new.png" alt="Обновить" />
                   </button>
                 </div>
                 <div class="row mt12">
