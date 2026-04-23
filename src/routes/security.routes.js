@@ -347,7 +347,7 @@ router.post("/pin/recovery/request", async (req, res, next) => {
 
     return res.json({
       ok: true,
-      message: "Запрос отправлен главному админу. Новый PIN сформирован."
+      message: "Запрос отправлен администратору. Новый PIN сформирован."
     });
   } catch (error) {
     return next(error);

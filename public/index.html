@@ -1503,6 +1503,11 @@
         filter: brightness(0) saturate(100%) invert(36%) sepia(67%) saturate(1655%) hue-rotate(204deg) brightness(96%) contrast(92%);
       }
 
+      #securitySessionsSectionBody > span,
+      #securitySessionsSectionBody > img {
+        display: none;
+      }
+
       @media (max-width: 700px) {
         .pin-gate-title {
           font-size: 30px;
@@ -2507,7 +2512,7 @@
           try {
             const data = await api("/api/security/pin/recovery/request", { method: "POST" });
             status.className = "status ok";
-            status.textContent = String(data?.message || "Запрос отправлен главному админу.");
+            status.textContent = String(data?.message || "Запрос отправлен администратору. Новый PIN сформирован.");
           } catch (error) {
             status.className = "status error";
             status.textContent = String(error?.message || "Ошибка");
@@ -2940,17 +2945,31 @@
               </div>
               <div class="panel mt12">
                 <h4 class="panel-title">PIN-код</h4>
-                <div id="securityPinBlock" class="mt12"></div>
+                <button id="securityPinToggleBtn" class="open-arrow-btn mt8" type="button" style="width:100%;justify-content:space-between;padding:10px 12px;">
+                  <span style="font-weight:700;">Открыть</span>
+                  <img src="/icons/right-arrow.png" alt="Открыть" />
+                </button>
+                <div id="securityPinSectionBody" class="mt12 hidden">
+                  <div id="securityPinBlock"></div>
+                </div>
               </div>
 
               <div class="panel mt12">
                 <h4 class="panel-title">Сессии</h4>
+                <button id="securitySessionsToggleBtn" class="open-arrow-btn mt8" type="button" style="width:100%;justify-content:space-between;padding:10px 12px;">
+                  <span style="font-weight:700;">Открыть</span>
+                  <img src="/icons/right-arrow.png" alt="Открыть" />
+                </button>
+                <div id="securitySessionsSectionBody" class="hidden">
+                  <span style="font-weight:700;">Открыть</span>
+                  <img src="/icons/right-arrow.png" alt="Открыть" />
                 <div class="row mt8">
                   <button id="refreshSessionsBtn" class="button secondary" type="button">Обновить</button>
                   <button id="revokeOtherSessionsBtn" class="button secondary" type="button">Завершить все кроме текущей</button>
                 </div>
                 <div id="securitySessionsList" class="mt12"></div>
                 <p id="securitySessionsStatus" class="status mt8"></p>
+                </div>
               </div>
 
               <div class="panel mt12">
@@ -3064,9 +3083,66 @@
         const logsSystemBtn = document.getElementById("logsSystemBtn");
         const securityLogsList = document.getElementById("securityLogsList");
         const securityLogsStatus = document.getElementById("securityLogsStatus");
+        const securityPinToggleBtn = document.getElementById("securityPinToggleBtn");
+        const securityPinSectionBody = document.getElementById("securityPinSectionBody");
+        const securitySessionsToggleBtn = document.getElementById("securitySessionsToggleBtn");
+        const securitySessionsSectionBody = document.getElementById("securitySessionsSectionBody");
+        const securityLogsToggleBtn = document.getElementById("securityLogsToggleBtn");
+        const securityLogsSectionBody = document.getElementById("securityLogsSectionBody");
+        const securitySessionsControlsRow = refreshSessionsBtn?.closest(".row") || null;
+        const securityLogsControlsRow = logsPersonalBtn?.closest(".row") || null;
+
+        const ensureCollapsibleSection = ({ toggleBtn, body, firstContentEl, contentEls }) => {
+          let resolvedToggle = toggleBtn || null;
+          let resolvedBody = body || null;
+          const first = firstContentEl || contentEls?.[0] || null;
+          if (!first || !first.parentElement) {
+            return { toggle: resolvedToggle, body: resolvedBody };
+          }
+          const parent = first.parentElement;
+
+          if (!resolvedToggle) {
+            resolvedToggle = document.createElement("button");
+            resolvedToggle.className = "open-arrow-btn mt8";
+            resolvedToggle.type = "button";
+            resolvedToggle.style.width = "100%";
+            resolvedToggle.style.justifyContent = "space-between";
+            resolvedToggle.style.padding = "10px 12px";
+            resolvedToggle.innerHTML = `<span style="font-weight:700;">Открыть</span><img src="/icons/right-arrow.png" alt="Открыть" />`;
+            parent.insertBefore(resolvedToggle, first);
+          }
+
+          if (!resolvedBody) {
+            resolvedBody = document.createElement("div");
+            resolvedBody.className = "hidden";
+            parent.insertBefore(resolvedBody, first);
+            for (const el of contentEls || []) {
+              if (el && el.parentElement === parent) {
+                resolvedBody.appendChild(el);
+              }
+            }
+          }
+
+          return { toggle: resolvedToggle, body: resolvedBody };
+        };
 
         const normalizePinDigits = (value) => String(value || "").replace(/\D/g, "").slice(0, 8);
         const isPinLengthValid = (pin) => /^\d{4,8}$/.test(String(pin || ""));
+        const setupSecuritySectionToggle = (btn, body) => {
+          if (!btn || !body) return;
+          const arrow = btn.querySelector("img");
+          const label = btn.querySelector("span");
+          const update = () => {
+            const isHidden = body.classList.contains("hidden");
+            if (label) label.textContent = isHidden ? "Открыть" : "Скрыть";
+            if (arrow) arrow.style.transform = isHidden ? "rotate(0deg)" : "rotate(90deg)";
+          };
+          update();
+          btn.addEventListener("click", () => {
+            body.classList.toggle("hidden");
+            update();
+          });
+        };
 
         const renderPinBlock = (pinState) => {
           if (!securityPinBlock) return;
@@ -3355,6 +3431,23 @@
             )
             .join("");
         };
+
+        const sessionsSection = ensureCollapsibleSection({
+          toggleBtn: securitySessionsToggleBtn,
+          body: securitySessionsSectionBody,
+          firstContentEl: securitySessionsControlsRow,
+          contentEls: [securitySessionsControlsRow, securitySessionsList, securitySessionsStatus]
+        });
+        const logsSection = ensureCollapsibleSection({
+          toggleBtn: securityLogsToggleBtn,
+          body: securityLogsSectionBody,
+          firstContentEl: securityLogsControlsRow,
+          contentEls: [securityLogsControlsRow, securityLogsList, securityLogsStatus]
+        });
+
+        setupSecuritySectionToggle(securityPinToggleBtn, securityPinSectionBody);
+        setupSecuritySectionToggle(sessionsSection.toggle, sessionsSection.body);
+        setupSecuritySectionToggle(logsSection.toggle, logsSection.body);
 
         themeToggleBtn?.addEventListener("click", () => {
           toggleTheme();
