@@ -114,6 +114,19 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS shift_reminder_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id TEXT NOT NULL,
+    location_code TEXT NOT NULL,
+    shift_date TEXT NOT NULL,
+    shift_role TEXT NOT NULL,
+    reminder_code TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(telegram_id, location_code, shift_date, shift_role, reminder_code)
+  );
+`);
+
 function hasColumn(table, column) {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all();
   return rows.some((row) => row.name === column);
@@ -1308,9 +1321,114 @@ export function bindEmployeeTelegramId({ telegramId, username }) {
     UPDATE employees
     SET telegram_id = ?
     WHERE lower(replace(telegram_contact, '@', '')) = ?
-      AND (telegram_id = '' OR telegram_id IS NULL)
     `
   ).run(String(telegramId || "").trim(), normalizedUsername);
+}
+
+export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
+  const from = parseDate(fromDate);
+  const to = parseDate(toDate);
+
+  return db
+    .prepare(
+      `
+      SELECT
+        s.location_code,
+        s.shift_date,
+        l.title AS location_title,
+        l.work_start,
+        l.work_end,
+        e.telegram_id,
+        e.full_name,
+        'executor1' AS shift_role
+      FROM shifts s
+      JOIN locations l ON l.code = s.location_code
+      JOIN employees e
+        ON lower(trim(e.full_name)) = lower(trim(s.executor1))
+      WHERE s.shift_date >= ?
+        AND s.shift_date <= ?
+        AND trim(s.executor1) <> ''
+        AND trim(e.telegram_id) <> ''
+
+      UNION ALL
+
+      SELECT
+        s.location_code,
+        s.shift_date,
+        l.title AS location_title,
+        l.work_start,
+        l.work_end,
+        e.telegram_id,
+        e.full_name,
+        'executor2' AS shift_role
+      FROM shifts s
+      JOIN locations l ON l.code = s.location_code
+      JOIN employees e
+        ON lower(trim(e.full_name)) = lower(trim(s.executor2))
+      WHERE s.shift_date >= ?
+        AND s.shift_date <= ?
+        AND trim(s.executor2) <> ''
+        AND trim(e.telegram_id) <> ''
+
+      ORDER BY shift_date ASC, location_title ASC
+      `
+    )
+    .all(from, to, from, to)
+    .map((row) => ({
+      locationCode: row.location_code,
+      locationTitle: row.location_title,
+      shiftDate: row.shift_date,
+      workStart: row.work_start || "14:00",
+      workEnd: row.work_end || "22:00",
+      telegramId: String(row.telegram_id || "").trim(),
+      employeeName: row.full_name,
+      shiftRole: row.shift_role
+    }));
+}
+
+export function hasShiftReminderLog({
+  telegramId,
+  locationCode,
+  shiftDate,
+  shiftRole,
+  reminderCode
+}) {
+  const row = db
+    .prepare(
+      `
+      SELECT id
+      FROM shift_reminder_logs
+      WHERE telegram_id = ?
+        AND location_code = ?
+        AND shift_date = ?
+        AND shift_role = ?
+        AND reminder_code = ?
+      LIMIT 1
+      `
+    )
+    .get(telegramId, locationCode, shiftDate, shiftRole, reminderCode);
+
+  return !!row;
+}
+
+export function insertShiftReminderLog({
+  telegramId,
+  locationCode,
+  shiftDate,
+  shiftRole,
+  reminderCode
+}) {
+  const info = db
+    .prepare(
+      `
+      INSERT OR IGNORE INTO shift_reminder_logs (
+        telegram_id, location_code, shift_date, shift_role, reminder_code, created_at
+      ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+      `
+    )
+    .run(telegramId, locationCode, shiftDate, shiftRole, reminderCode);
+
+  return info.changes > 0;
 }
 
 export function getEmployeeByTelegramId(telegramId) {

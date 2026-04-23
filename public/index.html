@@ -1361,10 +1361,17 @@
         if (!state.user) return false;
         if (state.user.role === "SUPERADMIN") return true;
         if (state.user.role === "ADMIN") {
+          const normalize = (value) =>
+            String(value || "")
+              .replace(/\u00a0/g, " ")
+              .replace(/\s+/g, " ")
+              .trim()
+              .toLowerCase();
           const isSelf =
             String(employee?.telegramId || "").trim() !== "" &&
             String(employee?.telegramId || "").trim() === String(state.user.telegramId || "").trim();
-          if (isSelf) return true;
+          const isSelfByName = normalize(employee?.fullName) && normalize(employee?.fullName) === normalize(state.user?.fullName);
+          if (isSelf || isSelfByName) return true;
           return (employee?.accessRole || "PARTICIPANT") === "PARTICIPANT";
         }
         return false;

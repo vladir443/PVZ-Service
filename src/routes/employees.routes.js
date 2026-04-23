@@ -15,6 +15,25 @@ const router = express.Router();
 
 router.use(requireAuth, requireRole(Role.ADMIN, Role.SUPERADMIN));
 
+function normalizeText(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function isActorSelfTarget({ targetEmployee, actorUser }) {
+  const actorTelegramId = String(actorUser?.telegramId || "").trim();
+  const targetTelegramId = String(targetEmployee?.telegramId || "").trim();
+  if (actorTelegramId && targetTelegramId && actorTelegramId === targetTelegramId) {
+    return true;
+  }
+  const actorFullName = normalizeText(actorUser?.fullName);
+  const targetFullName = normalizeText(targetEmployee?.fullName);
+  return !!actorFullName && !!targetFullName && actorFullName === targetFullName;
+}
+
 router.get("/", (_req, res, next) => {
   try {
     const employees = listEmployees();
@@ -144,7 +163,7 @@ router.put("/:id", (req, res, next) => {
     const actorRole = req.user.role;
     const targetRole = targetEmployee.accessRole || Role.PARTICIPANT;
     const requestedRole = parsed.data.accessRole || Role.PARTICIPANT;
-    const isSelf = String(targetEmployee.telegramId || "").trim() === String(req.user.telegramId || "").trim();
+    const isSelf = isActorSelfTarget({ targetEmployee, actorUser: req.user });
 
     if (actorRole === Role.ADMIN) {
       if (!isSelf && targetRole !== Role.PARTICIPANT) {
@@ -239,7 +258,7 @@ router.delete("/:id", (req, res, next) => {
     }
     const actorRole = req.user.role;
     const targetRole = targetEmployee.accessRole || Role.PARTICIPANT;
-    const isSelf = String(targetEmployee.telegramId || "").trim() === String(req.user.telegramId || "").trim();
+    const isSelf = isActorSelfTarget({ targetEmployee, actorUser: req.user });
 
     if (isSelf) {
       return res.status(403).json({

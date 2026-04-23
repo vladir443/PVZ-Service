@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import scheduleRoutes from "./routes/schedule.routes.js";
 import employeesRoutes from "./routes/employees.routes.js";
+import { startShiftReminders } from "./services/shift-reminders.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -42,4 +43,5 @@ app.use((err, _req, res, _next) => {
 
 app.listen(env.PORT, env.HOST, () => {
   console.log(`API is running on http://${env.HOST}:${env.PORT}`);
+  startShiftReminders();
 });
