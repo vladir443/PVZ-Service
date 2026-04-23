@@ -8,7 +8,7 @@ import {
   getUserByTelegramId,
   isCoreAdminUsername,
   syncEmployeeTelegramProfile,
-  updateUserReminderEnabled,
+  updateUserReminderSettings,
   updateUserProfile,
   updateUserRole
 } from "../db.js";
@@ -86,7 +86,9 @@ router.get("/me", requireAuth, (req, res) => {
 });
 
 const reminderSettingsSchema = z.object({
-  enabled: z.coerce.boolean()
+  enabled: z.coerce.boolean().optional(),
+  enabled24: z.coerce.boolean().optional(),
+  enabled14: z.coerce.boolean().optional()
 });
 
 router.put("/me/reminders", requireAuth, (req, res, next) => {
@@ -99,9 +101,31 @@ router.put("/me/reminders", requireAuth, (req, res, next) => {
       });
     }
 
-    const user = updateUserReminderEnabled({
+    const currentUser = getUserByTelegramId(req.user.telegramId);
+    if (!currentUser) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Пользователь не найден"
+      });
+    }
+
+    let enabled24 = currentUser.reminder24Enabled !== false;
+    let enabled14 = currentUser.reminder14Enabled !== false;
+
+    if (typeof parsed.data.enabled === "boolean" &&
+      typeof parsed.data.enabled24 !== "boolean" &&
+      typeof parsed.data.enabled14 !== "boolean") {
+      enabled24 = parsed.data.enabled;
+      enabled14 = parsed.data.enabled;
+    } else {
+      if (typeof parsed.data.enabled24 === "boolean") enabled24 = parsed.data.enabled24;
+      if (typeof parsed.data.enabled14 === "boolean") enabled14 = parsed.data.enabled14;
+    }
+
+    const user = updateUserReminderSettings({
       telegramId: req.user.telegramId,
-      enabled: parsed.data.enabled
+      enabled24,
+      enabled14
     });
 
     if (!user) {

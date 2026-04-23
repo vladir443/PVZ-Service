@@ -1850,10 +1850,17 @@
               <div class="muted mt8">Настройка сообщений напоминаний от бота.</div>
               <div class="reminder-toggle-row mt12">
                 <div>
-                  <div><strong>Напоминания о сменах</strong></div>
-                  <div class="muted mt8">За 24 часа и за 14 часов до смены</div>
+                  <div><strong>Напоминание за 24 часа</strong></div>
+                  <div class="muted mt8">Отправка сообщения от бота</div>
                 </div>
-                <input id="reminderEnabledInput" type="checkbox" ${state.user?.reminderEnabled !== false ? "checked" : ""} />
+                <input id="reminder24EnabledInput" type="checkbox" ${state.user?.reminder24Enabled !== false ? "checked" : ""} />
+              </div>
+              <div class="reminder-toggle-row mt12">
+                <div>
+                  <div><strong>Напоминание за 14 часов</strong></div>
+                  <div class="muted mt8">Отправка сообщения от бота</div>
+                </div>
+                <input id="reminder14EnabledInput" type="checkbox" ${state.user?.reminder14Enabled !== false ? "checked" : ""} />
               </div>
               <div class="row mt12">
                 <button id="saveReminderSettingsBtn" class="button" type="button">Сохранить</button>
@@ -1900,7 +1907,8 @@
         `;
         const openNotificationsBtn = document.getElementById("openNotificationsBtn");
         const notificationsModal = document.getElementById("notificationsModal");
-        const reminderEnabledInput = document.getElementById("reminderEnabledInput");
+        const reminder24EnabledInput = document.getElementById("reminder24EnabledInput");
+        const reminder14EnabledInput = document.getElementById("reminder14EnabledInput");
         const saveReminderSettingsBtn = document.getElementById("saveReminderSettingsBtn");
         const reminderSettingsStatus = document.getElementById("reminderSettingsStatus");
         const openAdminPanelBtn = document.getElementById("openAdminPanelBtn");
@@ -1912,17 +1920,23 @@
           notificationsModal?.classList.remove("hidden");
         });
         saveReminderSettingsBtn?.addEventListener("click", async () => {
-          const enabled = !!reminderEnabledInput?.checked;
+          const enabled24 = !!reminder24EnabledInput?.checked;
+          const enabled14 = !!reminder14EnabledInput?.checked;
           saveReminderSettingsBtn.disabled = true;
           try {
             const data = await api("/api/auth/me/reminders", {
               method: "PUT",
-              body: JSON.stringify({ enabled })
+              body: JSON.stringify({ enabled24, enabled14 })
             });
             if (data?.user) {
               state.user = data.user;
             } else {
-              state.user = { ...(state.user || {}), reminderEnabled: enabled };
+              state.user = {
+                ...(state.user || {}),
+                reminder24Enabled: enabled24,
+                reminder14Enabled: enabled14,
+                reminderEnabled: enabled24 || enabled14
+              };
             }
             reminderSettingsStatus.className = "status ok";
             reminderSettingsStatus.textContent = "Настройки уведомлений сохранены";

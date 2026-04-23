@@ -6,11 +6,11 @@ import {
 } from "../db.js";
 
 const REMINDER_POINTS = [
-  { code: "before_24h", hoursBefore: 24, label: "через 24 часа" },
-  { code: "before_14h", hoursBefore: 14, label: "через 14 часов" }
+  { code: "before_24h", hoursBefore: 24, label: "(24 часа)" },
+  { code: "before_14h", hoursBefore: 14, label: "(14)" }
 ];
 
-const POLL_INTERVAL_MS = 5 * 60 * 1000;
+const POLL_INTERVAL_MS = 60 * 1000;
 const MSK_OFFSET_HOURS = 3;
 
 function toMskDateString(date = new Date()) {
@@ -117,6 +117,12 @@ async function processShiftRemindersTick() {
         reminderCode: point.code
       });
       if (alreadySent) continue;
+
+      const isEnabledForPoint =
+        point.code === "before_24h"
+          ? assignment.reminder24Enabled !== false
+          : assignment.reminder14Enabled !== false;
+      if (!isEnabledForPoint) continue;
 
       try {
         await sendTelegramMessage({
