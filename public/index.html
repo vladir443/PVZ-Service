@@ -3186,6 +3186,38 @@
           activate("pin");
         };
 
+        const alignSecuritySessionsActions = () => {
+          const section = document.getElementById("securitySessionsSection");
+          const refreshBtn = document.getElementById("refreshSessionsBtn");
+          const revokeBtn = document.getElementById("revokeOtherSessionsBtn");
+          if (!section || !refreshBtn || !revokeBtn) return;
+
+          let topRow = refreshBtn.closest(".row");
+          if (!topRow) {
+            topRow = document.createElement("div");
+            topRow.className = "row mt8";
+            section.insertBefore(topRow, section.firstChild);
+            topRow.appendChild(refreshBtn);
+          }
+
+          topRow.className = "row mt8";
+          topRow.style.justifyContent = "space-between";
+          topRow.style.alignItems = "center";
+          topRow.style.gap = "8px";
+
+          if (revokeBtn.parentElement !== topRow) {
+            topRow.insertBefore(revokeBtn, refreshBtn);
+          }
+
+          for (const row of section.querySelectorAll(".row")) {
+            if (row === topRow) continue;
+            if (!row.children.length) row.remove();
+            if (row.children.length === 1 && row.firstElementChild?.id === "revokeOtherSessionsBtn") {
+              row.remove();
+            }
+          }
+        };
+
         const renderPinBlock = (pinState) => {
           if (!securityPinBlock) return;
           const enabled = !!pinState?.enabled;
@@ -3475,6 +3507,7 @@
         };
 
         setupSecurityTabs();
+        alignSecuritySessionsActions();
 
         themeToggleBtn?.addEventListener("click", () => {
           toggleTheme();
