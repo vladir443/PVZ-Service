@@ -55,6 +55,13 @@ function formatRuDate(isoDate) {
   return `${day}.${month}.${year}`;
 }
 
+function formatCoworkerContactLine({ coworkerTelegramContact, coworkerVkContact, coworkerPhone }) {
+  const tg = String(coworkerTelegramContact || "").trim() || "не указан";
+  const vk = String(coworkerVkContact || "").trim() || "не указан";
+  const phone = String(coworkerPhone || "").trim() || "не указан";
+  return `${tg}, ${vk}, ${phone}`;
+}
+
 async function sendTelegramMessage({ telegramId, text }) {
   const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
   if (!token) return false;
@@ -85,17 +92,24 @@ function buildReminderText({
   workEnd,
   locationTitle,
   pointLabel,
-  coworkerName
+  coworkerName,
+  coworkerTelegramContact,
+  coworkerVkContact,
+  coworkerPhone
 }) {
   const teammateLine = coworkerName
-    ? `У вас смена с ${coworkerName}`
+    ? `Смена с ${coworkerName} (${formatCoworkerContactLine({
+        coworkerTelegramContact,
+        coworkerVkContact,
+        coworkerPhone
+      })})`
     : "Вы одни на смене";
   return [
     `Напоминание о смене ${pointLabel}`,
-    `${employeeName || "Сотрудник"}, у вас смена ${formatRuDate(shiftDate)}.`,
+    `${employeeName || "Сотрудник"}, у вас смена ${formatRuDate(shiftDate)} с ${workStart} - ${workEnd}`,
     teammateLine,
     `ПВЗ: ${locationTitle}`,
-    `График: ${workStart} - ${workEnd}`
+    `Часы работы: ${workStart} - ${workEnd}`
   ].join("\n");
 }
 
@@ -162,7 +176,10 @@ async function processShiftRemindersTick() {
             workEnd: assignment.workEnd,
             locationTitle: assignment.locationTitle,
             pointLabel: point.label,
-            coworkerName: assignment.coworkerName
+            coworkerName: assignment.coworkerName,
+            coworkerTelegramContact: assignment.coworkerTelegramContact,
+            coworkerVkContact: assignment.coworkerVkContact,
+            coworkerPhone: assignment.coworkerPhone
           })
         });
         sentCount += 1;

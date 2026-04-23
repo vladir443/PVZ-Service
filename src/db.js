@@ -1422,11 +1422,16 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         u.reminder_14_enabled,
         e.telegram_id,
         e.full_name,
+        c.telegram_contact AS coworker_telegram_contact,
+        c.vk_contact AS coworker_vk_contact,
+        c.phone AS coworker_phone,
         'executor1' AS shift_role
       FROM shifts s
       JOIN locations l ON l.code = s.location_code
       JOIN employees e
         ON lower(trim(e.full_name)) = lower(trim(s.executor1))
+      LEFT JOIN employees c
+        ON lower(trim(c.full_name)) = lower(trim(s.executor2))
       LEFT JOIN users u
         ON trim(u.telegram_id) = trim(e.telegram_id)
       WHERE s.shift_date >= ?
@@ -1449,11 +1454,16 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         u.reminder_14_enabled,
         e.telegram_id,
         e.full_name,
+        c.telegram_contact AS coworker_telegram_contact,
+        c.vk_contact AS coworker_vk_contact,
+        c.phone AS coworker_phone,
         'executor2' AS shift_role
       FROM shifts s
       JOIN locations l ON l.code = s.location_code
       JOIN employees e
         ON lower(trim(e.full_name)) = lower(trim(s.executor2))
+      LEFT JOIN employees c
+        ON lower(trim(c.full_name)) = lower(trim(s.executor1))
       LEFT JOIN users u
         ON trim(u.telegram_id) = trim(e.telegram_id)
       WHERE s.shift_date >= ?
@@ -1481,6 +1491,9 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         employeeName: row.full_name,
         shiftRole: row.shift_role,
         coworkerName,
+        coworkerTelegramContact: String(row.coworker_telegram_contact || "").trim(),
+        coworkerVkContact: String(row.coworker_vk_contact || "").trim(),
+        coworkerPhone: String(row.coworker_phone || "").trim(),
         reminder24Enabled: row.reminder_24_enabled !== 0,
         reminder14Enabled: row.reminder_14_enabled !== 0
       };
