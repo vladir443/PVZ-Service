@@ -1818,13 +1818,24 @@
       .employee-panel-head .panel-title {
         flex: 1;
         min-width: 0;
+        line-height: 1.15;
+        align-self: center;
       }
 
       .employee-panel-actions {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: 8px;
         margin-left: auto;
+        flex: 0 0 auto;
+      }
+
+      .employee-panel-actions .save-icon-wrap {
+        min-height: 38px;
+      }
+
+      .employee-panel-actions .save-feedback {
+        display: none;
       }
 
       .employee-form-stack {
