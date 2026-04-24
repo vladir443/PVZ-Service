@@ -749,6 +749,50 @@
         background: #203556;
       }
 
+      body.theme-dark .security-log-card {
+        background: #142238;
+        border-color: #2f4566;
+        box-shadow: none;
+      }
+
+      body.theme-dark .security-log-title {
+        color: #eef5ff;
+      }
+
+      body.theme-dark .security-log-time,
+      body.theme-dark .security-log-description,
+      body.theme-dark .security-log-detail {
+        color: #aebbd0;
+      }
+
+      body.theme-dark .security-log-detail strong {
+        color: #e5edf8;
+      }
+
+      body.theme-dark .security-log-badge {
+        background: #182941;
+        border-color: #355077;
+        color: #cbd8ea;
+      }
+
+      body.theme-dark .security-log-badge.ok {
+        background: #123524;
+        border-color: #236447;
+        color: #8be0b6;
+      }
+
+      body.theme-dark .security-log-badge.warning {
+        background: #3a2d14;
+        border-color: #745a20;
+        color: #f5d38a;
+      }
+
+      body.theme-dark .security-log-badge.danger {
+        background: #3b1b28;
+        border-color: #7e2b45;
+        color: #ffd2de;
+      }
+
       body.theme-dark .admin-hours-card {
         background: #18263d;
         border-color: #2f4568;
@@ -1390,6 +1434,93 @@
 
       .button.security-session-revoke-btn:hover {
         background: #eef4fb;
+      }
+
+      .security-log-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .security-log-card {
+        border: 1px solid #d7e2f0;
+        border-radius: 14px;
+        background: #ffffff;
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+        box-shadow: 0 6px 16px rgba(31, 50, 80, 0.05);
+      }
+
+      .security-log-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .security-log-title {
+        color: #14233a;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.25;
+      }
+
+      .security-log-time {
+        color: #6f7f96;
+        font-size: 12px;
+        line-height: 1.25;
+        white-space: nowrap;
+      }
+
+      .security-log-description {
+        color: #40536f;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .security-log-details {
+        display: grid;
+        gap: 5px;
+        padding-top: 2px;
+      }
+
+      .security-log-detail {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .security-log-detail strong {
+        color: #2c4261;
+      }
+
+      .security-log-badge {
+        justify-self: start;
+        border: 1px solid #d8e3f2;
+        border-radius: 999px;
+        padding: 3px 8px;
+        background: #f5f8fc;
+        color: #52667f;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .security-log-badge.ok {
+        background: #ecfdf5;
+        border-color: #bcebd2;
+        color: #08744b;
+      }
+
+      .security-log-badge.warning {
+        background: #fff7e6;
+        border-color: #f3d79b;
+        color: #8a5a0a;
+      }
+
+      .security-log-badge.danger {
+        background: #fff1f2;
+        border-color: #f2b8c2;
+        color: #a1203c;
       }
 
       table {
@@ -4197,6 +4328,184 @@
           }
         };
 
+        const securityLogLabels = {
+          AUTH_LOGIN_SUCCESS: {
+            title: "Вход выполнен",
+            description: "Пользователь успешно вошел в приложение.",
+            badge: "Вход",
+            tone: "ok"
+          },
+          AUTH_LOGIN_DENIED: {
+            title: "Вход отклонен",
+            description: "Пользователю отказано во входе.",
+            badge: "Вход",
+            tone: "danger"
+          },
+          REMINDER_SETTINGS_UPDATED: {
+            title: "Уведомления изменены",
+            description: "Настройки напоминаний о сменах обновлены.",
+            badge: "Настройки",
+            tone: "ok"
+          },
+          EMPLOYEE_CREATED: {
+            title: "Сотрудник добавлен",
+            description: "В базу сотрудников добавлена новая запись.",
+            badge: "Сотрудники",
+            tone: "ok"
+          },
+          EMPLOYEE_UPDATED: {
+            title: "Сотрудник изменен",
+            description: "Данные сотрудника были обновлены.",
+            badge: "Сотрудники",
+            tone: "ok"
+          },
+          EMPLOYEE_DELETED: {
+            title: "Сотрудник удален",
+            description: "Сотрудник удален из базы.",
+            badge: "Сотрудники",
+            tone: "danger"
+          },
+          LOCATION_HOURS_UPDATED: {
+            title: "График ПВЗ изменен",
+            description: "Обновлены часы работы пункта.",
+            badge: "ПВЗ",
+            tone: "ok"
+          },
+          SHIFT_UPDATED: {
+            title: "Смена изменена",
+            description: "В графике смен были внесены изменения.",
+            badge: "График",
+            tone: "ok"
+          },
+          FINANCE_PAYMENT_CREATED: {
+            title: "Выплата добавлена",
+            description: "В финансах добавлена выплата или аванс.",
+            badge: "Финансы",
+            tone: "ok"
+          },
+          FINANCE_PAYMENT_DELETED: {
+            title: "Выплата отменена",
+            description: "Запись выплаты удалена из истории.",
+            badge: "Финансы",
+            tone: "warning"
+          },
+          PIN_VERIFY_LOCKED: {
+            title: "PIN временно заблокирован",
+            description: "Сработала защита от перебора PIN-кода.",
+            badge: "PIN",
+            tone: "danger"
+          },
+          PIN_VERIFY_FAILED: {
+            title: "Неверный PIN",
+            description: "Была попытка ввода неверного PIN-кода.",
+            badge: "PIN",
+            tone: "warning"
+          },
+          PIN_VERIFY_SUCCESS: {
+            title: "PIN введен верно",
+            description: "Доступ подтвержден PIN-кодом.",
+            badge: "PIN",
+            tone: "ok"
+          },
+          PIN_ENABLED: {
+            title: "PIN включен",
+            description: "Защита входа PIN-кодом включена.",
+            badge: "PIN",
+            tone: "ok"
+          },
+          PIN_CHANGED: {
+            title: "PIN изменен",
+            description: "PIN-код был успешно изменен.",
+            badge: "PIN",
+            tone: "ok"
+          },
+          PIN_DISABLED: {
+            title: "PIN отключен",
+            description: "Защита входа PIN-кодом отключена.",
+            badge: "PIN",
+            tone: "warning"
+          },
+          PIN_RECOVERY_REQUESTED: {
+            title: "Запрошено восстановление PIN",
+            description: "Пользователь запросил новый PIN-код.",
+            badge: "PIN",
+            tone: "warning"
+          },
+          PIN_RECOVERY_RESET_BY_SUPERADMIN: {
+            title: "PIN сброшен главным админом",
+            description: "Главный админ сформировал новый PIN.",
+            badge: "PIN",
+            tone: "warning"
+          },
+          SESSION_REVOKED: {
+            title: "Сессия завершена",
+            description: "Одна активная сессия была завершена.",
+            badge: "Сессии",
+            tone: "warning"
+          },
+          SESSIONS_REVOKED_OTHERS: {
+            title: "Другие сессии завершены",
+            description: "Завершены все сессии кроме текущей.",
+            badge: "Сессии",
+            tone: "warning"
+          }
+        };
+
+        const securityLogMetaLabels = {
+          deviceName: "Устройство",
+          platform: "Платформа",
+          pinRequired: "PIN требовался",
+          reason: "Причина",
+          revokedCount: "Завершено сессий",
+          revokedSessionId: "ID сессии",
+          employeeId: "ID сотрудника",
+          fullName: "Сотрудник",
+          employeeName: "Сотрудник",
+          accessRole: "Роль доступа",
+          role: "Роль",
+          locationCode: "ПВЗ",
+          locationName: "ПВЗ",
+          date: "Дата",
+          periodFrom: "Период с",
+          periodTo: "Период по",
+          paymentDate: "Дата выплаты",
+          operationType: "Тип операции",
+          amount: "Сумма",
+          paymentId: "ID выплаты",
+          enabled14: "Напоминание 14 часов",
+          enabled24: "Напоминание 24 часа"
+        };
+
+        const formatSecurityLogDate = (value) => {
+          const raw = String(value || "").trim();
+          const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (match) return `${match[3]}.${match[2]}.${match[1]}`;
+          return raw;
+        };
+
+        const formatSecurityLogValue = (key, value) => {
+          if (value === null || value === undefined || value === "") return "";
+          if (typeof value === "boolean") return value ? "да" : "нет";
+          if (typeof value === "number" && key === "amount") return formatMoney(value);
+          if (["date", "periodFrom", "periodTo", "paymentDate"].includes(key)) return formatSecurityLogDate(value);
+          if (Array.isArray(value)) return value.length ? `${value.length} записей` : "";
+          if (typeof value === "object") return "";
+          return String(value);
+        };
+
+        const renderSecurityLogDetails = (meta = {}) => {
+          const rows = Object.entries(meta)
+            .map(([key, value]) => {
+              const formatted = formatSecurityLogValue(key, value);
+              if (!formatted) return "";
+              const label = securityLogMetaLabels[key] || key;
+              return `<div class="security-log-detail"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(formatted)}</div>`;
+            })
+            .filter(Boolean);
+          if (!rows.length) return "";
+          return `<div class="security-log-details">${rows.join("")}</div>`;
+        };
+
         const loadLogs = async (scope) => {
           const data = await api(`/api/security/journal?scope=${encodeURIComponent(scope)}&limit=50`);
           const logs = data?.logs || [];
@@ -4208,17 +4517,31 @@
             securityLogsList.innerHTML = `<div class="muted">Записей нет</div>`;
             return;
           }
-          securityLogsList.innerHTML = logs
-            .map(
-              (log) => `
-                <div class="panel mt8" style="padding:8px;">
-                  <div><strong>${escapeHtml(log.eventType)}</strong></div>
-                  <div class="muted mt8">${escapeHtml(formatDateTime(log.createdAt))}</div>
-                  <div class="muted">${escapeHtml(JSON.stringify(log.meta || {}))}</div>
-                </div>
-              `
-            )
-            .join("");
+          securityLogsList.innerHTML = `
+            <div class="security-log-list">
+              ${logs
+                .map((log) => {
+                  const info = securityLogLabels[log.eventType] || {
+                    title: log.eventType || "Событие",
+                    description: "Запись системного журнала.",
+                    badge: "Событие",
+                    tone: ""
+                  };
+                  return `
+                    <div class="security-log-card">
+                      <div class="security-log-head">
+                        <div class="security-log-title">${escapeHtml(info.title)}</div>
+                        <div class="security-log-time">${escapeHtml(formatDateTime(log.createdAt))}</div>
+                      </div>
+                      <div class="security-log-badge ${escapeHtml(info.tone)}">${escapeHtml(info.badge)}</div>
+                      <div class="security-log-description">${escapeHtml(info.description)}</div>
+                      ${renderSecurityLogDetails(log.meta || {})}
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>
+          `;
         };
 
         setupSecurityTabs();
