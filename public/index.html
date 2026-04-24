@@ -775,6 +775,11 @@
         border-color: #304766;
       }
 
+      body.theme-dark .pin-action-card.danger {
+        background: #261b2a;
+        border-color: #6f2a3d;
+      }
+
       body.theme-dark .pin-status-badge.off {
         background: #21344f;
         color: #d0deef;
@@ -1482,6 +1487,53 @@
         padding: 12px;
         background: #ffffff;
         box-shadow: 0 2px 10px rgba(16, 34, 63, 0.04);
+      }
+
+      .pin-action-card {
+        display: grid;
+        gap: 12px;
+      }
+
+      .pin-action-card.danger {
+        border-color: #f1c5c5;
+        background: #fffafa;
+      }
+
+      .pin-action-card .button {
+        justify-self: start;
+      }
+
+      .pin-modal-progress {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #64748b;
+        text-align: center;
+        font-weight: 700;
+      }
+
+      .pin-modal-confirm {
+        margin-top: 18px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .pin-modal-continue {
+        width: 100%;
+        margin-top: 14px;
+        min-height: 48px;
+        border-radius: 14px;
+        font-weight: 800;
+      }
+
+      .pin-gate-dots.shake {
+        animation: pinShake 0.32s ease;
+      }
+
+      @keyframes pinShake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-7px); }
+        50% { transform: translateX(7px); }
+        75% { transform: translateX(-4px); }
       }
 
       .pin-section-title {
@@ -2360,7 +2412,7 @@
       const SESSION_STORAGE_KEY = "pvz_session_id";
 
       function syncModalScrollLock() {
-        const hasOpenModal = !!document.querySelector(".modal:not(.hidden)");
+        const hasOpenModal = !!document.querySelector(".modal:not(.hidden), #securityPinFlowModal");
         document.body.classList.toggle("modal-open", hasOpenModal);
       }
 
@@ -3514,7 +3566,7 @@
           }
         };
 
-        const renderPinBlock = (pinState) => {
+        const renderPinBlockLegacy = (pinState) => {
           if (!securityPinBlock) return;
           const enabled = !!pinState?.enabled;
           const lockText = pinState?.lockedUntil
@@ -3735,6 +3787,346 @@
               disableStatus.textContent = `Ошибка: ${error.message}`;
             }
           });
+        };
+
+        const openSecurityPinModal = ({ mode }) => {
+          document.getElementById("securityPinFlowModal")?.remove();
+
+          const stateMachine = {
+            mode,
+            step: mode === "change" || mode === "disable" ? "verify_current" : "enter_new",
+            currentPin: "",
+            newPin: "",
+            value: "",
+            status: "",
+            statusClass: "",
+            shaking: false,
+            busy: false,
+            failedAttempts: 0
+          };
+
+          const stepMeta = () => {
+            if (stateMachine.mode === "enable") {
+              if (stateMachine.step === "repeat_new") {
+                return {
+                  title: "Повторите PIN",
+                  subtitle: "Введите новый PIN еще раз",
+                  progress: "Шаг 2 из 2",
+                  button: "Включить PIN"
+                };
+              }
+              return {
+                title: "Новый PIN",
+                subtitle: "Придумайте код из 4-8 цифр",
+                progress: "Шаг 1 из 2",
+                button: "Продолжить"
+              };
+            }
+
+            if (stateMachine.mode === "change") {
+              if (stateMachine.step === "enter_new") {
+                return {
+                  title: "Новый PIN",
+                  subtitle: "Придумайте код из 4-8 цифр",
+                  progress: "Шаг 2 из 3",
+                  button: "Продолжить"
+                };
+              }
+              if (stateMachine.step === "repeat_new") {
+                return {
+                  title: "Повторите PIN",
+                  subtitle: "Введите новый PIN еще раз",
+                  progress: "Шаг 3 из 3",
+                  button: "Сменить PIN"
+                };
+              }
+              return {
+                title: "Введите текущий PIN",
+                subtitle: "Подтвердите, что это вы",
+                progress: "Шаг 1 из 3",
+                button: "Продолжить"
+              };
+            }
+
+            if (stateMachine.step === "confirm_disable") {
+              return {
+                title: "Отключить PIN-код?",
+                subtitle: "После отключения вход не будет защищен PIN-кодом",
+                progress: "Шаг 2 из 2",
+                button: "Отключить PIN"
+              };
+            }
+
+            return {
+              title: "Введите текущий PIN",
+              subtitle: "Подтвердите отключение защиты",
+              progress: "Шаг 1 из 2",
+              button: "Продолжить"
+            };
+          };
+
+          const modal = document.createElement("div");
+          modal.id = "securityPinFlowModal";
+          modal.className = "pin-gate-overlay";
+          document.body.appendChild(modal);
+
+          const close = () => {
+            modal.remove();
+            syncModalScrollLock();
+          };
+
+          const setError = (message) => {
+            stateMachine.status = message;
+            stateMachine.statusClass = "status error";
+            stateMachine.shaking = true;
+            render();
+            window.setTimeout(() => {
+              stateMachine.shaking = false;
+              render();
+            }, 340);
+          };
+
+          const resetValue = () => {
+            stateMachine.value = "";
+            stateMachine.status = "";
+            stateMachine.statusClass = "status";
+          };
+
+          const setStep = (step) => {
+            stateMachine.step = step;
+            resetValue();
+            render();
+          };
+
+          const finishWithPinState = (pinState) => {
+            state.security.pinState = pinState || null;
+            renderPinBlock(state.security.pinState);
+            close();
+          };
+
+          const submit = async () => {
+            if (stateMachine.busy) return;
+
+            if (stateMachine.step === "confirm_disable") {
+              const confirmed = await confirmAction("Отключить PIN-код?");
+              if (!confirmed) return;
+              stateMachine.busy = true;
+              render();
+              try {
+                const data = await api("/api/security/pin/disable", {
+                  method: "POST",
+                  body: JSON.stringify({ currentPin: stateMachine.currentPin })
+                });
+                finishWithPinState(data?.pinState || null);
+              } catch (error) {
+                stateMachine.busy = false;
+                setStep("verify_current");
+                setError(`Ошибка: ${error.message}`);
+              }
+              return;
+            }
+
+            const pin = normalizePinDigits(stateMachine.value);
+            if (!isPinLengthValid(pin)) {
+              setError("PIN должен быть от 4 до 8 цифр");
+              return;
+            }
+
+            if (stateMachine.step === "verify_current") {
+              stateMachine.busy = true;
+              render();
+              try {
+                await api("/api/security/pin/verify", {
+                  method: "POST",
+                  body: JSON.stringify({ pin })
+                });
+                stateMachine.currentPin = pin;
+                stateMachine.busy = false;
+                setStep(stateMachine.mode === "disable" ? "confirm_disable" : "enter_new");
+              } catch (error) {
+                stateMachine.busy = false;
+                stateMachine.failedAttempts += 1;
+                stateMachine.value = "";
+                const warning =
+                  stateMachine.failedAttempts >= 3
+                    ? "Слишком много неверных попыток. Проверьте PIN или попробуйте позже."
+                    : `Ошибка: ${error.message}`;
+                setError(warning);
+              }
+              return;
+            }
+
+            if (stateMachine.step === "enter_new") {
+              stateMachine.newPin = pin;
+              setStep("repeat_new");
+              return;
+            }
+
+            if (stateMachine.step === "repeat_new") {
+              if (pin !== stateMachine.newPin) {
+                stateMachine.value = "";
+                setError("PIN не совпал. Повторите новый PIN");
+                return;
+              }
+              stateMachine.busy = true;
+              render();
+              try {
+                const endpoint =
+                  stateMachine.mode === "enable" ? "/api/security/pin/enable" : "/api/security/pin/change";
+                const body =
+                  stateMachine.mode === "enable"
+                    ? { pin: stateMachine.newPin }
+                    : { currentPin: stateMachine.currentPin, newPin: stateMachine.newPin };
+                const data = await api(endpoint, {
+                  method: "POST",
+                  body: JSON.stringify(body)
+                });
+                finishWithPinState(data?.pinState || null);
+              } catch (error) {
+                stateMachine.busy = false;
+                setError(`Ошибка: ${error.message}`);
+              }
+            }
+          };
+
+          const renderDots = () =>
+            Array.from({ length: 8 })
+              .map((_, index) => {
+                const classes = ["pin-gate-dot"];
+                if (index < stateMachine.value.length) classes.push("filled");
+                return `<span class="${classes.join(" ")}"></span>`;
+              })
+              .join("");
+
+          const render = () => {
+            const meta = stepMeta();
+            const isConfirm = stateMachine.step === "confirm_disable";
+            const canContinue = isConfirm || isPinLengthValid(stateMachine.value);
+            modal.innerHTML = `
+              <div class="pin-gate-card">
+                <div class="pin-gate-head">
+                  <div style="width:24px;height:24px;"></div>
+                  <button id="pinModalCloseBtn" class="open-arrow-btn" type="button" aria-label="Закрыть">
+                    <img src="/icons/back-arrow.png" alt="Закрыть" />
+                  </button>
+                </div>
+                <div class="pin-gate-shield">
+                  <img src="/icons/pin-protection.png" alt="Защита" />
+                </div>
+                <h3 class="pin-gate-title">${escapeHtml(meta.title)}</h3>
+                <div class="pin-gate-subtitle">${escapeHtml(meta.subtitle)}</div>
+                <div class="pin-modal-progress">${escapeHtml(meta.progress)}</div>
+                ${
+                  isConfirm
+                    ? `<div class="pin-modal-confirm">
+                        <button id="pinModalSubmitBtn" class="button pin-primary-btn pin-modal-continue pin-danger-btn" type="button" ${stateMachine.busy ? "disabled" : ""}>${escapeHtml(meta.button)}</button>
+                      </div>`
+                    : `<div id="pinModalDots" class="pin-gate-dots ${stateMachine.shaking ? "shake" : ""}">${renderDots()}</div>
+                      <div class="pin-gate-keypad">
+                        <button class="pin-gate-key" data-pin-modal-key="1" type="button">1</button>
+                        <button class="pin-gate-key" data-pin-modal-key="2" type="button">2</button>
+                        <button class="pin-gate-key" data-pin-modal-key="3" type="button">3</button>
+                        <button class="pin-gate-key" data-pin-modal-key="4" type="button">4</button>
+                        <button class="pin-gate-key" data-pin-modal-key="5" type="button">5</button>
+                        <button class="pin-gate-key" data-pin-modal-key="6" type="button">6</button>
+                        <button class="pin-gate-key" data-pin-modal-key="7" type="button">7</button>
+                        <button class="pin-gate-key" data-pin-modal-key="8" type="button">8</button>
+                        <button class="pin-gate-key" data-pin-modal-key="9" type="button">9</button>
+                        <div class="pin-gate-spacer" aria-hidden="true"></div>
+                        <button class="pin-gate-key" data-pin-modal-key="0" type="button">0</button>
+                        <button class="pin-gate-key" id="pinModalBackspaceBtn" type="button" aria-label="Удалить символ">
+                          <img src="/icons/pin-delete.png" alt="Удалить" />
+                        </button>
+                      </div>
+                      <button id="pinModalSubmitBtn" class="button pin-primary-btn pin-modal-continue" type="button" ${!canContinue || stateMachine.busy ? "disabled" : ""}>${escapeHtml(meta.button)}</button>`
+                }
+                <p class="${stateMachine.statusClass || "status"} mt12" style="text-align:center;">${escapeHtml(stateMachine.status)}</p>
+              </div>
+            `;
+
+            document.getElementById("pinModalCloseBtn")?.addEventListener("click", close);
+            document.getElementById("pinModalSubmitBtn")?.addEventListener("click", submit);
+            document.getElementById("pinModalBackspaceBtn")?.addEventListener("click", () => {
+              if (stateMachine.busy) return;
+              stateMachine.value = stateMachine.value.slice(0, -1);
+              stateMachine.status = "";
+              stateMachine.statusClass = "status";
+              render();
+            });
+            for (const btn of modal.querySelectorAll("[data-pin-modal-key]")) {
+              btn.addEventListener("click", () => {
+                if (stateMachine.busy || stateMachine.value.length >= 8) return;
+                const digit = btn.getAttribute("data-pin-modal-key");
+                if (!/^\d$/.test(String(digit || ""))) return;
+                stateMachine.value += digit;
+                stateMachine.status = "";
+                stateMachine.statusClass = "status";
+                render();
+              });
+            }
+          };
+
+          render();
+          syncModalScrollLock();
+        };
+
+        const renderPinBlock = (pinState) => {
+          if (!securityPinBlock) return;
+          const enabled = !!pinState?.enabled;
+          const lockText = pinState?.lockedUntil
+            ? `<div class="status error mt8">Блокировка до ${escapeHtml(formatDateTime(pinState.lockedUntil))}</div>`
+            : "";
+
+          securityPinBlock.innerHTML = enabled
+            ? `
+              <div class="pin-shell">
+                <div class="pin-hero">
+                  <div>
+                    <p class="pin-hero-title">PIN-код</p>
+                    <div class="pin-hero-subtitle">Код используется для подтверждения входа.</div>
+                  </div>
+                  <span class="pin-status-badge on">Включен</span>
+                </div>
+                ${lockText}
+                <div class="pin-card pin-action-card">
+                  <div>
+                    <p class="pin-section-title">Сменить PIN</p>
+                    <div class="pin-section-subtitle">Введите текущий PIN, затем задайте новый.</div>
+                  </div>
+                  <button id="openPinChangeBtn" class="button pin-primary-btn" type="button">Сменить PIN</button>
+                </div>
+                <div class="pin-card pin-action-card danger">
+                  <div>
+                    <p class="pin-section-title">Отключить PIN</p>
+                    <div class="pin-section-subtitle">Потребуется подтвердить текущий PIN.</div>
+                  </div>
+                  <button id="openPinDisableBtn" class="button pin-danger-btn" type="button">Отключить PIN</button>
+                </div>
+              </div>
+            `
+            : `
+              <div class="pin-shell">
+                <div class="pin-hero">
+                  <div>
+                    <p class="pin-hero-title">PIN-код</p>
+                    <div class="pin-hero-subtitle">Добавьте PIN-код для защиты входа.</div>
+                  </div>
+                  <span class="pin-status-badge off">Выключен</span>
+                </div>
+                ${lockText}
+                <div class="pin-card pin-action-card">
+                  <div>
+                    <p class="pin-section-title">Включить PIN</p>
+                    <div class="pin-section-subtitle">Код будет запрашиваться при входе в приложение.</div>
+                  </div>
+                  <button id="openPinEnableBtn" class="button pin-primary-btn" type="button">Включить PIN</button>
+                </div>
+              </div>
+            `;
+
+          document.getElementById("openPinEnableBtn")?.addEventListener("click", () => openSecurityPinModal({ mode: "enable" }));
+          document.getElementById("openPinChangeBtn")?.addEventListener("click", () => openSecurityPinModal({ mode: "change" }));
+          document.getElementById("openPinDisableBtn")?.addEventListener("click", () => openSecurityPinModal({ mode: "disable" }));
         };
 
         const loadSecurityState = async () => {
