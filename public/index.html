@@ -1815,6 +1815,18 @@
         gap: 10px;
       }
 
+      .employee-panel-head .panel-title {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .employee-panel-actions {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-left: auto;
+      }
+
       .employee-form-stack {
         display: grid;
         gap: 14px;
@@ -3978,6 +3990,20 @@
                   <img src="/icons/back-arrow.png" alt="Назад" />
                 </button>
                 <h3 id="employeePanelTitle" class="panel-title">Добавить сотрудника</h3>
+                <div class="employee-panel-actions">
+                  <div class="save-icon-wrap">
+                    <button class="save-icon-btn" id="saveEmployeeBtn" type="button" aria-label="Сохранить">
+                      <img src="/icons/save-action.png" alt="Сохранить" />
+                    </button>
+                    <div id="saveEmployeeFeedback" class="save-feedback"></div>
+                  </div>
+                  <div class="save-icon-wrap">
+                    <button class="employee-delete-btn" id="deleteEmployeeBtn" type="button" aria-label="Удалить сотрудника" title="Удалить сотрудника">
+                      <img src="/icons/delete-bin.png" alt="Удалить" />
+                    </button>
+                    <div class="save-feedback"></div>
+                  </div>
+                </div>
               </div>
               <div class="employee-form-stack mt12">
                 <div class="employee-form-group">
@@ -4031,20 +4057,6 @@
                       <select id="accessRoleInput">${accessRoleOptionsHtml("PARTICIPANT", state.user.role, false)}</select>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div class="employee-form-actions mt12">
-                <div class="save-icon-wrap">
-                  <button class="save-icon-btn" id="saveEmployeeBtn" type="button" aria-label="Сохранить">
-                    <img src="/icons/save-action.png" alt="Сохранить" />
-                  </button>
-                  <div id="saveEmployeeFeedback" class="save-feedback"></div>
-                </div>
-                <div class="save-icon-wrap">
-                  <button class="employee-delete-btn" id="deleteEmployeeBtn" type="button" aria-label="Удалить сотрудника" title="Удалить сотрудника">
-                    <img src="/icons/delete-bin.png" alt="Удалить" />
-                  </button>
-                  <div class="save-feedback"></div>
                 </div>
               </div>
             </div>
