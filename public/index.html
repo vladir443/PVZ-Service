@@ -700,6 +700,55 @@
         color: #6ee7b7;
       }
 
+      body.theme-dark .security-revoke-all-btn {
+        border-color: #3b5579;
+        color: #d9e7fb;
+      }
+
+      body.theme-dark .security-revoke-all-btn:hover {
+        background: #1f3352;
+      }
+
+      body.theme-dark .security-session-card {
+        background: #142238;
+        border-color: #2f4566;
+        box-shadow: none;
+      }
+
+      body.theme-dark .security-session-card.current {
+        background: linear-gradient(180deg, #142b2a 0%, #12243a 100%);
+        border-color: #34745a;
+      }
+
+      body.theme-dark .security-session-icon {
+        background: #1a2a43;
+        border-color: #355077;
+      }
+
+      body.theme-dark .security-session-icon.desktop::before,
+      body.theme-dark .security-session-icon.mobile::before {
+        border-color: #9ec5ff;
+      }
+
+      body.theme-dark .security-session-icon.desktop::after,
+      body.theme-dark .security-session-icon.mobile::after {
+        background: #9ec5ff;
+      }
+
+      body.theme-dark .security-session-meta strong {
+        color: #e8eef8;
+      }
+
+      body.theme-dark .security-session-revoke-btn {
+        background: #172740;
+        border-color: #3a5478;
+        color: #e5edf8;
+      }
+
+      body.theme-dark .security-session-revoke-btn:hover {
+        background: #203556;
+      }
+
       body.theme-dark .admin-hours-card {
         background: #18263d;
         border-color: #2f4568;
@@ -1182,6 +1231,160 @@
         width: 17px;
         height: 17px;
         object-fit: contain;
+      }
+
+      .security-sessions-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .security-revoke-all-btn {
+        border: 1px solid #cbd7e7;
+        background: transparent;
+        color: #27405f;
+        font-weight: 700;
+      }
+
+      .security-revoke-all-btn:hover {
+        background: #edf4ff;
+        color: #173657;
+      }
+
+      .security-session-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .security-session-card {
+        border: 1px solid #d7e2f0;
+        border-radius: 14px;
+        background: #ffffff;
+        padding: 12px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        box-shadow: 0 6px 16px rgba(31, 50, 80, 0.06);
+      }
+
+      .security-session-card.current {
+        border-color: #9cc7b6;
+        background: linear-gradient(180deg, #f5fffb 0%, #effbf6 100%);
+      }
+
+      .security-session-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: #eef5ff;
+        border: 1px solid #d4e3f6;
+        position: relative;
+        flex: 0 0 auto;
+      }
+
+      .security-session-icon.desktop::before {
+        content: "";
+        position: absolute;
+        left: 9px;
+        top: 9px;
+        width: 18px;
+        height: 13px;
+        border: 2px solid #275f9f;
+        border-radius: 3px;
+      }
+
+      .security-session-icon.desktop::after {
+        content: "";
+        position: absolute;
+        left: 13px;
+        bottom: 8px;
+        width: 12px;
+        height: 2px;
+        background: #275f9f;
+        box-shadow: 4px -3px 0 -2px #275f9f;
+      }
+
+      .security-session-icon.mobile::before {
+        content: "";
+        position: absolute;
+        left: 12px;
+        top: 7px;
+        width: 14px;
+        height: 22px;
+        border: 2px solid #275f9f;
+        border-radius: 5px;
+      }
+
+      .security-session-icon.mobile::after {
+        content: "";
+        position: absolute;
+        left: 17px;
+        bottom: 10px;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #275f9f;
+      }
+
+      .security-session-main {
+        min-width: 0;
+        display: grid;
+        gap: 7px;
+      }
+
+      .security-session-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .security-session-name {
+        font-weight: 800;
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+
+      .security-session-badge {
+        border: 1px solid #b8e0c9;
+        border-radius: 999px;
+        background: #eafaf1;
+        color: #137a43;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 4px 8px;
+        white-space: nowrap;
+      }
+
+      .security-session-meta {
+        display: grid;
+        gap: 3px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .security-session-meta strong {
+        color: #253c5a;
+        font-weight: 800;
+      }
+
+      .security-session-actions {
+        margin-top: 4px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .security-session-revoke-btn {
+        border: 1px solid #d7e0ee;
+        background: #f8fbff;
+        color: #31445f;
+        font-weight: 700;
+      }
+
+      .security-session-revoke-btn:hover {
+        background: #eef4fb;
       }
 
       table {
@@ -2415,6 +2618,32 @@
         });
       }
 
+      function formatSessionDateTime(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "—";
+        const dt = new Date(raw);
+        if (!Number.isFinite(dt.getTime())) return raw;
+        const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+        const today = startOfDay(new Date());
+        const target = startOfDay(dt);
+        const dayDiff = Math.round((today - target) / 86400000);
+        const time = dt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+        if (dayDiff === 0) return `Сегодня, ${time}`;
+        if (dayDiff === 1) return `Вчера, ${time}`;
+        return dt.toLocaleString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      }
+
+      function getSessionDeviceType(item) {
+        const value = `${item?.platform || ""} ${item?.deviceName || ""} ${item?.userAgent || ""}`.toLowerCase();
+        return /android|iphone|ipad|ios|mobile/.test(value) ? "mobile" : "desktop";
+      }
+
       function renderLocationLabelHtml(value) {
         const raw = String(value || "");
         if (!raw.trim()) return "";
@@ -3105,7 +3334,7 @@
                   </button>
                 </div>
                 <div class="row mt8">
-                  <button id="revokeOtherSessionsBtn" class="button secondary" type="button">Завершить все кроме текущей</button>
+                  <button id="revokeOtherSessionsBtn" class="button secondary security-revoke-all-btn" type="button">Завершить все</button>
                 </div>
                 <div id="securitySessionsList" class="mt12"></div>
                 <p id="securitySessionsStatus" class="status mt8"></p>
@@ -3267,7 +3496,7 @@
             topRow.appendChild(refreshBtn);
           }
 
-          topRow.className = "row mt8";
+          topRow.className = "row mt8 security-sessions-actions";
           topRow.style.justifyContent = "space-between";
           topRow.style.alignItems = "center";
           topRow.style.gap = "8px";
@@ -3521,21 +3750,48 @@
             securitySessionsList.innerHTML = `<div class="muted">Активных сессий нет</div>`;
             return;
           }
-          securitySessionsList.innerHTML = items
+          const sortedItems = [...items].sort((a, b) => Number(!!b.isCurrent) - Number(!!a.isCurrent));
+          securitySessionsList.innerHTML = `
+            <div class="security-session-list">
+              ${sortedItems
             .map(
-              (item) => `
-                <div class="panel mt8" style="padding:8px;">
-                  <div><strong>${escapeHtml(item.deviceName || "Устройство")}</strong>${item.isCurrent ? " (текущая)" : ""}</div>
-                  <div class="muted mt8">Last active: ${escapeHtml(formatDateTime(item.lastActiveAt))}</div>
-                  <div class="muted">Создана: ${escapeHtml(formatDateTime(item.createdAt))}</div>
-                  ${item.isCurrent ? "" : `<div class="row mt8"><button class="button secondary" type="button" data-revoke-session="${escapeHtml(item.id)}">Завершить</button></div>`}
+              (item) => {
+                const deviceType = getSessionDeviceType(item);
+                const title = item.isCurrent ? "Это устройство" : item.deviceName || "Устройство";
+                const subtitle = item.isCurrent ? item.deviceName || "Текущее устройство" : item.platform || "";
+                return `
+                <div class="security-session-card ${item.isCurrent ? "current" : ""}">
+                  <span class="security-session-icon ${deviceType}" aria-hidden="true"></span>
+                  <div class="security-session-main">
+                    <div class="security-session-head">
+                      <div>
+                        <div class="security-session-name">${escapeHtml(title)}</div>
+                        ${subtitle ? `<div class="muted">${escapeHtml(subtitle)}</div>` : ""}
+                      </div>
+                      ${item.isCurrent ? `<span class="security-session-badge">Активно сейчас</span>` : ""}
+                    </div>
+                    <div class="security-session-meta">
+                      <div><strong>Активность:</strong> ${escapeHtml(formatSessionDateTime(item.lastActiveAt))}</div>
+                      <div><strong>Создана:</strong> ${escapeHtml(formatSessionDateTime(item.createdAt))}</div>
+                    </div>
+                    ${
+                      item.isCurrent
+                        ? ""
+                        : `<div class="security-session-actions"><button class="button secondary security-session-revoke-btn" type="button" data-revoke-session="${escapeHtml(item.id)}">Завершить</button></div>`
+                    }
+                  </div>
                 </div>
-              `
+              `;
+              }
             )
-            .join("");
+            .join("")}
+            </div>
+          `;
           for (const btn of securitySessionsList.querySelectorAll("[data-revoke-session]")) {
             btn.addEventListener("click", async () => {
               const id = btn.getAttribute("data-revoke-session");
+              const confirmed = await confirmAction("Завершить эту сессию?");
+              if (!confirmed) return;
               try {
                 await api(`/api/security/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
                 securitySessionsStatus.className = "status ok";
@@ -3612,6 +3868,8 @@
           }
         });
         revokeOtherSessionsBtn?.addEventListener("click", async () => {
+          const confirmed = await confirmAction("Завершить все сессии кроме текущей?");
+          if (!confirmed) return;
           try {
             const data = await api("/api/security/sessions/revoke-others", { method: "POST" });
             securitySessionsStatus.className = "status ok";
