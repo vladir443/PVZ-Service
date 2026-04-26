@@ -643,7 +643,12 @@
 
       body.theme-dark .bottom-nav-btn.active {
         background: transparent;
-        color: #f2f6fd;
+        color: #7fb4ff;
+      }
+
+      body.theme-dark .bottom-nav-btn.active .bottom-nav-icon {
+        filter: brightness(0) saturate(100%) invert(65%) sepia(39%) saturate(1235%)
+          hue-rotate(185deg) brightness(101%) contrast(101%);
       }
 
       body.theme-dark input[type="text"],
