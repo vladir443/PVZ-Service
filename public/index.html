@@ -514,7 +514,7 @@
         padding: 16px 18px calc(18px + env(safe-area-inset-bottom));
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 8px;
+        gap: 0;
         box-shadow: 0 -8px 24px rgba(20, 29, 45, 0.06);
       }
 
@@ -527,7 +527,7 @@
           border-right: 0;
           border-bottom: 0;
           border-radius: 0;
-          padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+          padding: 12px 8px calc(14px + env(safe-area-inset-bottom));
         }
       }
 
@@ -536,7 +536,7 @@
         border-radius: 0;
         background: transparent;
         color: #9d9d9f;
-        font-size: 15px;
+        font-size: 13px;
         font-weight: 700;
         padding: 0;
         text-align: center;
@@ -544,8 +544,9 @@
         display: grid;
         justify-items: center;
         align-content: center;
-        gap: 8px;
-        min-height: 62px;
+        gap: 6px;
+        min-height: 58px;
+        min-width: 0;
       }
 
       .bottom-nav-btn.active {
@@ -559,16 +560,16 @@
       }
 
       .bottom-nav-icon {
-        width: 28px;
-        height: 28px;
+        width: 25px;
+        height: 25px;
         object-fit: contain;
         filter: brightness(0) saturate(100%) invert(65%) sepia(0%) saturate(0%)
           hue-rotate(184deg) brightness(96%) contrast(87%);
       }
 
       .bottom-nav-icon.employees {
-        width: 31px;
-        height: 31px;
+        width: 28px;
+        height: 28px;
       }
 
       .bottom-nav-btn.active .bottom-nav-icon {
@@ -579,6 +580,9 @@
       .bottom-nav-label {
         line-height: 1.1;
         white-space: nowrap;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       body.theme-dark .overview-card,
