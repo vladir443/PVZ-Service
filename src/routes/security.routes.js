@@ -152,20 +152,6 @@ router.post("/pin/verify", (req, res, next) => {
     }
 
     setSessionPinVerified({ sessionId: req.session.id, verified: true });
-    logAuditEvent({
-      scope: "PERSONAL",
-      eventType: "PIN_VERIFY_SUCCESS",
-      actorUser: req.user,
-      actorTelegramId: req.user.telegramId,
-      actorRole: req.user.role,
-      targetUserId: req.user.id,
-      targetTelegramId: req.user.telegramId,
-      sessionId: req.session?.id || "",
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-      meta: {},
-      systemView: "TARGET_USER"
-    });
     return res.json({ ok: true, pinState: result.state || getPinStateByTelegramId(req.user.telegramId) });
   } catch (error) {
     return next(error);

@@ -725,14 +725,8 @@
         border-color: #355077;
       }
 
-      body.theme-dark .security-session-icon.desktop::before,
-      body.theme-dark .security-session-icon.mobile::before {
-        border-color: #9ec5ff;
-      }
-
-      body.theme-dark .security-session-icon.desktop::after,
-      body.theme-dark .security-session-icon.mobile::after {
-        background: #9ec5ff;
+      body.theme-dark .security-session-icon::before {
+        background: #ffffff;
       }
 
       body.theme-dark .security-session-meta strong {
@@ -1336,48 +1330,21 @@
         flex: 0 0 auto;
       }
 
-      .security-session-icon.desktop::before {
+      .security-session-icon::before {
         content: "";
         position: absolute;
-        left: 9px;
-        top: 9px;
-        width: 18px;
-        height: 13px;
-        border: 2px solid #275f9f;
-        border-radius: 3px;
-      }
-
-      .security-session-icon.desktop::after {
-        content: "";
-        position: absolute;
-        left: 13px;
-        bottom: 8px;
-        width: 12px;
-        height: 2px;
+        inset: 8px;
         background: #275f9f;
-        box-shadow: 4px -3px 0 -2px #275f9f;
+        mask: var(--session-icon) center / contain no-repeat;
+        -webkit-mask: var(--session-icon) center / contain no-repeat;
       }
 
-      .security-session-icon.mobile::before {
-        content: "";
-        position: absolute;
-        left: 12px;
-        top: 7px;
-        width: 14px;
-        height: 22px;
-        border: 2px solid #275f9f;
-        border-radius: 5px;
+      .security-session-icon.desktop {
+        --session-icon: url("/icons/session-desktop.png");
       }
 
-      .security-session-icon.mobile::after {
-        content: "";
-        position: absolute;
-        left: 17px;
-        bottom: 10px;
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: #275f9f;
+      .security-session-icon.mobile {
+        --session-icon: url("/icons/session-mobile.png");
       }
 
       .security-session-main {
@@ -4358,10 +4325,10 @@
 
         const securityLogLabels = {
           AUTH_LOGIN_SUCCESS: {
-            title: "Вход выполнен",
-            description: "Пользователь успешно вошел в приложение.",
+            title: "Вход с нового устройства",
+            description: "Пользователь вошел в приложение с устройства, которого раньше не было в активных сессиях.",
             badge: "Вход",
-            tone: "ok"
+            tone: "info"
           },
           AUTH_LOGIN_DENIED: {
             title: "Вход отклонен",
@@ -4569,7 +4536,11 @@
 
         const loadLogs = async (scope) => {
           const data = await api(`/api/security/journal?scope=${encodeURIComponent(scope)}&limit=50`);
-          const logs = data?.logs || [];
+          const logs = (data?.logs || []).filter((log) => {
+            if (log.eventType === "PIN_VERIFY_SUCCESS") return false;
+            if (log.eventType === "AUTH_LOGIN_SUCCESS") return !!log.meta?.isNewDevice;
+            return true;
+          });
           logsPersonalBtn.classList.toggle("active", scope === "PERSONAL");
           logsSystemBtn.classList.toggle("active", scope === "SYSTEM");
           if (!logs.length) {

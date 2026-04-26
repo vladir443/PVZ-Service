@@ -6,6 +6,7 @@ import {
   bindEmployeeTelegramId,
   createUser,
   getPinStateByTelegramId,
+  listActiveSessionsByUserId,
   getEmployeeByAuth,
   getUserByTelegramId,
   isCoreAdminUsername,
@@ -92,33 +93,45 @@ router.post("/login", async (req, res, next) => {
       }
     }
 
+    const priorSessions = listActiveSessionsByUserId({ userId: user.id });
+    const nextDeviceName = deviceName || `${req.headers["sec-ch-ua-platform"] || "device"}`;
+    const nextPlatform = platform || "";
+    const normalizeDevicePart = (value) => String(value || "").trim().toLowerCase();
+    const isNewDevice = !priorSessions.some((item) => (
+      normalizeDevicePart(item.deviceName) === normalizeDevicePart(nextDeviceName)
+      && normalizeDevicePart(item.platform) === normalizeDevicePart(nextPlatform)
+    ));
+
     const session = createUserSession({
       telegramId: user.telegramId,
-      deviceName: deviceName || `${req.headers["sec-ch-ua-platform"] || "device"}`,
-      platform: platform || "",
+      deviceName: nextDeviceName,
+      platform: nextPlatform,
       userAgent: req.headers["user-agent"] || "",
       ipAddress: req.ip || ""
     });
     const pinState = getPinStateByTelegramId(user.telegramId);
     const pinRequired = !!pinState?.enabled;
-    logAuditEvent({
-      scope: "PERSONAL",
-      eventType: "AUTH_LOGIN_SUCCESS",
-      actorUser: user,
-      actorTelegramId: user.telegramId,
-      actorRole: user.role,
-      targetUserId: user.id,
-      targetTelegramId: user.telegramId,
-      sessionId: session?.session_id || "",
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-      meta: {
-        deviceName: session?.device_name || deviceName || "",
-        platform: session?.platform || platform || "",
-        pinRequired
-      },
-      systemView: "TARGET_USER"
-    });
+    if (isNewDevice) {
+      logAuditEvent({
+        scope: "PERSONAL",
+        eventType: "AUTH_LOGIN_SUCCESS",
+        actorUser: user,
+        actorTelegramId: user.telegramId,
+        actorRole: user.role,
+        targetUserId: user.id,
+        targetTelegramId: user.telegramId,
+        sessionId: session?.session_id || "",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: {
+          deviceName: session?.device_name || deviceName || "",
+          platform: session?.platform || platform || "",
+          pinRequired,
+          isNewDevice: true
+        },
+        systemView: "TARGET_USER"
+      });
+    }
 
     return res.json({
       user,
