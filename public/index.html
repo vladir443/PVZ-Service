@@ -298,6 +298,10 @@
         min-width: 0;
       }
 
+      .location-label {
+        white-space: nowrap;
+      }
+
       .brand-ozon {
         color: #2563eb;
         font-weight: 700;
@@ -2851,13 +2855,13 @@
             const lower = part.toLowerCase();
             if (lower.startsWith("ozon")) {
               const match = part.match(/^(ozon)\s+(.*)$/i);
-              if (!match) return `<span class="brand-ozon">ozon</span>`;
-              return `<span class="brand-ozon">${escapeHtml(match[1])}</span> ${escapeHtml(match[2])}`;
+              if (!match) return `<span class="location-label"><span class="brand-ozon">ozon</span></span>`;
+              return `<span class="location-label"><span class="brand-ozon">${escapeHtml(match[1])}</span> ${escapeHtml(match[2])}</span>`;
             }
             if (lower.startsWith("wb")) {
               const match = part.match(/^(wb)\s+(.*)$/i);
-              if (!match) return `<span class="brand-wb">wb</span>`;
-              return `<span class="brand-wb">${escapeHtml(match[1])}</span> ${escapeHtml(match[2])}`;
+              if (!match) return `<span class="location-label"><span class="brand-wb">wb</span></span>`;
+              return `<span class="location-label"><span class="brand-wb">${escapeHtml(match[1])}</span> ${escapeHtml(match[2])}</span>`;
             }
             return escapeHtml(part);
           })
@@ -5038,7 +5042,7 @@
               <img src="/icons/employee-add.png" alt="Добавить сотрудника" />
             </button>
           </div>
-          <div id="employeeModal" class="modal hidden">
+          <div id="employeeModal" class="modal fullscreen-modal hidden">
             <div id="employeePanel" class="panel">
               <div class="employee-panel-head">
                 <button id="closeEmployeePanelBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
