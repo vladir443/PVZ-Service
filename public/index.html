@@ -749,10 +749,38 @@
         background: #203556;
       }
 
+      body.theme-dark .security-log-tab {
+        background: #122136;
+        border-color: #335174;
+        color: #dbe7f8;
+      }
+
+      body.theme-dark .security-log-tab.active {
+        background: #244b83;
+        border-color: #5f8ed1;
+        color: #ffffff;
+      }
+
+      body.theme-dark .security-log-day-title {
+        color: #e8eef8;
+      }
+
       body.theme-dark .security-log-card {
         background: #142238;
         border-color: #2f4566;
         box-shadow: none;
+      }
+
+      body.theme-dark .security-log-card.ok {
+        border-left-color: #32c278;
+      }
+
+      body.theme-dark .security-log-card.warning {
+        border-left-color: #f4b84d;
+      }
+
+      body.theme-dark .security-log-card.danger {
+        border-left-color: #f87171;
       }
 
       body.theme-dark .security-log-title {
@@ -767,30 +795,6 @@
 
       body.theme-dark .security-log-detail strong {
         color: #e5edf8;
-      }
-
-      body.theme-dark .security-log-badge {
-        background: #182941;
-        border-color: #355077;
-        color: #cbd8ea;
-      }
-
-      body.theme-dark .security-log-badge.ok {
-        background: #123524;
-        border-color: #236447;
-        color: #8be0b6;
-      }
-
-      body.theme-dark .security-log-badge.warning {
-        background: #3a2d14;
-        border-color: #745a20;
-        color: #f5d38a;
-      }
-
-      body.theme-dark .security-log-badge.danger {
-        background: #3b1b28;
-        border-color: #7e2b45;
-        color: #ffd2de;
       }
 
       body.theme-dark .admin-hours-card {
@@ -1436,91 +1440,115 @@
         background: #eef4fb;
       }
 
+      .security-log-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .security-log-tab {
+        border: 1px solid #cfdaea;
+        background: #ffffff;
+        color: #365071;
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+      }
+
+      .security-log-tab.active {
+        background: #1f5faf;
+        border-color: #1f5faf;
+        color: #ffffff;
+      }
+
       .security-log-list {
+        display: grid;
+        gap: 18px;
+      }
+
+      .security-log-group {
+        display: grid;
+        gap: 10px;
+      }
+
+      .security-log-day-title {
+        color: #304763;
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .security-log-group-list {
         display: grid;
         gap: 10px;
       }
 
       .security-log-card {
-        border: 1px solid #d7e2f0;
-        border-radius: 14px;
+        border: 1px solid #dce5f1;
+        border-left: 4px solid #4d7fcc;
+        border-radius: 16px;
         background: #ffffff;
-        padding: 12px;
+        padding: 14px 14px 13px;
         display: grid;
         gap: 8px;
-        box-shadow: 0 6px 16px rgba(31, 50, 80, 0.05);
+        box-shadow: 0 8px 24px rgba(31, 50, 80, 0.05);
+      }
+
+      .security-log-card.ok {
+        border-left-color: #2db86d;
+      }
+
+      .security-log-card.warning {
+        border-left-color: #f0b54b;
+      }
+
+      .security-log-card.danger {
+        border-left-color: #eb5757;
       }
 
       .security-log-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 10px;
+        display: grid;
+        gap: 4px;
       }
 
       .security-log-title {
         color: #14233a;
         font-size: 15px;
         font-weight: 800;
-        line-height: 1.25;
+        line-height: 1.28;
       }
 
       .security-log-time {
-        color: #6f7f96;
+        color: #70819a;
         font-size: 12px;
-        line-height: 1.25;
-        white-space: nowrap;
+        line-height: 1.3;
+        font-weight: 700;
       }
 
       .security-log-description {
         color: #40536f;
         font-size: 13px;
-        line-height: 1.4;
+        line-height: 1.45;
       }
 
       .security-log-details {
         display: grid;
-        gap: 5px;
+        gap: 6px;
         padding-top: 2px;
       }
 
       .security-log-detail {
         color: #64748b;
         font-size: 12px;
-        line-height: 1.35;
+        line-height: 1.4;
       }
 
       .security-log-detail strong {
         color: #2c4261;
-      }
-
-      .security-log-badge {
-        justify-self: start;
-        border: 1px solid #d8e3f2;
-        border-radius: 999px;
-        padding: 3px 8px;
-        background: #f5f8fc;
-        color: #52667f;
-        font-size: 11px;
-        font-weight: 800;
-      }
-
-      .security-log-badge.ok {
-        background: #ecfdf5;
-        border-color: #bcebd2;
-        color: #08744b;
-      }
-
-      .security-log-badge.warning {
-        background: #fff7e6;
-        border-color: #f3d79b;
-        color: #8a5a0a;
-      }
-
-      .security-log-badge.danger {
-        background: #fff1f2;
-        border-color: #f2b8c2;
-        color: #a1203c;
       }
 
       table {
@@ -3525,9 +3553,9 @@
 
               <div id="securityLogsSection" class="panel mt12 security-section hidden">
                 <h4 class="panel-title">Журнал действий</h4>
-                <div class="row mt8">
-                  <button id="logsPersonalBtn" class="button secondary" type="button">Персональный</button>
-                  <button id="logsSystemBtn" class="button secondary" type="button">Системный</button>
+                <div class="security-log-tabs mt8">
+                  <button id="logsPersonalBtn" class="security-log-tab active" type="button">Персональный</button>
+                  <button id="logsSystemBtn" class="security-log-tab" type="button">Системный</button>
                 </div>
                 <div id="securityLogsList" class="mt12"></div>
                 <p id="securityLogsStatus" class="status mt8"></p>
@@ -4506,36 +4534,82 @@
           return `<div class="security-log-details">${rows.join("")}</div>`;
         };
 
+        const getSecurityLogGroupLabel = (value) => {
+          const dt = new Date(String(value || "").trim());
+          if (!Number.isFinite(dt.getTime())) return "Ранее";
+          const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+          const today = startOfDay(new Date());
+          const target = startOfDay(dt);
+          const diffDays = Math.round((today - target) / 86400000);
+          if (diffDays === 0) return "Сегодня";
+          if (diffDays === 1) return "Вчера";
+          return "Ранее";
+        };
+
+        const formatSecurityLogTime = (value) => {
+          const raw = String(value || "").trim();
+          if (!raw) return "Без даты";
+          const dt = new Date(raw);
+          if (!Number.isFinite(dt.getTime())) return raw;
+          const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+          const today = startOfDay(new Date());
+          const target = startOfDay(dt);
+          const timePart = dt.toLocaleTimeString("ru-RU", {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+          if (target === today) return `Сегодня, ${timePart}`;
+          if (target === today - 86400000) return `Вчера, ${timePart}`;
+          return dt.toLocaleDateString("ru-RU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+          });
+        };
+
         const loadLogs = async (scope) => {
           const data = await api(`/api/security/journal?scope=${encodeURIComponent(scope)}&limit=50`);
           const logs = data?.logs || [];
-          logsPersonalBtn.classList.toggle("button", scope === "PERSONAL");
-          logsPersonalBtn.classList.toggle("secondary", scope !== "PERSONAL");
-          logsSystemBtn.classList.toggle("button", scope === "SYSTEM");
-          logsSystemBtn.classList.toggle("secondary", scope !== "SYSTEM");
+          logsPersonalBtn.classList.toggle("active", scope === "PERSONAL");
+          logsSystemBtn.classList.toggle("active", scope === "SYSTEM");
           if (!logs.length) {
             securityLogsList.innerHTML = `<div class="muted">Записей нет</div>`;
             return;
           }
+          const groups = { "Сегодня": [], "Вчера": [], "Ранее": [] };
+          for (const log of logs) {
+            groups[getSecurityLogGroupLabel(log.createdAt)]?.push(log);
+          }
           securityLogsList.innerHTML = `
             <div class="security-log-list">
-              ${logs
-                .map((log) => {
-                  const info = securityLogLabels[log.eventType] || {
-                    title: log.eventType || "Событие",
-                    description: "Запись системного журнала.",
-                    badge: "Событие",
-                    tone: ""
-                  };
+              ${["Сегодня", "Вчера", "Ранее"]
+                .map((groupName) => {
+                  const items = groups[groupName] || [];
+                  if (!items.length) return "";
                   return `
-                    <div class="security-log-card">
-                      <div class="security-log-head">
-                        <div class="security-log-title">${escapeHtml(info.title)}</div>
-                        <div class="security-log-time">${escapeHtml(formatDateTime(log.createdAt))}</div>
+                    <div class="security-log-group">
+                      <div class="security-log-day-title">${escapeHtml(groupName)}</div>
+                      <div class="security-log-group-list">
+                        ${items
+                          .map((log) => {
+                            const info = securityLogLabels[log.eventType] || {
+                              title: log.eventType || "Событие",
+                              description: "Запись системного журнала.",
+                              tone: ""
+                            };
+                            return `
+                              <div class="security-log-card ${escapeHtml(info.tone)}">
+                                <div class="security-log-head">
+                                  <div class="security-log-title">${escapeHtml(info.title)}</div>
+                                  <div class="security-log-time">${escapeHtml(formatSecurityLogTime(log.createdAt))}</div>
+                                </div>
+                                <div class="security-log-description">${escapeHtml(info.description)}</div>
+                                ${renderSecurityLogDetails(log.meta || {})}
+                              </div>
+                            `;
+                          })
+                          .join("")}
                       </div>
-                      <div class="security-log-badge ${escapeHtml(info.tone)}">${escapeHtml(info.badge)}</div>
-                      <div class="security-log-description">${escapeHtml(info.description)}</div>
-                      ${renderSecurityLogDetails(log.meta || {})}
                     </div>
                   `;
                 })
