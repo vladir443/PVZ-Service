@@ -267,8 +267,8 @@
 
       .home-list-item {
         display: grid;
-        grid-template-columns: 92px 1fr;
-        gap: 8px;
+        grid-template-columns: 76px 12px 1fr;
+        gap: 6px;
         align-items: start;
       }
 
@@ -277,19 +277,25 @@
         font-weight: 700;
         color: #273a57;
         white-space: nowrap;
-        display: flex;
-        align-items: baseline;
-        gap: 5px;
       }
 
       .home-list-sep {
         color: #7b8aa2;
+        font-size: 13px;
+        font-weight: 700;
+        text-align: center;
       }
 
       .home-list-address {
+        display: grid;
+        gap: 4px;
         font-size: 13px;
         color: #64748b;
         line-height: 1.35;
+      }
+
+      .home-list-address-line {
+        min-width: 0;
       }
 
       .brand-ozon {
@@ -506,6 +512,18 @@
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 6px;
+      }
+
+      @media (max-width: 640px) {
+        .bottom-nav {
+          left: 8px;
+          right: 8px;
+          bottom: calc(20px + env(safe-area-inset-bottom));
+          border: 1px solid #dce5f3;
+          border-radius: 16px;
+          padding: 6px 8px;
+          box-shadow: 0 10px 28px rgba(18, 31, 52, 0.14);
+        }
       }
 
       .bottom-nav-btn {
@@ -2419,7 +2437,7 @@
         .wrap { padding: 0; }
         .card {
           padding: 10px;
-          padding-bottom: 86px;
+          padding-bottom: 124px;
           min-height: 100dvh;
           border-radius: 0;
         }
@@ -3310,7 +3328,7 @@
             }
           }
           const groupedRows = [...emptyRowsByDate.entries()].map(
-            ([dateLabel, locations]) => `${dateLabel} — ${locations.join(", ")}`
+            ([dateLabel, locations]) => `${dateLabel} — ${locations.join("||")}`
           );
           if (groupedRows.length) {
             emptyShiftLines = groupedRows;
@@ -3321,12 +3339,19 @@
         const emptyShiftLinesHtml = emptyShiftLines
           .map((line) => {
             const parts = String(line || "").split(" — ");
+            if (parts.length < 2) {
+              return `<div class="home-list-address">${renderLocationLabelHtml(line)}</div>`;
+            }
             const dateLabel = parts[0] || "";
             const addrLabel = parts.slice(1).join(" — ");
+            const addressLines = addrLabel.split("||").filter(Boolean);
             return `
               <div class="home-list-item">
-                <div class="home-list-date">${escapeHtml(dateLabel)} <span class="home-list-sep">—</span></div>
-                <div class="home-list-address">${renderLocationLabelHtml(addrLabel)}</div>
+                <div class="home-list-date">${escapeHtml(dateLabel)}</div>
+                <div class="home-list-sep">—</div>
+                <div class="home-list-address">
+                  ${addressLines.map((item) => `<div class="home-list-address-line">${renderLocationLabelHtml(item)}</div>`).join("")}
+                </div>
               </div>
             `;
           })
@@ -3341,7 +3366,8 @@
             const addrLabel = parts.slice(1).join(" — ");
             return `
               <div class="home-list-item">
-                <div class="home-list-date">${escapeHtml(dateLabel)} <span class="home-list-sep">—</span></div>
+                <div class="home-list-date">${escapeHtml(dateLabel)}</div>
+                <div class="home-list-sep">—</div>
                 <div class="home-list-address">${renderLocationLabelHtml(addrLabel)}</div>
               </div>
             `;
@@ -3531,11 +3557,19 @@
           </div>
           <div id="notificationsModal" class="modal fullscreen-modal hidden">
             <div class="panel">
-              <div class="row" style="justify-content: flex-start; gap: 10px;">
-                <button id="closeNotificationsBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
-                  <img src="/icons/back-arrow.png" alt="Назад" />
-                </button>
-                <h3 class="panel-title">Уведомления</h3>
+              <div class="row" style="justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div class="row" style="justify-content: flex-start; gap: 10px;">
+                  <button id="closeNotificationsBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
+                    <img src="/icons/back-arrow.png" alt="Назад" />
+                  </button>
+                  <h3 class="panel-title">Уведомления</h3>
+                </div>
+                <div class="save-icon-wrap">
+                  <button id="saveReminderSettingsBtn" class="save-icon-btn" type="button" aria-label="Сохранить">
+                    <img src="/icons/save-action.png" alt="Сохранить" />
+                  </button>
+                  <div id="saveReminderSettingsFeedback" class="save-feedback"></div>
+                </div>
               </div>
               <div class="muted mt8">Настройка сообщений напоминаний от бота.</div>
               <div class="reminder-toggle-row mt12">
@@ -3551,14 +3585,6 @@
                   <div class="muted mt8">Отправка сообщения от бота</div>
                 </div>
                 <input id="reminder14EnabledInput" type="checkbox" ${state.user?.reminder14Enabled !== false ? "checked" : ""} />
-              </div>
-              <div class="row mt12">
-                <div class="save-icon-wrap">
-                  <button id="saveReminderSettingsBtn" class="save-icon-btn" type="button" aria-label="Сохранить">
-                    <img src="/icons/save-action.png" alt="Сохранить" />
-                  </button>
-                  <div id="saveReminderSettingsFeedback" class="save-feedback"></div>
-                </div>
               </div>
               <p id="reminderSettingsStatus" class="status mt12"></p>
             </div>
