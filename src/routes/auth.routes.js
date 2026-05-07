@@ -2,6 +2,7 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth, requireAuthAllowUnverifiedPin } from "../middleware/auth.js";
 import {
+  authIdFromPhone,
   createUserSession,
   bindEmployeeTelegramId,
   createUser,
@@ -21,8 +22,9 @@ import { getAdminTelegramIds, Role } from "../lib/roles.js";
 const router = express.Router();
 
 const loginSchema = z.object({
-  telegramId: z.string().min(1).max(64),
-  fullName: z.string().min(1).max(120),
+  phone: z.string().min(1).max(40).optional().default(""),
+  telegramId: z.string().max(64).optional().default(""),
+  fullName: z.string().max(120).optional().default(""),
   username: z.string().max(64).optional().default(""),
   photoUrl: z.string().max(2000).optional().default(""),
   deviceName: z.string().max(120).optional().default(""),
@@ -40,9 +42,18 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    const { telegramId, fullName, username, photoUrl, deviceName, platform } = parsed.data;
+    const { phone, username, photoUrl, deviceName, platform } = parsed.data;
+    const phoneAuthId = authIdFromPhone(phone);
+    const telegramId = phoneAuthId || String(parsed.data.telegramId || "").trim();
 
-    const employee = getEmployeeByAuth({ telegramId, username });
+    if (!telegramId) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: "Введите номер телефона"
+      });
+    }
+
+    const employee = getEmployeeByAuth({ telegramId, username, phone });
     if (!employee) {
       logAuditEvent({
         scope: "SYSTEM",
@@ -58,22 +69,25 @@ router.post("/login", async (req, res, next) => {
       });
       return res.status(403).json({
         error: "Forbidden",
-        message: "Доступ закрыт: вас нет в базе сотрудников"
+        message: "Доступ закрыт: этот номер не найден в базе сотрудников"
       });
     }
 
-    bindEmployeeTelegramId({ telegramId, username });
-    syncEmployeeTelegramProfile({ telegramId, username, photoUrl });
+    if (!phoneAuthId) {
+      bindEmployeeTelegramId({ telegramId, username });
+      syncEmployeeTelegramProfile({ telegramId, username, photoUrl });
+    }
 
     const adminIds = getAdminTelegramIds();
     const isProtectedOwner =
       employee.isProtected &&
-      String(employee.telegramId || "").trim() === String(telegramId || "").trim();
+      (phoneAuthId || String(employee.telegramId || "").trim() === String(telegramId || "").trim());
     const isSuperAdmin = isCoreAdminUsername(username) || isProtectedOwner;
     const shouldBeAdmin =
       isSuperAdmin || adminIds.has(telegramId) || employee.accessRole === Role.ADMIN;
 
     const existingUser = getUserByTelegramId(telegramId);
+    const fullName = String(parsed.data.fullName || "").trim() || employee.fullName;
 
     let user;
     if (!existingUser) {

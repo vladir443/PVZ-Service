@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PVZ Service</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
       :root {
         --bg: #f3f6fb;
@@ -63,6 +62,79 @@
       body.theme-dark .card {
         border-color: #24354f;
         box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+      }
+
+      .login-panel {
+        min-height: calc(100dvh - 120px);
+        display: grid;
+        place-items: center;
+        padding: 18px 0 34px;
+      }
+
+      .login-card {
+        width: min(420px, 100%);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #ffffff;
+        padding: 22px;
+        box-shadow: 0 18px 40px rgba(21, 35, 58, 0.1);
+      }
+
+      .login-title {
+        margin: 0;
+        font-size: 26px;
+        line-height: 1.12;
+        color: var(--text);
+      }
+
+      .login-subtitle {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .login-card label {
+        display: block;
+        margin-top: 18px;
+        font-weight: 800;
+        color: #263a58;
+      }
+
+      .login-card input {
+        width: 100%;
+        margin-top: 8px;
+        border: 1px solid #cfd9e8;
+        border-radius: 14px;
+        background: #fbfdff;
+        color: var(--text);
+        font-size: 18px;
+        font-weight: 700;
+        padding: 13px 14px;
+      }
+
+      .login-card input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+      }
+
+      .login-button {
+        width: 100%;
+        margin-top: 16px;
+        border: 0;
+        border-radius: 14px;
+        background: #1f5faf;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 900;
+        padding: 14px 16px;
+        cursor: pointer;
+      }
+
+      .login-button:disabled {
+        opacity: 0.6;
+        cursor: wait;
       }
 
       h1 { margin: 0; font-size: 24px; }
@@ -614,6 +686,22 @@
       body.theme-dark .employee-contacts,
       body.theme-dark .employee-roleline {
         color: var(--muted);
+      }
+
+      body.theme-dark .login-card {
+        background: #111b2d;
+        border-color: #26344c;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+      }
+
+      body.theme-dark .login-card label {
+        color: #dbe7f8;
+      }
+
+      body.theme-dark .login-card input {
+        background: #0f1a2d;
+        border-color: #334a6c;
+        color: #e8eef8;
       }
 
       body.theme-dark .home-list-date,
@@ -2571,6 +2659,7 @@
       const bottomNav = document.getElementById("bottomNav");
       const THEME_STORAGE_KEY = "pvz_theme";
       const SESSION_STORAGE_KEY = "pvz_session_id";
+      const AUTH_ID_STORAGE_KEY = "pvz_auth_id";
 
       function syncModalScrollLock() {
         const hasOpenModal = !!document.querySelector(".modal:not(.hidden), #securityPinFlowModal");
@@ -2749,8 +2838,11 @@
         if (state.currentEmployee) return state.currentEmployee;
         const ownTelegramId = String(state.user?.telegramId || "").trim();
         if (!ownTelegramId) return null;
+        const ownPhoneDigits = ownTelegramId.startsWith("phone:") ? ownTelegramId.slice("phone:".length) : "";
         const fromList = (state.employees || []).find(
-          (emp) => String(emp?.telegramId || "").trim() === ownTelegramId
+          (emp) =>
+            String(emp?.telegramId || "").trim() === ownTelegramId ||
+            (ownPhoneDigits && onlyDigits(emp?.phone || "") === ownPhoneDigits)
         );
         return fromList || null;
       }
@@ -2887,7 +2979,7 @@
           "Content-Type": "application/json",
           ...(options.headers || {})
         };
-        if (state.telegramId) headers["x-telegram-id"] = state.telegramId;
+        if (state.telegramId) headers["x-auth-id"] = state.telegramId;
         if (state.sessionId) headers["x-session-id"] = state.sessionId;
 
         const response = await fetch(path, { ...options, headers });
@@ -2928,6 +3020,83 @@
         state.locations = locationsData.locations || [];
         await loadEmployeesSafe();
         renderMain();
+      }
+
+      function renderPhoneLogin() {
+        setAppTitle("PVZ Service");
+        bottomNav.innerHTML = "";
+        screen.innerHTML = `
+          <div class="login-panel">
+            <div class="login-card">
+              <h2 class="login-title">Вход для сотрудников</h2>
+              <div class="login-subtitle">Введите номер телефона, который указан в базе сотрудников.</div>
+              <label for="siteLoginPhoneInput">Номер телефона</label>
+              <input id="siteLoginPhoneInput" type="tel" inputmode="numeric" autocomplete="tel" placeholder="+7 922 ***-**-94" />
+              <button id="siteLoginBtn" class="login-button" type="button">Войти</button>
+              <p id="siteLoginStatus" class="status mt12"></p>
+            </div>
+          </div>
+        `;
+        const input = document.getElementById("siteLoginPhoneInput");
+        const button = document.getElementById("siteLoginBtn");
+        const status = document.getElementById("siteLoginStatus");
+
+        input?.addEventListener("focus", () => {
+          if (!input.value.trim()) input.value = "+7";
+        });
+        input?.addEventListener("input", () => {
+          input.value = applyPhoneMask(input.value);
+          status.className = "status";
+          status.textContent = "";
+        });
+
+        const loginByPhone = async () => {
+          const phone = normalizePhone(input?.value || "");
+          if (!phone) {
+            status.className = "status error";
+            status.textContent = "Введите номер в формате +7 999 123-45-67";
+            return;
+          }
+          button.disabled = true;
+          status.className = "status";
+          status.textContent = "Входим...";
+          try {
+            const login = await api("/api/auth/login", {
+              method: "POST",
+              body: JSON.stringify({
+                phone,
+                deviceName: navigator.platform || "device",
+                platform: isPhoneClient() ? "mobile-web" : "desktop-web"
+              })
+            });
+            state.user = login.user;
+            state.telegramUser = null;
+            state.telegramId = login.user.telegramId;
+            state.sessionId = String(login?.session?.id || "");
+            try {
+              localStorage.setItem(SESSION_STORAGE_KEY, state.sessionId);
+              localStorage.setItem(AUTH_ID_STORAGE_KEY, state.telegramId);
+            } catch {}
+            state.selectedMonth = monthNow();
+            state.avatarNonce = String(Date.now());
+            state.security.pinState = login?.security?.pinState || null;
+            if (login?.security?.pinRequired) {
+              renderPinGate(login?.security?.pinState || null);
+              return;
+            }
+            await bootstrapAfterAuth();
+          } catch (error) {
+            status.className = "status error";
+            status.textContent = String(error?.message || "Не удалось войти");
+          } finally {
+            button.disabled = false;
+          }
+        };
+
+        button?.addEventListener("click", loginByPhone);
+        input?.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") loginByPhone();
+        });
       }
 
       function renderPinGate(pinState = null) {
@@ -3079,7 +3248,11 @@
           }
         });
         document.getElementById("pinGateCloseBtn")?.addEventListener("click", () => {
-          tg?.close?.();
+          state.sessionId = "";
+          try {
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+          } catch {}
+          renderPhoneLogin();
         });
         renderDots();
       }
@@ -3094,18 +3267,13 @@
           } catch {}
           applyTheme();
           screen.innerHTML = `<p class="muted">Подключаемся...</p>`;
-          const tgUser = getTelegramUser();
-          if (!tgUser) {
-            screen.innerHTML = `<p class="status error">Открой Mini App из Telegram.</p>`;
-            return;
-          }
-
-          state.telegramUser = tgUser;
-          state.telegramId = tgUser.telegramId;
+          state.telegramUser = null;
 
           try {
             const savedSessionId = String(localStorage.getItem(SESSION_STORAGE_KEY) || "").trim();
-            if (savedSessionId) {
+            const savedAuthId = String(localStorage.getItem(AUTH_ID_STORAGE_KEY) || "").trim();
+            if (savedSessionId && savedAuthId) {
+              state.telegramId = savedAuthId;
               state.sessionId = savedSessionId;
               const sessionData = await api("/api/auth/session");
               state.user = sessionData?.user || null;
@@ -3122,40 +3290,14 @@
               }
             }
           } catch {
+            state.telegramId = "";
             state.sessionId = "";
             try {
               localStorage.removeItem(SESSION_STORAGE_KEY);
+              localStorage.removeItem(AUTH_ID_STORAGE_KEY);
             } catch {}
           }
-
-          const login = await api("/api/auth/login", {
-            method: "POST",
-            body: JSON.stringify({
-              telegramId: tgUser.telegramId,
-              fullName: tgUser.fullName,
-              username: tgUser.username || "",
-              photoUrl: tgUser.photoUrl || "",
-              deviceName: tg?.platform || navigator.platform || "device",
-              platform: tg?.platform || ""
-            })
-          });
-
-          state.user = login.user;
-          state.telegramId = login.user.telegramId;
-          state.sessionId = String(login?.session?.id || "");
-          try {
-            localStorage.setItem(SESSION_STORAGE_KEY, state.sessionId);
-          } catch {}
-          state.selectedMonth = monthNow();
-          state.avatarNonce = String(Date.now());
-          state.security.pinState = login?.security?.pinState || null;
-
-          if (login?.security?.pinRequired) {
-            renderPinGate(login?.security?.pinState || null);
-            return;
-          }
-
-          await bootstrapAfterAuth();
+          renderPhoneLogin();
         } catch (error) {
           screen.innerHTML = `<p class="status error">Ошибка: ${escapeHtml(error.message)}</p>`;
         }
@@ -3163,7 +3305,8 @@
 
       async function renderMain() {
         setAppTitle("PVZ Service");
-        const photo = withAvatarCacheBust(state.telegramUser?.photoUrl || "");
+        const currentEmployee = getCurrentEmployeeFromState();
+        const photo = withAvatarCacheBust(currentEmployee?.avatarUrl || "");
         const initials = (state.user?.fullName || "?")
           .split(" ")
           .filter(Boolean)
@@ -3460,7 +3603,7 @@
             }, 0);
           }
         } catch {}
-        const photo = withAvatarCacheBust(state.telegramUser?.photoUrl || "");
+        const photo = withAvatarCacheBust(employeeProfile?.avatarUrl || "");
         const initials = (state.user?.fullName || "?")
           .split(" ")
           .filter(Boolean)
@@ -3490,8 +3633,8 @@
                 <div class="big">${monthShiftCount}</div>
               </div>
               <div class="overview-card purple">
-                <h3>Telegram</h3>
-                <div class="big">${escapeHtml(state.telegramUser?.username || "@user")}</div>
+                <h3>Телефон</h3>
+                <div class="big">${escapeHtml(employeeProfile?.phone || "не указан")}</div>
               </div>
             </div>
           </div>
@@ -4936,6 +5079,13 @@
         return masked;
       }
 
+      function authIdFromPhoneClient(value) {
+        const normalized = normalizePhone(value);
+        if (!normalized) return "";
+        const digits = onlyDigits(normalized);
+        return digits ? `phone:${digits}` : "";
+      }
+
       async function renderEmployeesBase() {
         setAppTitle("");
         await loadEmployees();
@@ -4948,10 +5098,7 @@
                     <div class="employee-main">
                       ${(() => {
                         const effectiveAvatarRaw =
-                          emp.avatarUrl ||
-                          (String(emp.telegramId || "") === String(state.telegramId || "")
-                            ? state.telegramUser?.photoUrl || ""
-                            : "");
+                          emp.avatarUrl || "";
                         const effectiveAvatar = withAvatarCacheBust(
                           effectiveAvatarRaw,
                           `${state.avatarNonce}-${emp.telegramId || emp.id || "emp"}`

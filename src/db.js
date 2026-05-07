@@ -312,6 +312,17 @@ function normalizeUsername(value) {
   return source.startsWith("@") ? source.slice(1) : source;
 }
 
+function normalizePhoneDigits(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("8") ? `7${digits.slice(1)}` : digits;
+}
+
+export function authIdFromPhone(phone) {
+  const digits = normalizePhoneDigits(phone);
+  return digits ? `phone:${digits}` : "";
+}
+
 function ensureCoreEmployee() {
   const existing = db
     .prepare(
@@ -1622,6 +1633,10 @@ export function insertShiftReminderLog({
 }
 
 export function getEmployeeByTelegramId(telegramId) {
+  const safeTelegramId = String(telegramId || "").trim();
+  const phoneDigits = safeTelegramId.startsWith("phone:")
+    ? normalizePhoneDigits(safeTelegramId.slice("phone:".length))
+    : "";
   const row = db
     .prepare(
       `
@@ -1629,10 +1644,11 @@ export function getEmployeeByTelegramId(telegramId) {
            , access_role
       FROM employees
       WHERE telegram_id = ?
+         OR (? <> '' AND replace(replace(replace(replace(replace(phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = ?)
       LIMIT 1
       `
     )
-    .get(String(telegramId || "").trim());
+    .get(safeTelegramId, phoneDigits, phoneDigits);
 
   if (!row) return null;
   return {
@@ -1653,7 +1669,42 @@ export function getEmployeeByTelegramId(telegramId) {
   };
 }
 
-export function getEmployeeByAuth({ telegramId, username }) {
+export function getEmployeeByPhone(phone) {
+  const phoneDigits = normalizePhoneDigits(phone);
+  if (!phoneDigits) return null;
+  const row = db
+    .prepare(
+      `
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      FROM employees
+      WHERE replace(replace(replace(replace(replace(phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = ?
+      LIMIT 1
+      `
+    )
+    .get(phoneDigits);
+
+  if (!row) return null;
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    telegramId: row.telegram_id,
+    avatarUrl: row.avatar_url,
+    phone: row.phone,
+    telegramContact: row.telegram_contact,
+    vkContact: row.vk_contact,
+    position: row.position,
+    reliability: row.reliability,
+    accessRole: fromDbRole(row.access_role, row.is_protected === 1),
+    isProtected: row.is_protected === 1,
+    createdAt: row.created_at
+  };
+}
+
+export function getEmployeeByAuth({ telegramId, username, phone = "" }) {
+  const byPhone = getEmployeeByPhone(phone);
+  if (byPhone) return byPhone;
   const normalizedUsername = normalizeUsername(username);
   const row = db
     .prepare(

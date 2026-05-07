@@ -2,13 +2,13 @@ import { getActiveSessionWithUser, getPinStateByTelegramId, touchSession } from 
 
 async function authBase(req, res, next, { allowUnverifiedPin = false } = {}) {
   try {
-    const telegramId = req.header("x-telegram-id")?.trim();
+    const telegramId = (req.header("x-auth-id") || req.header("x-telegram-id") || "").trim();
     const sessionId = req.header("x-session-id")?.trim();
 
     if (!telegramId) {
       return res.status(401).json({
         error: "Unauthorized",
-        message: "x-telegram-id header is required"
+        message: "x-auth-id header is required"
       });
     }
 
