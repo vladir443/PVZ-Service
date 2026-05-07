@@ -146,6 +146,10 @@
 
       .muted { color: var(--muted); }
 
+      .hidden {
+        display: none !important;
+      }
+
       .row {
         display: flex;
         gap: 8px;
@@ -3025,21 +3029,32 @@
       function renderPhoneLogin() {
         setAppTitle("PVZ Service");
         bottomNav.innerHTML = "";
+        let requestedPhone = "";
         screen.innerHTML = `
           <div class="login-panel">
             <div class="login-card">
               <h2 class="login-title">Вход для сотрудников</h2>
-              <div class="login-subtitle">Введите номер телефона, который указан в базе сотрудников.</div>
+              <div id="siteLoginSubtitle" class="login-subtitle">Введите номер телефона, который указан в базе сотрудников.</div>
               <label for="siteLoginPhoneInput">Номер телефона</label>
               <input id="siteLoginPhoneInput" type="tel" inputmode="numeric" autocomplete="tel" placeholder="+7 922 ***-**-94" />
-              <button id="siteLoginBtn" class="login-button" type="button">Войти</button>
+              <div id="siteLoginCodeWrap" class="hidden">
+                <label for="siteLoginCodeInput">SMS-код</label>
+                <input id="siteLoginCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр" />
+              </div>
+              <button id="siteLoginBtn" class="login-button" type="button">Получить код</button>
+              <button id="siteLoginBackBtn" class="button secondary hidden" type="button" style="width:100%; margin-top:8px;">Изменить номер</button>
               <p id="siteLoginStatus" class="status mt12"></p>
             </div>
           </div>
         `;
         const input = document.getElementById("siteLoginPhoneInput");
+        const codeInput = document.getElementById("siteLoginCodeInput");
+        const codeWrap = document.getElementById("siteLoginCodeWrap");
+        const subtitle = document.getElementById("siteLoginSubtitle");
         const button = document.getElementById("siteLoginBtn");
+        const backBtn = document.getElementById("siteLoginBackBtn");
         const status = document.getElementById("siteLoginStatus");
+        let step = "phone";
 
         input?.addEventListener("focus", () => {
           if (!input.value.trim()) input.value = "+7";
@@ -3049,8 +3064,26 @@
           status.className = "status";
           status.textContent = "";
         });
+        codeInput?.addEventListener("input", () => {
+          codeInput.value = onlyDigits(codeInput.value).slice(0, 6);
+          status.className = "status";
+          status.textContent = "";
+        });
 
-        const loginByPhone = async () => {
+        const setStep = (nextStep) => {
+          step = nextStep;
+          const isCode = step === "code";
+          codeWrap?.classList.toggle("hidden", !isCode);
+          backBtn?.classList.toggle("hidden", !isCode);
+          input.disabled = isCode;
+          button.textContent = isCode ? "Подтвердить" : "Получить код";
+          subtitle.textContent = isCode
+            ? "Введите код из SMS, который отправлен на ваш номер."
+            : "Введите номер телефона, который указан в базе сотрудников.";
+          if (isCode) codeInput?.focus();
+        };
+
+        const requestCode = async () => {
           const phone = normalizePhone(input?.value || "");
           if (!phone) {
             status.className = "status error";
@@ -3059,12 +3092,42 @@
           }
           button.disabled = true;
           status.className = "status";
-          status.textContent = "Входим...";
+          status.textContent = "Отправляем код...";
+          try {
+            const data = await api("/api/auth/request-code", {
+              method: "POST",
+              body: JSON.stringify({ phone })
+            });
+            requestedPhone = phone;
+            setStep("code");
+            status.className = data?.devCode ? "status ok" : "status";
+            status.textContent = data?.devCode
+              ? `Тестовый код: ${data.devCode}`
+              : "Код отправлен по SMS";
+          } catch (error) {
+            status.className = "status error";
+            status.textContent = String(error?.message || "Не удалось отправить код");
+          } finally {
+            button.disabled = false;
+          }
+        };
+
+        const confirmCode = async () => {
+          const smsCode = onlyDigits(codeInput?.value || "");
+          if (smsCode.length !== 6) {
+            status.className = "status error";
+            status.textContent = "Введите 6 цифр из SMS";
+            return;
+          }
+          button.disabled = true;
+          status.className = "status";
+          status.textContent = "Проверяем код...";
           try {
             const login = await api("/api/auth/login", {
               method: "POST",
               body: JSON.stringify({
-                phone,
+                phone: requestedPhone,
+                smsCode,
                 deviceName: navigator.platform || "device",
                 platform: isPhoneClient() ? "mobile-web" : "desktop-web"
               })
@@ -3084,6 +3147,10 @@
               renderPinGate(login?.security?.pinState || null);
               return;
             }
+            if (!login?.security?.pinEnabled) {
+              renderInitialPinSetup();
+              return;
+            }
             await bootstrapAfterAuth();
           } catch (error) {
             status.className = "status error";
@@ -3093,9 +3160,89 @@
           }
         };
 
-        button?.addEventListener("click", loginByPhone);
+        button?.addEventListener("click", () => {
+          if (step === "code") {
+            confirmCode();
+            return;
+          }
+          requestCode();
+        });
+        backBtn?.addEventListener("click", () => {
+          requestedPhone = "";
+          codeInput.value = "";
+          input.disabled = false;
+          setStep("phone");
+          status.className = "status";
+          status.textContent = "";
+          input?.focus();
+        });
         input?.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") loginByPhone();
+          if (event.key === "Enter") requestCode();
+        });
+        codeInput?.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") confirmCode();
+        });
+      }
+
+      function renderInitialPinSetup() {
+        setAppTitle("");
+        bottomNav.innerHTML = "";
+        screen.innerHTML = `
+          <div class="login-panel">
+            <div class="login-card">
+              <h2 class="login-title">Создайте PIN-код</h2>
+              <div class="login-subtitle">PIN будет запрашиваться при входе в программу на этом сайте.</div>
+              <label for="initialPinInput">Новый PIN</label>
+              <input id="initialPinInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+              <label for="initialPinRepeatInput">Повторите PIN</label>
+              <input id="initialPinRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите PIN" />
+              <button id="initialPinSaveBtn" class="login-button" type="button">Создать PIN</button>
+              <p id="initialPinStatus" class="status mt12"></p>
+            </div>
+          </div>
+        `;
+        const pinInput = document.getElementById("initialPinInput");
+        const repeatInput = document.getElementById("initialPinRepeatInput");
+        const saveBtn = document.getElementById("initialPinSaveBtn");
+        const status = document.getElementById("initialPinStatus");
+        for (const input of [pinInput, repeatInput]) {
+          input?.addEventListener("input", () => {
+            input.value = normalizePinDigitsGlobal(input.value);
+            status.className = "status";
+            status.textContent = "";
+          });
+        }
+        const save = async () => {
+          const pin = normalizePinDigitsGlobal(pinInput?.value || "");
+          const repeatPin = normalizePinDigitsGlobal(repeatInput?.value || "");
+          if (!isPinLengthValidGlobal(pin)) {
+            status.className = "status error";
+            status.textContent = "PIN должен быть от 4 до 8 цифр";
+            return;
+          }
+          if (pin !== repeatPin) {
+            status.className = "status error";
+            status.textContent = "PIN и повтор не совпадают";
+            return;
+          }
+          saveBtn.disabled = true;
+          try {
+            const data = await api("/api/security/pin/enable", {
+              method: "POST",
+              body: JSON.stringify({ pin })
+            });
+            state.security.pinState = data?.pinState || null;
+            await bootstrapAfterAuth();
+          } catch (error) {
+            status.className = "status error";
+            status.textContent = String(error?.message || "Не удалось создать PIN");
+          } finally {
+            saveBtn.disabled = false;
+          }
+        };
+        saveBtn?.addEventListener("click", save);
+        repeatInput?.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") save();
         });
       }
 
@@ -3283,6 +3430,10 @@
                 state.avatarNonce = String(Date.now());
                 if (sessionData?.security?.pinRequired) {
                   renderPinGate(sessionData?.security?.pinState || null);
+                  return;
+                }
+                if (!sessionData?.security?.pinEnabled) {
+                  renderInitialPinSetup();
                   return;
                 }
                 await bootstrapAfterAuth();
@@ -5084,6 +5235,14 @@
         if (!normalized) return "";
         const digits = onlyDigits(normalized);
         return digits ? `phone:${digits}` : "";
+      }
+
+      function normalizePinDigitsGlobal(value) {
+        return String(value || "").replace(/\D/g, "").slice(0, 8);
+      }
+
+      function isPinLengthValidGlobal(pin) {
+        return /^\d{4,8}$/.test(String(pin || ""));
       }
 
       async function renderEmployeesBase() {

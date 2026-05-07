@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireAuthAllowUnverifiedPin } from "../middleware/auth.js";
 import {
   authIdFromPhone,
+  createPhoneLoginCode,
   createUserSession,
   bindEmployeeTelegramId,
   createUser,
@@ -15,20 +16,94 @@ import {
   syncEmployeeTelegramProfile,
   updateUserReminderSettings,
   updateUserProfile,
-  updateUserRole
+  updateUserRole,
+  verifyPhoneLoginCode
 } from "../db.js";
 import { getAdminTelegramIds, Role } from "../lib/roles.js";
+import { env } from "../config/env.js";
 
 const router = express.Router();
 
 const loginSchema = z.object({
   phone: z.string().min(1).max(40).optional().default(""),
+  smsCode: z.string().max(10).optional().default(""),
   telegramId: z.string().max(64).optional().default(""),
   fullName: z.string().max(120).optional().default(""),
   username: z.string().max(64).optional().default(""),
   photoUrl: z.string().max(2000).optional().default(""),
   deviceName: z.string().max(120).optional().default(""),
   platform: z.string().max(60).optional().default("")
+});
+
+const requestCodeSchema = z.object({
+  phone: z.string().min(1).max(40)
+});
+
+async function sendSmsCode({ phone, code }) {
+  if (!env.SMS_WEBHOOK_URL) {
+    console.log(`[sms-dev] ${phone}: ${code}`);
+    return { sent: false, devCode: code };
+  }
+
+  const response = await fetch(env.SMS_WEBHOOK_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(env.SMS_WEBHOOK_TOKEN ? { Authorization: `Bearer ${env.SMS_WEBHOOK_TOKEN}` } : {})
+    },
+    body: JSON.stringify({
+      phone,
+      text: `PVZ Service: код входа ${code}`,
+      code
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`SMS provider error: ${response.status}`);
+  }
+
+  return { sent: true };
+}
+
+router.post("/request-code", async (req, res, next) => {
+  try {
+    const parsed = requestCodeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const employee = getEmployeeByAuth({ phone: parsed.data.phone, telegramId: "", username: "" });
+    if (!employee) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Доступ закрыт: этот номер не найден в базе сотрудников"
+      });
+    }
+
+    const codeResult = createPhoneLoginCode({ phone: parsed.data.phone });
+    if (!codeResult.ok) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: "Некорректный номер телефона"
+      });
+    }
+
+    const smsResult = await sendSmsCode({
+      phone: employee.phone || parsed.data.phone,
+      code: codeResult.code
+    });
+
+    return res.json({
+      ok: true,
+      expiresAt: codeResult.record?.expiresAt || "",
+      devCode: smsResult.devCode || ""
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.post("/login", async (req, res, next) => {
@@ -42,7 +117,7 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    const { phone, username, photoUrl, deviceName, platform } = parsed.data;
+    const { phone, smsCode, username, photoUrl, deviceName, platform } = parsed.data;
     const phoneAuthId = authIdFromPhone(phone);
     const telegramId = phoneAuthId || String(parsed.data.telegramId || "").trim();
 
@@ -51,6 +126,18 @@ router.post("/login", async (req, res, next) => {
         error: "ValidationError",
         message: "Введите номер телефона"
       });
+    }
+
+    if (phoneAuthId) {
+      const codeResult = verifyPhoneLoginCode({ phone, code: smsCode });
+      if (!codeResult.ok) {
+        return res.status(401).json({
+          error: "InvalidSmsCode",
+          message: codeResult.reason === "expired"
+            ? "Код истек. Запросите новый код"
+            : "Неверный SMS-код"
+        });
+      }
     }
 
     const employee = getEmployeeByAuth({ telegramId, username, phone });

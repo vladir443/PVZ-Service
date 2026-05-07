@@ -8,7 +8,9 @@ const envSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   DATABASE_PATH: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().default(""),
-  ADMIN_TELEGRAM_IDS: z.string().default("")
+  ADMIN_TELEGRAM_IDS: z.string().default(""),
+  SMS_WEBHOOK_URL: z.string().default(""),
+  SMS_WEBHOOK_TOKEN: z.string().default("")
 });
 
 const parsed = envSchema.safeParse(process.env);

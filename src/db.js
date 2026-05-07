@@ -164,6 +164,19 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS phone_login_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone_digits TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    code_salt TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS security_audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scope TEXT NOT NULL CHECK(scope IN ('PERSONAL', 'SYSTEM')),
@@ -1786,6 +1799,103 @@ function isValidPinFormat(pin) {
 
 function createPinHash(pin, salt) {
   return crypto.scryptSync(pin, salt, 64).toString("hex");
+}
+
+function createSmsCodeHash(code, salt) {
+  return crypto.scryptSync(String(code || ""), salt, 64).toString("hex");
+}
+
+function mapPhoneLoginCodeRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    phoneDigits: row.phone_digits,
+    attempts: row.attempts,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at,
+    createdAt: row.created_at
+  };
+}
+
+export function createPhoneLoginCode({ phone, ttlMinutes = 10 }) {
+  const phoneDigits = normalizePhoneDigits(phone);
+  if (!phoneDigits) return { ok: false, reason: "invalid_phone" };
+
+  db.prepare(
+    `
+    UPDATE phone_login_codes
+    SET consumed_at = datetime('now')
+    WHERE phone_digits = ?
+      AND consumed_at = ''
+    `
+  ).run(phoneDigits);
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = createSmsCodeHash(code, salt);
+  const safeTtl = Math.max(1, Math.min(30, Number(ttlMinutes) || 10));
+  const expiresAt = new Date(Date.now() + safeTtl * 60 * 1000).toISOString();
+  const result = db
+    .prepare(
+      `
+      INSERT INTO phone_login_codes (phone_digits, code_hash, code_salt, expires_at)
+      VALUES (?, ?, ?, ?)
+      `
+    )
+    .run(phoneDigits, hash, salt, expiresAt);
+
+  const row = db
+    .prepare(
+      `
+      SELECT id, phone_digits, attempts, expires_at, consumed_at, created_at
+      FROM phone_login_codes
+      WHERE id = ?
+      `
+    )
+    .get(result.lastInsertRowid);
+
+  return { ok: true, code, record: mapPhoneLoginCodeRow(row) };
+}
+
+export function verifyPhoneLoginCode({ phone, code }) {
+  const phoneDigits = normalizePhoneDigits(phone);
+  const safeCode = String(code || "").replace(/\D/g, "");
+  if (!phoneDigits || !/^\d{6}$/.test(safeCode)) {
+    return { ok: false, reason: "invalid_code" };
+  }
+
+  const row = db
+    .prepare(
+      `
+      SELECT id, phone_digits, code_hash, code_salt, attempts, expires_at, consumed_at, created_at
+      FROM phone_login_codes
+      WHERE phone_digits = ?
+        AND consumed_at = ''
+      ORDER BY id DESC
+      LIMIT 1
+      `
+    )
+    .get(phoneDigits);
+
+  if (!row) return { ok: false, reason: "not_found" };
+  if (new Date(row.expires_at).getTime() < Date.now()) return { ok: false, reason: "expired" };
+  if (Number(row.attempts || 0) >= 5) return { ok: false, reason: "too_many_attempts" };
+
+  const incomingHash = createSmsCodeHash(safeCode, row.code_salt);
+  let matched = false;
+  try {
+    matched = crypto.timingSafeEqual(Buffer.from(incomingHash, "hex"), Buffer.from(row.code_hash, "hex"));
+  } catch {
+    matched = false;
+  }
+
+  if (!matched) {
+    db.prepare("UPDATE phone_login_codes SET attempts = attempts + 1 WHERE id = ?").run(row.id);
+    return { ok: false, reason: "invalid_code" };
+  }
+
+  db.prepare("UPDATE phone_login_codes SET consumed_at = datetime('now') WHERE id = ?").run(row.id);
+  return { ok: true, phoneDigits };
 }
 
 function createSessionId() {
