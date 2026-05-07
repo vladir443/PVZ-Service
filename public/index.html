@@ -43,7 +43,8 @@
       }
 
       .wrap {
-        max-width: none;
+        width: min(430px, 100%);
+        max-width: 430px;
         margin: 0 auto;
         padding: 10px;
         min-height: 100dvh;
@@ -65,18 +66,18 @@
       }
 
       .login-panel {
-        min-height: calc(100dvh - 120px);
+        min-height: calc(100dvh - 170px);
         display: grid;
         place-items: center;
-        padding: 18px 0 34px;
+        padding: 24px 12px 96px;
       }
 
       .login-card {
-        width: min(420px, 100%);
+        width: min(360px, calc(100vw - 32px));
         border: 1px solid var(--line);
         border-radius: 18px;
         background: #ffffff;
-        padding: 22px;
+        padding: 22px 20px;
         box-shadow: 0 18px 40px rgba(21, 35, 58, 0.1);
       }
 
@@ -85,6 +86,7 @@
         font-size: 26px;
         line-height: 1.12;
         color: var(--text);
+        text-align: center;
       }
 
       .login-subtitle {
@@ -92,6 +94,7 @@
         color: var(--muted);
         font-size: 14px;
         line-height: 1.45;
+        text-align: center;
       }
 
       .login-card label {
@@ -135,6 +138,26 @@
       .login-button:disabled {
         opacity: 0.6;
         cursor: wait;
+      }
+
+      .pin-setup-card {
+        padding: 24px 20px 22px;
+      }
+
+      .pin-setup-card .pin-gate-shield {
+        margin-top: 4px;
+      }
+
+      .pin-setup-card .pin-gate-dots {
+        margin-top: 22px;
+      }
+
+      .pin-setup-card .pin-gate-keypad {
+        margin-top: 22px;
+      }
+
+      .pin-setup-card .pin-modal-progress {
+        margin-top: 12px;
       }
 
       h1 { margin: 0; font-size: 24px; }
@@ -2803,19 +2826,7 @@
       }
 
       async function ensureDesktopFullscreenForSchedule() {
-        if (isPhoneClient()) return;
-        try {
-          if (typeof tg?.requestFullscreen === "function") {
-            tg.requestFullscreen();
-            return;
-          }
-        } catch {}
-
-        try {
-          if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-            await document.documentElement.requestFullscreen();
-          }
-        } catch {}
+        return;
       }
 
       function canEditEmployeeFromList(employee) {
@@ -3187,63 +3198,147 @@
       function renderInitialPinSetup() {
         setAppTitle("");
         bottomNav.innerHTML = "";
-        screen.innerHTML = `
-          <div class="login-panel">
-            <div class="login-card">
-              <h2 class="login-title">Создайте PIN-код</h2>
-              <div class="login-subtitle">PIN будет запрашиваться при входе в программу на этом сайте.</div>
-              <label for="initialPinInput">Новый PIN</label>
-              <input id="initialPinInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
-              <label for="initialPinRepeatInput">Повторите PIN</label>
-              <input id="initialPinRepeatInput" type="password" inputmode="numeric" maxlength="8" placeholder="Повторите PIN" />
-              <button id="initialPinSaveBtn" class="login-button" type="button">Создать PIN</button>
-              <p id="initialPinStatus" class="status mt12"></p>
+        let step = "new";
+        let firstPin = "";
+        let pinValue = "";
+        let statusText = "";
+        let statusClass = "";
+        let busy = false;
+        let shaking = false;
+
+        const meta = () =>
+          step === "new"
+            ? {
+                title: "Создайте PIN-код",
+                subtitle: "Придумайте код из 4-8 цифр. Он будет запрашиваться при входе.",
+                progress: "Шаг 1 из 2",
+                button: "Продолжить",
+                dotCount: 8
+              }
+            : {
+                title: "Повторите PIN",
+                subtitle: "Введите PIN ещё раз, чтобы мы точно не ошиблись.",
+                progress: "Шаг 2 из 2",
+                button: "Создать PIN",
+                dotCount: Math.max(4, Math.min(8, firstPin.length || 8))
+              };
+
+        const renderDots = (dotCount) =>
+          Array.from({ length: dotCount }, (_, index) => {
+            const classes = ["pin-gate-dot"];
+            if (index < pinValue.length) classes.push("filled");
+            return `<span class="${classes.join(" ")}"></span>`;
+          }).join("");
+
+        const render = () => {
+          const current = meta();
+          const canContinue = isPinLengthValidGlobal(pinValue) && !busy;
+          screen.innerHTML = `
+            <div class="login-panel">
+              <div class="login-card pin-setup-card">
+                <div class="pin-gate-shield">
+                  <img src="/icons/pin-protection.png" alt="Защита" />
+                </div>
+                <h2 class="login-title">${escapeHtml(current.title)}</h2>
+                <div class="login-subtitle">${escapeHtml(current.subtitle)}</div>
+                <div class="pin-modal-progress">${escapeHtml(current.progress)}</div>
+                <div id="initialPinDots" class="pin-gate-dots ${shaking ? "shake" : ""}">
+                  ${renderDots(current.dotCount)}
+                </div>
+                ${statusText ? `<p class="status ${statusClass} mt12" style="text-align:center;">${escapeHtml(statusText)}</p>` : ""}
+                <div class="pin-gate-keypad">
+                  <button class="pin-gate-key" data-initial-pin-key="1" type="button">1</button>
+                  <button class="pin-gate-key" data-initial-pin-key="2" type="button">2</button>
+                  <button class="pin-gate-key" data-initial-pin-key="3" type="button">3</button>
+                  <button class="pin-gate-key" data-initial-pin-key="4" type="button">4</button>
+                  <button class="pin-gate-key" data-initial-pin-key="5" type="button">5</button>
+                  <button class="pin-gate-key" data-initial-pin-key="6" type="button">6</button>
+                  <button class="pin-gate-key" data-initial-pin-key="7" type="button">7</button>
+                  <button class="pin-gate-key" data-initial-pin-key="8" type="button">8</button>
+                  <button class="pin-gate-key" data-initial-pin-key="9" type="button">9</button>
+                  <div class="pin-gate-spacer" aria-hidden="true"></div>
+                  <button class="pin-gate-key" data-initial-pin-key="0" type="button">0</button>
+                  <button class="pin-gate-key" id="initialPinBackspaceBtn" type="button" aria-label="Удалить символ">
+                    <img src="/icons/pin-delete.png" alt="" />
+                  </button>
+                </div>
+                <button id="initialPinContinueBtn" class="login-button pin-modal-continue" type="button" ${canContinue ? "" : "disabled"}>
+                  ${busy ? "Сохраняем..." : escapeHtml(current.button)}
+                </button>
+              </div>
             </div>
-          </div>
-        `;
-        const pinInput = document.getElementById("initialPinInput");
-        const repeatInput = document.getElementById("initialPinRepeatInput");
-        const saveBtn = document.getElementById("initialPinSaveBtn");
-        const status = document.getElementById("initialPinStatus");
-        for (const input of [pinInput, repeatInput]) {
-          input?.addEventListener("input", () => {
-            input.value = normalizePinDigitsGlobal(input.value);
-            status.className = "status";
-            status.textContent = "";
+          `;
+
+          for (const btn of screen.querySelectorAll("[data-initial-pin-key]")) {
+            btn.addEventListener("click", () => {
+              if (busy || pinValue.length >= 8) return;
+              pinValue = normalizePinDigitsGlobal(pinValue + btn.dataset.initialPinKey);
+              statusText = "";
+              statusClass = "";
+              render();
+            });
+          }
+
+          document.getElementById("initialPinBackspaceBtn")?.addEventListener("click", () => {
+            if (busy) return;
+            pinValue = pinValue.slice(0, -1);
+            statusText = "";
+            statusClass = "";
+            render();
           });
-        }
-        const save = async () => {
-          const pin = normalizePinDigitsGlobal(pinInput?.value || "");
-          const repeatPin = normalizePinDigitsGlobal(repeatInput?.value || "");
-          if (!isPinLengthValidGlobal(pin)) {
-            status.className = "status error";
-            status.textContent = "PIN должен быть от 4 до 8 цифр";
+
+          document.getElementById("initialPinContinueBtn")?.addEventListener("click", continueSetup);
+        };
+
+        const showError = (message) => {
+          statusText = message;
+          statusClass = "error";
+          shaking = true;
+          render();
+          window.setTimeout(() => {
+            shaking = false;
+            render();
+          }, 340);
+        };
+
+        const continueSetup = async () => {
+          if (busy) return;
+          if (!isPinLengthValidGlobal(pinValue)) {
+            showError("PIN должен быть от 4 до 8 цифр");
             return;
           }
-          if (pin !== repeatPin) {
-            status.className = "status error";
-            status.textContent = "PIN и повтор не совпадают";
+          if (step === "new") {
+            firstPin = pinValue;
+            pinValue = "";
+            statusText = "";
+            statusClass = "";
+            step = "repeat";
+            render();
             return;
           }
-          saveBtn.disabled = true;
+          if (pinValue !== firstPin) {
+            pinValue = "";
+            step = "new";
+            firstPin = "";
+            showError("PIN и повтор не совпадают. Создайте PIN заново");
+            return;
+          }
+          busy = true;
+          render();
           try {
             const data = await api("/api/security/pin/enable", {
               method: "POST",
-              body: JSON.stringify({ pin })
+              body: JSON.stringify({ pin: firstPin })
             });
             state.security.pinState = data?.pinState || null;
             await bootstrapAfterAuth();
           } catch (error) {
-            status.className = "status error";
-            status.textContent = String(error?.message || "Не удалось создать PIN");
-          } finally {
-            saveBtn.disabled = false;
+            busy = false;
+            showError(String(error?.message || "Не удалось создать PIN"));
           }
         };
-        saveBtn?.addEventListener("click", save);
-        repeatInput?.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") save();
-        });
+
+        render();
       }
 
       function renderPinGate(pinState = null) {
