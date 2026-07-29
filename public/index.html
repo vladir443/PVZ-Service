@@ -1524,12 +1524,37 @@
       }
 
       .finance-month-control {
-        width: min(320px, 100%);
+        width: 100%;
         display: grid;
         gap: 6px;
         color: var(--muted);
         font-size: 13px;
         font-weight: 700;
+      }
+
+      .finance-filters {
+        width: min(720px, 100%);
+        display: grid;
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .finance-location-select {
+        min-height: 46px;
+        border-radius: 13px;
+        padding: 10px 38px 10px 13px;
+        background-color: #ffffff;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 800;
+        box-shadow: 0 3px 10px rgba(24, 46, 78, 0.05);
+        cursor: pointer;
+      }
+
+      body.theme-dark .finance-location-select {
+        background-color: #152238;
+        border-color: #314665;
+        color: #e8eef8;
       }
 
       .month-picker-trigger {
@@ -1803,7 +1828,16 @@
       }
 
       .finance-day-date {
+        display: grid;
+        gap: 3px;
         font-weight: 700;
+      }
+
+      .finance-day-location {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 650;
+        line-height: 1.3;
       }
 
       .finance-day-value {
@@ -3181,6 +3215,11 @@
       }
 
       @media (max-width: 560px) {
+        .finance-filters {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+
         .month-picker-modal {
           align-items: end;
           padding: 0;
@@ -7060,9 +7099,23 @@
                     <img src="/icons/refresh-new.png" alt="Обновить" />
                   </button>
                 </div>
-                <div class="finance-month-control mt12">
-                  <span>Месяц расчёта</span>
-                  <button class="month-picker-trigger" id="financeMonthBtn" type="button"></button>
+                <div class="finance-filters mt12">
+                  <div class="finance-month-control">
+                    <span>Месяц расчёта</span>
+                    <button class="month-picker-trigger" id="financeMonthBtn" type="button"></button>
+                  </div>
+                  <label class="finance-month-control">
+                    <span>Пункт выдачи</span>
+                    <select class="finance-location-select" id="financeLocationSelect">
+                      <option value="all">Все ПВЗ</option>
+                      ${state.locations
+                        .map(
+                          (location) =>
+                            `<option value="${escapeHtml(location.code)}">${escapeHtml(location.title)}</option>`
+                        )
+                        .join("")}
+                    </select>
+                  </label>
                 </div>
                 <p class="muted mt12">Каждый сотрудник разделён на зарплату за 1–15 и 16–конец месяца. Оплаченные дни не входят в остаток.</p>
                 <p id="financeStatus" class="status mt8"></p>
@@ -7124,12 +7177,22 @@
           const financeError = document.getElementById("financeError");
           const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
           const financeMonthBtn = document.getElementById("financeMonthBtn");
+          const financeLocationSelect = document.getElementById("financeLocationSelect");
           const financeTitle = document.getElementById("financeTitle");
           const canMarkShiftPaid = financeAllowed;
           const expandedFinancePeriods = new Set();
           let financeMonth = monthNow();
-          let financeShifts = shifts;
-          let financeShiftPayments = shiftPayments;
+          let financeLocationCode = String(state.selectedLocation.code);
+          let financeShifts = shifts.map((row) => ({
+            ...row,
+            locationCode: state.selectedLocation.code,
+            locationTitle: state.selectedLocation.title
+          }));
+          let financeShiftPayments = shiftPayments.map((payment) => ({
+            ...payment,
+            locationCode: state.selectedLocation.code,
+            locationTitle: state.selectedLocation.title
+          }));
 
           const getFinancePeriods = () => {
             const bounds = getMonthBounds(financeMonth);
@@ -7152,8 +7215,10 @@
             ];
           };
 
-          const financePaymentKey = (date, employeeName) =>
-            `${String(date || "")}::${String(employeeName || "").trim().toLowerCase()}`;
+          const financePaymentKey = (locationCode, date, employeeName) =>
+            `${String(locationCode || "")}::${String(date || "")}::${String(employeeName || "")
+              .trim()
+              .toLowerCase()}`;
 
           const setFinanceStatus = (text, isError = false) => {
             financeStatus.className = isError ? "status error mt8" : "status ok mt8";
@@ -7195,7 +7260,7 @@
           const getFinanceDays = (employeeName, period) => {
             const paymentMap = new Map(
               financeShiftPayments.map((payment) => [
-                financePaymentKey(payment.shiftDate, payment.employeeName),
+                financePaymentKey(payment.locationCode, payment.shiftDate, payment.employeeName),
                 payment
               ])
             );
@@ -7207,7 +7272,8 @@
               if (String(row.executor2 || "").trim() === employeeName) slot = 2;
               if (!slot) continue;
 
-              const payment = paymentMap.get(financePaymentKey(row.date, employeeName)) || null;
+              const payment =
+                paymentMap.get(financePaymentKey(row.locationCode, row.date, employeeName)) || null;
               const currentSalary = Number(slot === 1 ? row.rate1 : row.rate2) || 0;
               const currentDeduction = Math.abs(
                 Math.min(0, Number(slot === 1 ? row.deductions1 : row.deductions2) || 0)
@@ -7223,6 +7289,8 @@
               const bonuses = payment ? Number(payment.bonusesAmount || 0) : currentBonus;
               days.push({
                 date: row.date,
+                locationCode: row.locationCode,
+                locationTitle: row.locationTitle,
                 salary,
                 deductions,
                 bonuses,
@@ -7230,7 +7298,11 @@
                 payment
               });
             }
-            return days.sort((a, b) => a.date.localeCompare(b.date));
+            return days.sort(
+              (a, b) =>
+                a.date.localeCompare(b.date) ||
+                String(a.locationTitle || "").localeCompare(String(b.locationTitle || ""), "ru")
+            );
           };
 
           const renderFinance = () => {
@@ -7254,7 +7326,10 @@
                         employeeName,
                         period,
                         unpaidCount: unpaidDays.length,
-                        unpaidTotal: unpaidDays.reduce((sum, day) => sum + day.total, 0)
+                        unpaidTotal: unpaidDays.reduce((sum, day) => sum + day.total, 0),
+                        locationCodes: [
+                          ...new Set(unpaidDays.map((day) => String(day.locationCode || "")).filter(Boolean))
+                        ]
                       }) - 1;
                     const salary = unpaidDays.reduce((sum, day) => sum + day.salary, 0);
                     const deductions = unpaidDays.reduce((sum, day) => sum + day.deductions, 0);
@@ -7268,7 +7343,10 @@
                             const actionIndex = dayActions.push({ employeeName, day }) - 1;
                             return `
                               <div class="finance-day ${day.payment ? "paid" : ""}">
-                                <div class="finance-day-date">${ruDate(day.date)}</div>
+                                <div class="finance-day-date">
+                                  <span>${ruDate(day.date)}</span>
+                                  <span class="finance-day-location">${escapeHtml(day.locationTitle || "")}</span>
+                                </div>
                                 <div class="finance-day-value">
                                   <span>Зарплата</span>
                                   <strong>${formatMoneyUnsigned(day.salary)}</strong>
@@ -7375,20 +7453,22 @@
                 button.disabled = true;
                 financeError.textContent = "";
                 try {
-                  const result = await api(
-                    `/api/schedule/${state.selectedLocation.code}/shift-payments/pay-period`,
-                    {
-                      method: "POST",
-                      body: JSON.stringify({
-                        employeeName: action.employeeName,
-                        month: financeMonth,
-                        period: action.period.key
+                  const results = await Promise.all(
+                    action.locationCodes.map((locationCode) =>
+                      api(`/api/schedule/${locationCode}/shift-payments/pay-period`, {
+                        method: "POST",
+                        body: JSON.stringify({
+                          employeeName: action.employeeName,
+                          month: financeMonth,
+                          period: action.period.key
+                        })
                       })
-                    }
+                    )
                   );
                   await refreshFinanceData();
+                  const paidCount = results.reduce((sum, result) => sum + Number(result.count || 0), 0);
                   setFinanceStatus(
-                    `Оплачено смен: ${Number(result.count || 0)}. Обновлено: ${financeTimeLabel()}`
+                    `Оплачено смен: ${paidCount}. Обновлено: ${financeTimeLabel()}`
                   );
                 } catch (error) {
                   financeError.textContent = `Ошибка массовой оплаты: ${error.message}`;
@@ -7409,7 +7489,7 @@
                 button.disabled = true;
                 financeError.textContent = "";
                 try {
-                  await api(`/api/schedule/${state.selectedLocation.code}/shift-payments`, {
+                  await api(`/api/schedule/${action.day.locationCode}/shift-payments`, {
                     method: "POST",
                     body: JSON.stringify({
                       employeeName: action.employeeName,
@@ -7439,7 +7519,7 @@
                 financeError.textContent = "";
                 try {
                   await api(
-                    `/api/schedule/${state.selectedLocation.code}/shift-payments/${paymentId}`,
+                    `/api/schedule/${action.day.locationCode}/shift-payments/${paymentId}`,
                     { method: "DELETE" }
                   );
                   await refreshFinanceData();
@@ -7456,16 +7536,46 @@
           const refreshFinanceData = async () => {
             refreshFinanceBtn.disabled = true;
             financeError.textContent = "";
-            financeTitle.textContent = `Финансы — ${formatMonthYear(financeMonth)}`;
+            const selectedFinanceLocations =
+              financeLocationCode === "all"
+                ? state.locations
+                : state.locations.filter(
+                    (location) => String(location.code) === String(financeLocationCode)
+                  );
+            const locationLabel =
+              financeLocationCode === "all"
+                ? "Все ПВЗ"
+                : selectedFinanceLocations[0]?.title || "ПВЗ";
+            financeTitle.textContent = `Финансы — ${locationLabel}`;
             try {
-              const [latestSchedule, latestShiftPayments] = await Promise.all([
-                api(`/api/schedule/${state.selectedLocation.code}?month=${financeMonth}`),
-                api(
-                  `/api/schedule/${state.selectedLocation.code}/shift-payments?month=${financeMonth}`
-                )
-              ]);
-              financeShifts = latestSchedule.shifts || [];
-              financeShiftPayments = latestShiftPayments.shiftPayments || [];
+              const locationData = await Promise.all(
+                selectedFinanceLocations.map(async (location) => {
+                  const [latestSchedule, latestShiftPayments] = await Promise.all([
+                    api(`/api/schedule/${location.code}?month=${financeMonth}`),
+                    api(`/api/schedule/${location.code}/shift-payments?month=${financeMonth}`)
+                  ]);
+                  return {
+                    location,
+                    shifts: latestSchedule.shifts || [],
+                    payments: latestShiftPayments.shiftPayments || []
+                  };
+                })
+              );
+              financeShifts = locationData.flatMap(({ location, shifts: locationShifts }) =>
+                locationShifts.map((row) => ({
+                  ...row,
+                  locationCode: location.code,
+                  locationTitle: location.title
+                }))
+              );
+              financeShiftPayments = locationData.flatMap(
+                ({ location, payments: locationPayments }) =>
+                  locationPayments.map((payment) => ({
+                    ...payment,
+                    locationCode: location.code,
+                    locationTitle: location.title
+                  }))
+              );
               renderFinance();
               return true;
             } catch (error) {
@@ -7478,7 +7588,9 @@
 
           document.getElementById("openFinanceBtn")?.addEventListener("click", async () => {
             financeMonth = monthNow();
+            financeLocationCode = String(state.selectedLocation.code);
             financeMonthBtn.textContent = formatMonthYear(financeMonth);
+            financeLocationSelect.value = financeLocationCode;
             expandedFinancePeriods.clear();
             financeModal.classList.remove("hidden");
             if (await refreshFinanceData()) {
@@ -7494,6 +7606,20 @@
             }
           });
           financeMonthBtn.textContent = formatMonthYear(financeMonth);
+          financeLocationSelect.value = financeLocationCode;
+          financeLocationSelect.addEventListener("change", async () => {
+            financeLocationCode = String(financeLocationSelect.value || "all");
+            expandedFinancePeriods.clear();
+            if (await refreshFinanceData()) {
+              const selectedLabel =
+                financeLocationCode === "all"
+                  ? "все ПВЗ"
+                  : state.locations.find(
+                      (location) => String(location.code) === financeLocationCode
+                    )?.title || "ПВЗ";
+              setFinanceStatus(`Выбран: ${selectedLabel}. Обновлено: ${financeTimeLabel()}`);
+            }
+          });
           financeMonthBtn.addEventListener("click", () => {
             openMonthPicker({
               value: financeMonth,
