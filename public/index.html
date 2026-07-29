@@ -1532,6 +1532,177 @@
         font-weight: 700;
       }
 
+      .month-picker-trigger {
+        width: min(340px, 100%);
+        min-height: 46px;
+        border: 1px solid #cbd7e7;
+        border-radius: 13px;
+        padding: 10px 13px;
+        background: #ffffff;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 3px 10px rgba(24, 46, 78, 0.05);
+      }
+
+      .month-picker-trigger::after {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-right: 2px solid #718099;
+        border-bottom: 2px solid #718099;
+        transform: rotate(45deg) translateY(-2px);
+        flex: 0 0 auto;
+      }
+
+      .month-picker-trigger:hover {
+        border-color: #8eabd1;
+        background: #f8fbff;
+      }
+
+      .month-picker-modal {
+        background: rgba(10, 20, 36, 0.58);
+        backdrop-filter: blur(6px);
+      }
+
+      .month-picker-panel {
+        width: min(430px, calc(100% - 24px)) !important;
+        padding: 20px !important;
+        border-radius: 22px !important;
+        background: #ffffff;
+        box-shadow: 0 24px 70px rgba(13, 29, 52, 0.24);
+        overflow: hidden;
+      }
+
+      .month-picker-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .month-picker-title {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.25;
+      }
+
+      .month-picker-close,
+      .month-picker-year-btn {
+        width: 40px;
+        height: 40px;
+        border: 1px solid #d7e1ee;
+        border-radius: 12px;
+        background: #f7f9fd;
+        color: #253752;
+        display: grid;
+        place-items: center;
+        font-size: 25px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .month-picker-close {
+        font-size: 23px;
+      }
+
+      .month-picker-year-nav {
+        display: grid;
+        grid-template-columns: 40px 1fr 40px;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+
+      .month-picker-year {
+        text-align: center;
+        font-size: 21px;
+        font-weight: 850;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .month-picker-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 9px;
+      }
+
+      .month-picker-option {
+        min-height: 48px;
+        border: 1px solid #dce5f1;
+        border-radius: 12px;
+        background: #f8faff;
+        color: #263850;
+        padding: 8px 5px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 750;
+        cursor: pointer;
+      }
+
+      .month-picker-option:hover {
+        border-color: #9cb9e1;
+        background: #edf4ff;
+      }
+
+      .month-picker-option.current {
+        border-color: #9ab8df;
+        box-shadow: inset 0 0 0 1px #9ab8df;
+      }
+
+      .month-picker-option.selected {
+        border-color: var(--primary);
+        background: var(--primary);
+        color: #ffffff;
+        box-shadow: 0 7px 16px rgba(15, 59, 117, 0.22);
+      }
+
+      body.theme-dark .month-picker-trigger,
+      body.theme-dark .month-picker-panel {
+        background: #152238;
+        border-color: #314665;
+        color: var(--text);
+      }
+
+      body.theme-dark .month-picker-trigger:hover {
+        background: #192943;
+        border-color: #4f6f9d;
+      }
+
+      body.theme-dark .month-picker-trigger::after {
+        border-color: #c6d4e9;
+      }
+
+      body.theme-dark .month-picker-close,
+      body.theme-dark .month-picker-year-btn,
+      body.theme-dark .month-picker-option {
+        background: #101c30;
+        border-color: #314665;
+        color: #e8eef8;
+      }
+
+      body.theme-dark .month-picker-option:hover {
+        background: #1b3151;
+        border-color: #5579aa;
+      }
+
+      body.theme-dark .month-picker-option.current {
+        border-color: #7299d0;
+        box-shadow: inset 0 0 0 1px #7299d0;
+      }
+
+      body.theme-dark .month-picker-option.selected {
+        background: #3674d4;
+        border-color: #76a8f4;
+        color: #ffffff;
+      }
+
       .finance-periods {
         display: grid;
         gap: 10px;
@@ -3008,6 +3179,28 @@
           font-size: 11px;
         }
       }
+
+      @media (max-width: 560px) {
+        .month-picker-modal {
+          align-items: end;
+          padding: 0;
+        }
+
+        .month-picker-panel {
+          width: 100% !important;
+          max-width: none !important;
+          border-radius: 24px 24px 0 0 !important;
+          padding: 18px 16px calc(20px + env(safe-area-inset-bottom)) !important;
+        }
+
+        .month-picker-grid {
+          gap: 8px;
+        }
+
+        .month-picker-option {
+          min-height: 50px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -3215,6 +3408,79 @@
           });
         }
         return Promise.resolve(window.confirm(message));
+      }
+
+      function openMonthPicker({ value, title = "Выберите месяц", onSelect }) {
+        const selectedMatch = String(value || "").match(/^(\d{4})-(\d{2})$/);
+        const now = new Date();
+        const selectedYear = selectedMatch ? Number(selectedMatch[1]) : now.getFullYear();
+        const selectedMonth = selectedMatch ? Number(selectedMatch[2]) : now.getMonth() + 1;
+        let visibleYear = selectedYear;
+
+        const modal = document.createElement("div");
+        modal.className = "modal month-picker-modal";
+        modal.innerHTML = `
+          <div class="panel month-picker-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+            <div class="month-picker-head">
+              <h3 class="month-picker-title">${escapeHtml(title)}</h3>
+              <button class="month-picker-close" type="button" aria-label="Закрыть">×</button>
+            </div>
+            <div class="month-picker-year-nav">
+              <button class="month-picker-year-btn" type="button" data-year-step="-1" aria-label="Предыдущий год">‹</button>
+              <div class="month-picker-year"></div>
+              <button class="month-picker-year-btn" type="button" data-year-step="1" aria-label="Следующий год">›</button>
+            </div>
+            <div class="month-picker-grid"></div>
+          </div>
+        `;
+
+        const close = () => {
+          document.removeEventListener("keydown", handleKeydown);
+          modal.remove();
+        };
+        const handleKeydown = (event) => {
+          if (event.key === "Escape") close();
+        };
+        const renderMonths = () => {
+          modal.querySelector(".month-picker-year").textContent = String(visibleYear);
+          modal.querySelector(".month-picker-grid").innerHTML = monthNamesRu
+            .map((name, index) => {
+              const month = index + 1;
+              const isSelected = visibleYear === selectedYear && month === selectedMonth;
+              const isCurrent = visibleYear === now.getFullYear() && month === now.getMonth() + 1;
+              return `
+                <button
+                  class="month-picker-option ${isCurrent ? "current" : ""} ${isSelected ? "selected" : ""}"
+                  type="button"
+                  data-month="${month}"
+                >${escapeHtml(name)}</button>
+              `;
+            })
+            .join("");
+
+          for (const button of modal.querySelectorAll("[data-month]")) {
+            button.addEventListener("click", () => {
+              const month = String(Number(button.dataset.month)).padStart(2, "0");
+              const nextValue = `${visibleYear}-${month}`;
+              close();
+              onSelect?.(nextValue);
+            });
+          }
+        };
+
+        modal.querySelector(".month-picker-close").addEventListener("click", close);
+        for (const button of modal.querySelectorAll("[data-year-step]")) {
+          button.addEventListener("click", () => {
+            visibleYear += Number(button.dataset.yearStep || 0);
+            renderMonths();
+          });
+        }
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) close();
+        });
+        document.addEventListener("keydown", handleKeydown);
+        document.body.appendChild(modal);
+        renderMonths();
       }
 
       function renderBottomNav(active = state.activeTab) {
@@ -6744,7 +7010,7 @@
             </div>
             <h2 class="mt12">${escapeHtml(state.selectedLocation.title)}</h2>
             <div class="row mt12">
-              <button class="button secondary" id="monthPickerBtn">${escapeHtml(
+              <button class="month-picker-trigger" id="monthPickerBtn">${escapeHtml(
                 formatMonthYear(state.selectedMonth)
               )}</button>
               ${financeAllowed ? `<button class="button secondary" id="openFinanceBtn">Финансы</button>` : ""}
@@ -6781,35 +7047,6 @@
                   </div>
                 `
             }
-            <div id="monthModal" class="modal hidden">
-              <div class="panel">
-                <h3 class="panel-title">Выбор месяца</h3>
-                <div class="grid mt12">
-                  <div>
-                    <div class="muted">Месяц</div>
-                    <select id="monthSelect">${monthNamesRu
-                      .map(
-                        (name, idx) =>
-                          `<option value="${String(idx + 1).padStart(2, "0")}">${escapeHtml(name)}</option>`
-                      )
-                      .join("")}</select>
-                  </div>
-                  <div>
-                    <div class="muted">Год</div>
-                    <select id="yearSelect">${(() => {
-                      const year = Number(String(state.selectedMonth).slice(0, 4)) || new Date().getFullYear();
-                      const years = [];
-                      for (let y = year - 2; y <= year + 3; y += 1) years.push(y);
-                      return years.map((y) => `<option value="${y}">${y}</option>`).join("");
-                    })()}</select>
-                  </div>
-                </div>
-                <div class="row mt12">
-                  <button class="button" id="saveMonthBtn">Применить</button>
-                  <button class="button secondary" id="closeMonthBtn">Отмена</button>
-                </div>
-              </div>
-            </div>
             <div id="financeModal" class="modal fullscreen-modal hidden">
               <div class="panel">
                 <div class="panel-head">
@@ -6823,10 +7060,10 @@
                     <img src="/icons/refresh-new.png" alt="Обновить" />
                   </button>
                 </div>
-                <label class="finance-month-control mt12">
+                <div class="finance-month-control mt12">
                   <span>Месяц расчёта</span>
-                  <input id="financeMonthInput" type="month" />
-                </label>
+                  <button class="month-picker-trigger" id="financeMonthBtn" type="button"></button>
+                </div>
                 <p class="muted mt12">Каждый сотрудник разделён на зарплату за 1–15 и 16–конец месяца. Оплаченные дни не входят в остаток.</p>
                 <p id="financeStatus" class="status mt8"></p>
                 <p id="financeError" class="status error mt8"></p>
@@ -6870,32 +7107,15 @@
             state.scheduleViewMode = viewMode === "mobile" ? "table" : "mobile";
             renderSchedule();
           });
-          const monthModal = document.getElementById("monthModal");
-          const monthSelect = document.getElementById("monthSelect");
-          const yearSelect = document.getElementById("yearSelect");
-          const selectedMatch = String(state.selectedMonth || "").match(/^(\d{4})-(\d{2})$/);
-          if (selectedMatch) {
-            yearSelect.value = selectedMatch[1];
-            monthSelect.value = selectedMatch[2];
-          }
           document.getElementById("monthPickerBtn").addEventListener("click", () => {
-            monthModal.classList.remove("hidden");
-          });
-          document.getElementById("closeMonthBtn").addEventListener("click", () => {
-            monthModal.classList.add("hidden");
-          });
-          monthModal.addEventListener("click", (event) => {
-            if (event.target === monthModal) monthModal.classList.add("hidden");
-          });
-          document.getElementById("saveMonthBtn").addEventListener("click", () => {
-            const month = String(monthSelect.value || "").padStart(2, "0");
-            const year = String(yearSelect.value || "").trim();
-            const nextMonth = `${year}-${month}`;
-            if (/^\d{4}-\d{2}$/.test(nextMonth)) {
+            openMonthPicker({
+              value: state.selectedMonth,
+              title: "Месяц графика",
+              onSelect: (nextMonth) => {
               state.selectedMonth = nextMonth;
-              monthModal.classList.add("hidden");
               renderSchedule();
-            }
+              }
+            });
           });
 
           const financeModal = document.getElementById("financeModal");
@@ -6903,7 +7123,7 @@
           const financeStatus = document.getElementById("financeStatus");
           const financeError = document.getElementById("financeError");
           const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
-          const financeMonthInput = document.getElementById("financeMonthInput");
+          const financeMonthBtn = document.getElementById("financeMonthBtn");
           const financeTitle = document.getElementById("financeTitle");
           const canMarkShiftPaid = financeAllowed;
           const expandedFinancePeriods = new Set();
@@ -7258,7 +7478,7 @@
 
           document.getElementById("openFinanceBtn")?.addEventListener("click", async () => {
             financeMonth = monthNow();
-            financeMonthInput.value = financeMonth;
+            financeMonthBtn.textContent = formatMonthYear(financeMonth);
             expandedFinancePeriods.clear();
             financeModal.classList.remove("hidden");
             if (await refreshFinanceData()) {
@@ -7273,14 +7493,20 @@
               setFinanceStatus(`Обновлено: ${financeTimeLabel()}`);
             }
           });
-          financeMonthInput.addEventListener("change", async () => {
-            const nextMonth = String(financeMonthInput.value || "");
-            if (!/^\d{4}-\d{2}$/.test(nextMonth)) return;
-            financeMonth = nextMonth;
-            expandedFinancePeriods.clear();
-            if (await refreshFinanceData()) {
-              setFinanceStatus(`Выбран ${formatMonthYear(financeMonth).toLowerCase()}`);
-            }
+          financeMonthBtn.textContent = formatMonthYear(financeMonth);
+          financeMonthBtn.addEventListener("click", () => {
+            openMonthPicker({
+              value: financeMonth,
+              title: "Месяц расчёта",
+              onSelect: async (nextMonth) => {
+                financeMonth = nextMonth;
+                financeMonthBtn.textContent = formatMonthYear(financeMonth);
+                expandedFinancePeriods.clear();
+                if (await refreshFinanceData()) {
+                  setFinanceStatus(`Выбран ${formatMonthYear(financeMonth).toLowerCase()}`);
+                }
+              }
+            });
           });
 
           function legacyFinanceUiDisabled() {
@@ -7856,9 +8082,6 @@
               input.setAttribute("readonly", "readonly");
               input.setAttribute("disabled", "disabled");
             }
-            const status = document.getElementById("scheduleStatus");
-            status.className = "status";
-            status.textContent = "Режим просмотра: у вас нет прав на редактирование";
           } else {
             for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input, tbody select")) {
               input.addEventListener("input", () => autosave(input.closest("[data-date]")));
