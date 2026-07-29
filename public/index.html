@@ -2419,6 +2419,43 @@
         display: none;
       }
 
+      .employee-panel-status {
+        margin: 10px 0 0;
+        min-height: 0;
+        border-radius: 11px;
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .employee-panel-status:empty {
+        display: none;
+      }
+
+      .employee-panel-status.error {
+        border: 1px solid #fecaca;
+        background: #fff1f2;
+        color: #b42318;
+      }
+
+      .employee-panel-status.ok {
+        border: 1px solid #bbf7d0;
+        background: #f0fdf4;
+        color: #15803d;
+      }
+
+      body.theme-dark .employee-panel-status.error {
+        border-color: #7f1d1d;
+        background: #32171d;
+        color: #fca5a5;
+      }
+
+      body.theme-dark .employee-panel-status.ok {
+        border-color: #166534;
+        background: #10291f;
+        color: #86efac;
+      }
+
       .employee-form-stack {
         display: grid;
         gap: 14px;
@@ -5593,6 +5630,7 @@
                   </div>
                 </div>
               </div>
+              <p id="employeeFormStatus" class="employee-panel-status" role="status" aria-live="polite"></p>
               <div class="employee-form-stack mt12">
                 <div class="employee-form-group">
                   <p class="employee-form-group-title">Основные данные</p>
@@ -5654,6 +5692,7 @@
         `;
         renderBottomNav("employees");
         const status = document.getElementById("employeeStatus");
+        const formStatus = document.getElementById("employeeFormStatus");
         const modal = document.getElementById("employeeModal");
         const panel = document.getElementById("employeePanel");
         const panelTitle = document.getElementById("employeePanelTitle");
@@ -5685,6 +5724,8 @@
           accessRoleInput.value = "PARTICIPANT";
           accessRoleInput.disabled = false;
           saveEmployeeBtn.disabled = false;
+          formStatus.className = "employee-panel-status";
+          formStatus.textContent = "";
           if (saveEmployeeFeedback) {
             saveEmployeeFeedback.textContent = "";
             saveEmployeeFeedback.classList.remove("visible");
@@ -5731,10 +5772,11 @@
             (employee.accessRole || "PARTICIPANT") !== "PARTICIPANT";
           saveEmployeeBtn.disabled = adminCannotEdit;
           if (adminCannotEdit) {
-            status.className = "status error";
-            status.textContent = "Админ может изменять и удалять только участников";
+            formStatus.className = "employee-panel-status error";
+            formStatus.textContent = "Админ может изменять и удалять только участников";
           } else {
-            status.textContent = "";
+            formStatus.className = "employee-panel-status";
+            formStatus.textContent = "";
           }
           if (deleteEmployeeWrap) deleteEmployeeWrap.style.display = "flex";
           deleteEmployeeBtn.disabled = !!employee.isProtected || adminCannotEdit;
@@ -5776,18 +5818,20 @@
           const accessRole = accessRoleInput.value || "PARTICIPANT";
 
           if (firstName.length < 3 || lastName.length < 3) {
-            status.className = "status error";
-            status.textContent = "Имя и фамилия должны быть минимум по 3 символа";
+            formStatus.className = "employee-panel-status error";
+            formStatus.textContent = "Имя и фамилия должны быть минимум по 3 символа";
             return;
           }
 
           if (normalizedPhone === null) {
-            status.className = "status error";
-            status.textContent = "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
+            formStatus.className = "employee-panel-status error";
+            formStatus.textContent = "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
             return;
           }
 
           try {
+            formStatus.className = "employee-panel-status";
+            formStatus.textContent = "";
             const method = editingEmployeeId ? "PUT" : "POST";
             const endpoint = editingEmployeeId
               ? `/api/employees/${editingEmployeeId}`
@@ -5807,16 +5851,16 @@
               })
             });
 
-            status.className = "status ok";
-            status.textContent = editingEmployeeId ? "Сотрудник обновлен" : "Сотрудник добавлен";
+            formStatus.className = "employee-panel-status ok";
+            formStatus.textContent = editingEmployeeId ? "Сотрудник обновлен" : "Сотрудник добавлен";
             showSavedFeedback(saveEmployeeFeedback);
             window.setTimeout(() => {
               closePanel();
               renderEmployeesBase();
             }, 280);
           } catch (error) {
-            status.className = "status error";
-            status.textContent = mapEmployeeApiError(error);
+            formStatus.className = "employee-panel-status error";
+            formStatus.textContent = mapEmployeeApiError(error);
           }
         });
 
@@ -5858,13 +5902,13 @@
           if (!confirmed) return;
           try {
             await api(`/api/employees/${editingEmployeeId}`, { method: "DELETE" });
-            status.className = "status ok";
-            status.textContent = "Сотрудник удален";
+            formStatus.className = "employee-panel-status ok";
+            formStatus.textContent = "Сотрудник удален";
             closePanel();
             renderEmployeesBase();
           } catch (error) {
-            status.className = "status error";
-            status.textContent = error.message;
+            formStatus.className = "employee-panel-status error";
+            formStatus.textContent = error.message;
           }
         });
       }
