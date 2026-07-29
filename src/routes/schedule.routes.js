@@ -9,8 +9,11 @@ import {
   getTodayAssignmentsForTelegramId,
   getScheduleForMonth,
   listFinancePaymentsForMonth,
+  listShiftPaymentsForMonth,
   listLocations,
   logAuditEvent,
+  markShiftPaid,
+  unmarkShiftPaid,
   updateLocationHours,
   validateShiftExecutors,
   upsertShift
@@ -210,6 +213,32 @@ router.get("/:locationCode/payments", (req, res, next) => {
   }
 });
 
+router.get("/:locationCode/shift-payments", (req, res, next) => {
+  try {
+    const parsed = monthSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const data = listShiftPaymentsForMonth({
+      locationCode: req.params.locationCode,
+      month: parsed.data.month
+    });
+    if (!data) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Location was not found"
+      });
+    }
+    return res.json(data);
+  } catch (error) {
+    return next(error);
+  }
+});
+
 const shiftSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   executor1: z.string().max(120).default(""),
@@ -349,6 +378,114 @@ const financePaymentSchema = z.object({
   operationType: z.enum(["payout", "advance"]).default("payout"),
   amount: z.coerce.number().positive().max(1000000)
 });
+
+const shiftPaymentSchema = z.object({
+  employeeName: z.string().trim().min(3).max(120),
+  shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+});
+
+router.post(
+  "/:locationCode/shift-payments",
+  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  (req, res, next) => {
+    try {
+      const parsed = shiftPaymentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "ValidationError",
+          issues: parsed.error.flatten()
+        });
+      }
+
+      const payment = markShiftPaid({
+        locationCode: req.params.locationCode,
+        shiftDate: parsed.data.shiftDate,
+        employeeName: parsed.data.employeeName,
+        createdByTelegramId: req.user?.telegramId || ""
+      });
+      if (!payment) {
+        return res.status(404).json({
+          error: "NotFound",
+          message: "Смена сотрудника не найдена"
+        });
+      }
+
+      logAuditEvent({
+        scope: "SYSTEM",
+        eventType: "FINANCE_SHIFT_PAID",
+        actorUser: req.user,
+        actorTelegramId: req.user.telegramId,
+        actorRole: req.user.role,
+        sessionId: req.session?.id || "",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: {
+          locationCode: req.params.locationCode,
+          employeeName: parsed.data.employeeName,
+          shiftDate: parsed.data.shiftDate,
+          amount: payment.paid_amount
+        },
+        systemView: "ALL_ADMINS"
+      });
+
+      return res.status(201).json({
+        shiftPayment: {
+          id: payment.id,
+          shiftDate: payment.shift_date,
+          employeeName: payment.employee_name,
+          salaryAmount: Number(payment.salary_amount || 0),
+          deductionsAmount: Number(payment.deductions_amount || 0),
+          bonusesAmount: Number(payment.bonuses_amount || 0),
+          paidAmount: Number(payment.paid_amount || 0),
+          paidAt: payment.paid_at
+        }
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+router.delete(
+  "/:locationCode/shift-payments/:paymentId",
+  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  (req, res, next) => {
+    try {
+      const deleted = unmarkShiftPaid({
+        locationCode: req.params.locationCode,
+        paymentId: req.params.paymentId
+      });
+      if (!deleted) {
+        return res.status(404).json({
+          error: "NotFound",
+          message: "Оплата смены не найдена"
+        });
+      }
+
+      logAuditEvent({
+        scope: "SYSTEM",
+        eventType: "FINANCE_SHIFT_PAYMENT_CANCELLED",
+        actorUser: req.user,
+        actorTelegramId: req.user.telegramId,
+        actorRole: req.user.role,
+        sessionId: req.session?.id || "",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: {
+          locationCode: req.params.locationCode,
+          employeeName: deleted.employeeName,
+          shiftDate: deleted.shiftDate,
+          amount: deleted.paidAmount
+        },
+        systemView: "ALL_ADMINS"
+      });
+
+      return res.json({ ok: true, shiftPayment: deleted });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
 
 router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
   try {

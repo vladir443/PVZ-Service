@@ -757,12 +757,30 @@
       body.theme-dark .location-btn,
       body.theme-dark .table-wrap,
       body.theme-dark .schedule-card,
-      body.theme-dark .finance-row,
-      body.theme-dark .finance-history-item,
+      body.theme-dark .finance-employee-card,
+      body.theme-dark .finance-day,
       body.theme-dark .profile-box {
         background: #152238;
         border-color: #2a3d59;
         color: var(--text);
+      }
+
+      body.theme-dark .finance-period {
+        background: #121f34;
+        border-color: #2a3d59;
+      }
+
+      body.theme-dark .finance-period-details {
+        border-top-color: #2a3d59;
+      }
+
+      body.theme-dark .finance-day.paid {
+        background: #123126;
+        border-color: #276a4b;
+      }
+
+      body.theme-dark .finance-toggle-icon {
+        filter: brightness(0) invert(1);
       }
 
       body.theme-dark .dash-user {
@@ -1421,120 +1439,152 @@
 
       .finance-list {
         display: grid;
-        gap: 8px;
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        gap: 14px;
       }
 
-      .finance-row {
+      .finance-employee-card {
         border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 0;
+        border-radius: 16px;
+        padding: 14px;
         background: #fff;
+        box-shadow: 0 4px 14px rgba(20, 37, 69, 0.05);
       }
 
-      .finance-amount {
-        font-weight: 700;
-        white-space: nowrap;
+      .finance-employee-name {
+        margin: 0 0 12px;
+        font-size: 17px;
+        line-height: 1.25;
       }
 
-      .state-pill {
-        display: inline-block;
-        border-radius: 999px;
-        padding: 2px 8px;
-        font-size: 12px;
-        font-weight: 700;
+      .finance-periods {
+        display: grid;
+        gap: 10px;
       }
 
-      .state-pill.closed {
-        background: #dcfce7;
-        color: #166534;
+      .finance-period {
+        border: 1px solid #dce5f2;
+        border-radius: 13px;
+        background: #f8fbff;
+        overflow: hidden;
       }
 
-      .state-pill.pending {
-        background: #fef3c7;
-        color: #92400e;
-      }
-
-      .state-pill.advance {
-        background: #dbeafe;
-        color: #1e40af;
-      }
-
-      .finance-summary {
+      .finance-period-summary {
         width: 100%;
         border: 0;
         background: transparent;
-        padding: 10px;
-        display: flex;
+        padding: 12px;
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) repeat(4, minmax(90px, auto)) auto;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
+        gap: 12px;
+        color: var(--text);
+        text-align: left;
         cursor: pointer;
       }
 
-      .finance-summary-left {
-        min-width: 0;
+      .finance-period-title {
+        font-weight: 800;
+        line-height: 1.25;
       }
 
-      .finance-summary-name {
-        font-weight: 600;
+      .finance-period-stat {
+        display: grid;
+        gap: 2px;
       }
 
-      .finance-summary-name .state-pill {
-        margin-left: 6px;
+      .finance-period-stat span {
+        color: var(--muted);
+        font-size: 11px;
       }
 
-      .finance-summary-right {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex: 0 0 auto;
+      .finance-period-stat strong {
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .finance-period-stat.total strong {
+        color: #17643a;
+        font-size: 14px;
       }
 
       .finance-toggle-icon {
-        width: 14px;
-        height: 14px;
+        width: 16px;
+        height: 16px;
         object-fit: contain;
+        opacity: 0.65;
       }
 
-      .finance-details {
-        border-top: 1px solid var(--line);
-        padding: 8px 10px 10px;
-        color: var(--muted);
-        font-size: 13px;
-        display: grid;
-        gap: 4px;
-      }
-
-      .finance-pay-row {
-        margin-top: 6px;
-        display: grid;
-        grid-template-columns: 1fr auto auto;
-        gap: 8px;
-        align-items: center;
-      }
-
-      .finance-history-list {
+      .finance-period-details {
+        border-top: 1px solid #dce5f2;
+        padding: 10px;
         display: grid;
         gap: 8px;
       }
 
-      .finance-history-item {
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 8px;
-        background: #fff;
-        font-size: 13px;
-      }
-
-      .finance-history-actions {
-        margin-top: 8px;
-        display: flex;
-        justify-content: flex-end;
-      }
-
-
-      .finance-details.hidden {
+      .finance-period-details.hidden {
         display: none;
+      }
+
+      .finance-day {
+        border: 1px solid #e1e8f2;
+        border-radius: 11px;
+        padding: 10px;
+        background: #fff;
+        display: grid;
+        grid-template-columns: minmax(105px, 1fr) repeat(4, minmax(70px, auto)) auto;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .finance-day.paid {
+        background: #f2fbf6;
+        border-color: #bfe7cf;
+      }
+
+      .finance-day-date {
+        font-weight: 700;
+      }
+
+      .finance-day-value {
+        display: grid;
+        gap: 2px;
+      }
+
+      .finance-day-value span {
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .finance-day-value strong {
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .finance-day-action {
+        min-width: 96px;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+
+      .finance-paid-badge {
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: #dcfce7;
+        color: #166534;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .finance-unpaid-badge {
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: #fef3c7;
+        color: #92400e;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
       }
 
       .panel-head {
@@ -2801,6 +2851,34 @@
         .overview-grid,
         .quick-grid {
           grid-template-columns: 1fr;
+        }
+        .finance-list {
+          grid-template-columns: 1fr;
+        }
+        .finance-period-summary {
+          grid-template-columns: 1fr auto;
+          gap: 8px;
+        }
+        .finance-period-summary .finance-period-stat {
+          grid-column: 1 / -1;
+          grid-template-columns: 94px 1fr;
+          align-items: baseline;
+        }
+        .finance-period-summary .finance-toggle-icon {
+          grid-column: 2;
+          grid-row: 1;
+        }
+        .finance-day {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .finance-day-date,
+        .finance-day-action,
+        .finance-paid-badge {
+          grid-column: 1 / -1;
+        }
+        .finance-day-action {
+          width: 100%;
         }
       }
 
@@ -5072,6 +5150,18 @@
             badge: "Финансы",
             tone: "warning"
           },
+          FINANCE_SHIFT_PAID: {
+            title: "Смена оплачена",
+            description: "Рабочий день сотрудника отмечен оплаченным.",
+            badge: "Финансы",
+            tone: "ok"
+          },
+          FINANCE_SHIFT_PAYMENT_CANCELLED: {
+            title: "Оплата смены отменена",
+            description: "Отметка оплаты рабочего дня была отменена.",
+            badge: "Финансы",
+            tone: "warning"
+          },
           PIN_VERIFY_LOCKED: {
             title: "PIN временно заблокирован",
             description: "Сработала защита от перебора PIN-кода.",
@@ -5149,6 +5239,7 @@
           locationCode: "ПВЗ",
           locationName: "ПВЗ",
           date: "Дата",
+          shiftDate: "Дата смены",
           periodFrom: "Период с",
           periodTo: "Период по",
           paymentDate: "Дата выплаты",
@@ -5170,7 +5261,7 @@
           if (value === null || value === undefined || value === "") return "";
           if (typeof value === "boolean") return value ? "да" : "нет";
           if (typeof value === "number" && key === "amount") return formatMoney(value);
-          if (["date", "periodFrom", "periodTo", "paymentDate"].includes(key)) return formatSecurityLogDate(value);
+          if (["date", "shiftDate", "periodFrom", "periodTo", "paymentDate"].includes(key)) return formatSecurityLogDate(value);
           if (Array.isArray(value)) return value.length ? `${value.length} записей` : "";
           if (typeof value === "object") return "";
           return String(value);
@@ -6244,9 +6335,9 @@
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
         try {
-          const [data, paymentsData, otherSchedules] = await Promise.all([
+          const [data, shiftPaymentsData, otherSchedules] = await Promise.all([
             api(`/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`),
-            api(`/api/schedule/${state.selectedLocation.code}/payments?month=${state.selectedMonth}`),
+            api(`/api/schedule/${state.selectedLocation.code}/shift-payments?month=${state.selectedMonth}`),
             Promise.all(
               (state.locations || [])
                 .filter((loc) => String(loc.code) !== String(state.selectedLocation.code))
@@ -6254,7 +6345,7 @@
             )
           ]);
           const shifts = data.shifts || [];
-          const payments = paymentsData.payments || [];
+          const shiftPayments = shiftPaymentsData.shiftPayments || [];
           const roleBusyByDate = new Map();
           for (const scheduleData of otherSchedules || []) {
             if (!scheduleData?.shifts?.length) continue;
@@ -6280,20 +6371,6 @@
             state.scheduleViewMode = isPhoneClient() ? "mobile" : "table";
           }
           const viewMode = state.scheduleViewMode;
-
-          const paidSnapshot = new Map();
-          for (const payment of payments) {
-            const name = String(payment.employeeName || "").trim();
-            if (!name) continue;
-            const current = paidSnapshot.get(name) || { advance: 0, payout: 0 };
-            const opType = String(payment.paymentType || "payout");
-            if (opType === "advance") {
-              current.advance += Number(payment.amount || 0);
-            } else {
-              current.payout += Number(payment.amount || 0);
-            }
-            paidSnapshot.set(name, current);
-          }
 
           const rows = shifts
             .map(
@@ -6523,45 +6600,23 @@
                 </div>
               </div>
             </div>
-            <div id="financeModal" class="modal hidden">
+            <div id="financeModal" class="modal fullscreen-modal hidden">
               <div class="panel">
                 <div class="panel-head">
-                  <h3 class="panel-title">Финансы за период</h3>
+                  <div class="row">
+                    <button class="open-arrow-btn" id="closeFinanceBtnTop" type="button" aria-label="Назад">
+                      <img src="/icons/back-arrow.png" alt="Назад" />
+                    </button>
+                    <h3 class="panel-title">Финансы — ${escapeHtml(formatMonthYear(state.selectedMonth))}</h3>
+                  </div>
                   <button class="icon-button" id="refreshFinanceBtn" type="button" title="Обновить">
                     <img src="/icons/refresh-new.png" alt="Обновить" />
                   </button>
                 </div>
-                <div class="row mt12">
-                  <button class="button secondary" id="financeFirstHalfBtn">1-15</button>
-                  <button class="button secondary" id="financeSecondHalfBtn">16-конец</button>
-                  <button class="button secondary" id="financeWholeMonthBtn">Весь месяц</button>
-                </div>
-                <div class="grid mt12">
-                  <div>
-                    <div class="muted">Дата с</div>
-                    <input id="financeFromInput" type="date" />
-                  </div>
-                  <div>
-                    <div class="muted">Дата по</div>
-                    <input id="financeToInput" type="date" />
-                  </div>
-                </div>
-                <p id="financeHint" class="muted mt8"></p>
+                <p class="muted mt12">Каждый сотрудник разделён на зарплату за 1–15 и 16–конец месяца. Оплаченные дни не входят в остаток.</p>
                 <p id="financeStatus" class="status mt8"></p>
                 <p id="financeError" class="status error mt8"></p>
                 <div id="financeList" class="finance-list mt12"></div>
-                <div class="row mt12">
-                  <button class="button secondary" id="closeFinanceBtn">Закрыть</button>
-                </div>
-              </div>
-            </div>
-            <div id="financeHistoryModal" class="modal hidden">
-              <div class="panel">
-                <h3 id="financeHistoryTitle" class="panel-title">История выплат</h3>
-                <div id="financeHistoryList" class="finance-history-list mt12"></div>
-                <div class="row mt12">
-                  <button class="button secondary" id="closeFinanceHistoryBtn">Закрыть</button>
-                </div>
               </div>
             </div>
             <div id="adjustModal" class="modal hidden">
@@ -6629,6 +6684,314 @@
             }
           });
 
+          const financeModal = document.getElementById("financeModal");
+          const financeList = document.getElementById("financeList");
+          const financeStatus = document.getElementById("financeStatus");
+          const financeError = document.getElementById("financeError");
+          const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
+          const canMarkShiftPaid = editable;
+          const expandedFinancePeriods = new Set();
+          let financeShifts = shifts;
+          let financeShiftPayments = shiftPayments;
+
+          const financePeriods = [
+            {
+              key: "first",
+              label: "1–15 зарплата",
+              from: monthBounds.start,
+              to: `${state.selectedMonth}-15`
+            },
+            {
+              key: "second",
+              label: "16–конец месяца зарплата",
+              from: `${state.selectedMonth}-16`,
+              to: monthBounds.end
+            }
+          ];
+
+          const financePaymentKey = (date, employeeName) =>
+            `${String(date || "")}::${String(employeeName || "").trim().toLowerCase()}`;
+
+          const setFinanceStatus = (text, isError = false) => {
+            financeStatus.className = isError ? "status error mt8" : "status ok mt8";
+            financeStatus.textContent = text;
+          };
+
+          const financeTimeLabel = () =>
+            new Date().toLocaleTimeString("ru-RU", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit"
+            });
+
+          const getFinanceEmployeeNames = () => {
+            const names = new Set(
+              state.employees
+                .map((employee) => String(employee.fullName || "").trim())
+                .filter(Boolean)
+            );
+            for (const row of financeShifts) {
+              const first = String(row.executor1 || "").trim();
+              const second = String(row.executor2 || "").trim();
+              if (first) names.add(first);
+              if (second) names.add(second);
+            }
+            const sortKeys = new Map(
+              state.employees.map((employee) => [
+                String(employee.fullName || "").trim(),
+                `${String(employee.lastName || "").trim()} ${String(employee.firstName || "").trim()}`
+                  .trim()
+                  .toLowerCase()
+              ])
+            );
+            return [...names].sort((a, b) =>
+              String(sortKeys.get(a) || a).localeCompare(String(sortKeys.get(b) || b), "ru")
+            );
+          };
+
+          const getFinanceDays = (employeeName, period) => {
+            const paymentMap = new Map(
+              financeShiftPayments.map((payment) => [
+                financePaymentKey(payment.shiftDate, payment.employeeName),
+                payment
+              ])
+            );
+            const days = [];
+            for (const row of financeShifts) {
+              if (!row?.date || row.date < period.from || row.date > period.to) continue;
+              let slot = 0;
+              if (String(row.executor1 || "").trim() === employeeName) slot = 1;
+              if (String(row.executor2 || "").trim() === employeeName) slot = 2;
+              if (!slot) continue;
+
+              const payment = paymentMap.get(financePaymentKey(row.date, employeeName)) || null;
+              const currentSalary = Number(slot === 1 ? row.rate1 : row.rate2) || 0;
+              const currentDeduction = Math.abs(
+                Math.min(0, Number(slot === 1 ? row.deductions1 : row.deductions2) || 0)
+              );
+              const currentBonus = Math.max(
+                0,
+                Number(slot === 1 ? row.bonuses1 : row.bonuses2) || 0
+              );
+              const salary = payment ? Number(payment.salaryAmount || 0) : currentSalary;
+              const deductions = payment
+                ? Number(payment.deductionsAmount || 0)
+                : currentDeduction;
+              const bonuses = payment ? Number(payment.bonusesAmount || 0) : currentBonus;
+              days.push({
+                date: row.date,
+                salary,
+                deductions,
+                bonuses,
+                total: salary + bonuses - deductions,
+                payment
+              });
+            }
+            return days.sort((a, b) => a.date.localeCompare(b.date));
+          };
+
+          const renderFinance = () => {
+            financeError.textContent = "";
+            const employeeNames = getFinanceEmployeeNames();
+            if (!employeeNames.length) {
+              financeList.innerHTML = `<div class="muted">В базе пока нет сотрудников.</div>`;
+              return;
+            }
+
+            const dayActions = [];
+            financeList.innerHTML = employeeNames
+              .map((employeeName) => {
+                const periodsHtml = financePeriods
+                  .map((period) => {
+                    const days = getFinanceDays(employeeName, period);
+                    const unpaidDays = days.filter((day) => !day.payment);
+                    const salary = unpaidDays.reduce((sum, day) => sum + day.salary, 0);
+                    const deductions = unpaidDays.reduce((sum, day) => sum + day.deductions, 0);
+                    const bonuses = unpaidDays.reduce((sum, day) => sum + day.bonuses, 0);
+                    const total = unpaidDays.reduce((sum, day) => sum + day.total, 0);
+                    const expandKey = `${employeeName}::${period.key}`;
+                    const expanded = expandedFinancePeriods.has(expandKey);
+                    const daysHtml = days.length
+                      ? days
+                          .map((day) => {
+                            const actionIndex = dayActions.push({ employeeName, day }) - 1;
+                            return `
+                              <div class="finance-day ${day.payment ? "paid" : ""}">
+                                <div class="finance-day-date">${ruDate(day.date)}</div>
+                                <div class="finance-day-value">
+                                  <span>Зарплата</span>
+                                  <strong>${formatMoneyUnsigned(day.salary)}</strong>
+                                </div>
+                                <div class="finance-day-value">
+                                  <span>Удержания</span>
+                                  <strong>${formatMoneyUnsigned(day.deductions)}</strong>
+                                </div>
+                                <div class="finance-day-value">
+                                  <span>Доплаты</span>
+                                  <strong>${formatMoneyUnsigned(day.bonuses)}</strong>
+                                </div>
+                                <div class="finance-day-value">
+                                  <span>Итого</span>
+                                  <strong>${formatPayoutBalance(day.total)}</strong>
+                                </div>
+                                ${
+                                  day.payment
+                                    ? canMarkShiftPaid
+                                      ? `<button class="button secondary finance-day-action" type="button" data-unpay-shift="${actionIndex}">Отменить оплату</button>`
+                                      : `<span class="finance-paid-badge">Оплачено</span>`
+                                    : canMarkShiftPaid
+                                      ? `<button class="button finance-day-action" type="button" data-pay-shift="${actionIndex}">Оплатить</button>`
+                                      : `<span class="finance-unpaid-badge">Не оплачено</span>`
+                                }
+                              </div>
+                            `;
+                          })
+                          .join("")
+                      : `<div class="muted">Смен за этот период нет.</div>`;
+
+                    return `
+                      <div class="finance-period">
+                        <button class="finance-period-summary" type="button" data-finance-period="${escapeHtml(expandKey)}">
+                          <div class="finance-period-title">${period.label}</div>
+                          <div class="finance-period-stat">
+                            <span>Зарплата</span>
+                            <strong>${formatMoneyUnsigned(salary)}</strong>
+                          </div>
+                          <div class="finance-period-stat">
+                            <span>Удержания</span>
+                            <strong>${formatMoneyUnsigned(deductions)}</strong>
+                          </div>
+                          <div class="finance-period-stat">
+                            <span>Доплаты</span>
+                            <strong>${formatMoneyUnsigned(bonuses)}</strong>
+                          </div>
+                          <div class="finance-period-stat total">
+                            <span>К выплате</span>
+                            <strong>${formatPayoutBalance(total)}</strong>
+                          </div>
+                          <img
+                            class="finance-toggle-icon"
+                            src="${expanded ? "/icons/chevron_double_up_icon_143815.png" : "/icons/chevron_double_down_icon_143818.png"}"
+                            alt="${expanded ? "Свернуть" : "Развернуть"}"
+                          />
+                        </button>
+                        <div class="finance-period-details ${expanded ? "" : "hidden"}">${daysHtml}</div>
+                      </div>
+                    `;
+                  })
+                  .join("");
+
+                return `
+                  <section class="finance-employee-card">
+                    <h4 class="finance-employee-name">${escapeHtml(employeeName)}</h4>
+                    <div class="finance-periods">${periodsHtml}</div>
+                  </section>
+                `;
+              })
+              .join("");
+
+            for (const button of financeList.querySelectorAll("[data-finance-period]")) {
+              button.addEventListener("click", () => {
+                const key = String(button.dataset.financePeriod || "");
+                if (expandedFinancePeriods.has(key)) {
+                  expandedFinancePeriods.delete(key);
+                } else {
+                  expandedFinancePeriods.add(key);
+                }
+                renderFinance();
+              });
+            }
+
+            for (const button of financeList.querySelectorAll("[data-pay-shift]")) {
+              button.addEventListener("click", async () => {
+                const action = dayActions[Number(button.dataset.payShift)];
+                if (!action) return;
+                const confirmed = await confirmAction(
+                  `Отметить смену ${ruDate(action.day.date)} сотрудника ${action.employeeName} оплаченной?`
+                );
+                if (!confirmed) return;
+                button.disabled = true;
+                financeError.textContent = "";
+                try {
+                  await api(`/api/schedule/${state.selectedLocation.code}/shift-payments`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                      employeeName: action.employeeName,
+                      shiftDate: action.day.date
+                    })
+                  });
+                  await refreshFinanceData();
+                  setFinanceStatus(`Смена отмечена оплаченной. Обновлено: ${financeTimeLabel()}`);
+                } catch (error) {
+                  financeError.textContent = `Ошибка оплаты: ${error.message}`;
+                } finally {
+                  button.disabled = false;
+                }
+              });
+            }
+
+            for (const button of financeList.querySelectorAll("[data-unpay-shift]")) {
+              button.addEventListener("click", async () => {
+                const action = dayActions[Number(button.dataset.unpayShift)];
+                const paymentId = Number(action?.day?.payment?.id);
+                if (!action || !Number.isInteger(paymentId)) return;
+                const confirmed = await confirmAction(
+                  `Отменить оплату смены ${ruDate(action.day.date)} сотрудника ${action.employeeName}?`
+                );
+                if (!confirmed) return;
+                button.disabled = true;
+                financeError.textContent = "";
+                try {
+                  await api(
+                    `/api/schedule/${state.selectedLocation.code}/shift-payments/${paymentId}`,
+                    { method: "DELETE" }
+                  );
+                  await refreshFinanceData();
+                  setFinanceStatus(`Оплата отменена. Обновлено: ${financeTimeLabel()}`);
+                } catch (error) {
+                  financeError.textContent = `Ошибка отмены оплаты: ${error.message}`;
+                } finally {
+                  button.disabled = false;
+                }
+              });
+            }
+          };
+
+          const refreshFinanceData = async () => {
+            refreshFinanceBtn.disabled = true;
+            financeError.textContent = "";
+            try {
+              const [latestSchedule, latestShiftPayments] = await Promise.all([
+                api(`/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`),
+                api(
+                  `/api/schedule/${state.selectedLocation.code}/shift-payments?month=${state.selectedMonth}`
+                )
+              ]);
+              financeShifts = latestSchedule.shifts || [];
+              financeShiftPayments = latestShiftPayments.shiftPayments || [];
+              renderFinance();
+            } catch (error) {
+              financeError.textContent = `Ошибка обновления: ${error.message}`;
+            } finally {
+              refreshFinanceBtn.disabled = false;
+            }
+          };
+
+          document.getElementById("openFinanceBtn").addEventListener("click", async () => {
+            expandedFinancePeriods.clear();
+            financeModal.classList.remove("hidden");
+            await refreshFinanceData();
+            setFinanceStatus(`Обновлено: ${financeTimeLabel()}`);
+          });
+          document.getElementById("closeFinanceBtnTop").addEventListener("click", () => {
+            financeModal.classList.add("hidden");
+          });
+          refreshFinanceBtn.addEventListener("click", async () => {
+            await refreshFinanceData();
+            setFinanceStatus(`Обновлено: ${financeTimeLabel()}`);
+          });
+
+          function legacyFinanceUiDisabled() {
           const financeModal = document.getElementById("financeModal");
           const financeFromInput = document.getElementById("financeFromInput");
           const financeToInput = document.getElementById("financeToInput");
@@ -7025,6 +7388,7 @@
             financeToInput.value = monthBounds.end;
             renderFinance();
           });
+          }
 
           const autosave = createRowAutoSaver(state.selectedLocation.code);
           const adjustModal = document.getElementById("adjustModal");

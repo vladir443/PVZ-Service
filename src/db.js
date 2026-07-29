@@ -119,6 +119,23 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS finance_shift_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location_code TEXT NOT NULL,
+    shift_date TEXT NOT NULL,
+    employee_name TEXT NOT NULL,
+    salary_amount REAL NOT NULL DEFAULT 0,
+    deductions_amount REAL NOT NULL DEFAULT 0,
+    bonuses_amount REAL NOT NULL DEFAULT 0,
+    paid_amount REAL NOT NULL DEFAULT 0,
+    created_by_telegram_id TEXT NOT NULL DEFAULT '',
+    paid_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(location_code, shift_date, employee_name),
+    FOREIGN KEY(location_code) REFERENCES locations(code)
+  );
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS shift_reminder_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id TEXT NOT NULL,
@@ -1116,6 +1133,172 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
   return {
     employee,
     shifts
+  };
+}
+
+export function listShiftPaymentsForMonth({ locationCode, month }) {
+  const location = db.prepare("SELECT code FROM locations WHERE code = ?").get(locationCode);
+  if (!location) return null;
+
+  const { year, month: monthNum } = parseMonth(month);
+  const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+  const fromDate = `${month}-01`;
+  const toDate = `${month}-${String(lastDay).padStart(2, "0")}`;
+
+  const shiftPayments = db
+    .prepare(
+      `
+      SELECT
+        id,
+        shift_date,
+        employee_name,
+        salary_amount,
+        deductions_amount,
+        bonuses_amount,
+        paid_amount,
+        created_by_telegram_id,
+        paid_at
+      FROM finance_shift_payments
+      WHERE location_code = ?
+        AND shift_date >= ?
+        AND shift_date <= ?
+      ORDER BY shift_date ASC, employee_name ASC
+      `
+    )
+    .all(locationCode, fromDate, toDate)
+    .map((row) => ({
+      id: row.id,
+      shiftDate: row.shift_date,
+      employeeName: row.employee_name,
+      salaryAmount: Number(row.salary_amount || 0),
+      deductionsAmount: Number(row.deductions_amount || 0),
+      bonusesAmount: Number(row.bonuses_amount || 0),
+      paidAmount: Number(row.paid_amount || 0),
+      createdByTelegramId: row.created_by_telegram_id || "",
+      paidAt: row.paid_at
+    }));
+
+  return { shiftPayments };
+}
+
+export function markShiftPaid({ locationCode, shiftDate, employeeName, createdByTelegramId }) {
+  const safeDate = parseDate(shiftDate);
+  const safeName = String(employeeName || "").trim();
+  if (!safeName) {
+    throw new Error("Employee name is required");
+  }
+
+  const shift = db
+    .prepare(
+      `
+      SELECT executor1, executor2, rate1, rate2, deductions1, deductions2, bonuses1, bonuses2
+      FROM shifts
+      WHERE location_code = ?
+        AND shift_date = ?
+      `
+    )
+    .get(locationCode, safeDate);
+  if (!shift) return null;
+
+  let salaryAmount = 0;
+  let deductionsAmount = 0;
+  let bonusesAmount = 0;
+  if (String(shift.executor1 || "").trim() === safeName) {
+    salaryAmount = Number(shift.rate1 || 0);
+    deductionsAmount = Math.abs(Math.min(0, Number(shift.deductions1 || 0)));
+    bonusesAmount = Math.max(0, Number(shift.bonuses1 || 0));
+  } else if (String(shift.executor2 || "").trim() === safeName) {
+    salaryAmount = Number(shift.rate2 || 0);
+    deductionsAmount = Math.abs(Math.min(0, Number(shift.deductions2 || 0)));
+    bonusesAmount = Math.max(0, Number(shift.bonuses2 || 0));
+  } else {
+    return null;
+  }
+
+  const paidAmount = Math.max(0, salaryAmount + bonusesAmount - deductionsAmount);
+  db.prepare(
+    `
+    INSERT INTO finance_shift_payments (
+      location_code,
+      shift_date,
+      employee_name,
+      salary_amount,
+      deductions_amount,
+      bonuses_amount,
+      paid_amount,
+      created_by_telegram_id,
+      paid_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(location_code, shift_date, employee_name) DO UPDATE SET
+      salary_amount = excluded.salary_amount,
+      deductions_amount = excluded.deductions_amount,
+      bonuses_amount = excluded.bonuses_amount,
+      paid_amount = excluded.paid_amount,
+      created_by_telegram_id = excluded.created_by_telegram_id,
+      paid_at = datetime('now')
+    `
+  ).run(
+    locationCode,
+    safeDate,
+    safeName,
+    salaryAmount,
+    deductionsAmount,
+    bonusesAmount,
+    paidAmount,
+    String(createdByTelegramId || "")
+  );
+
+  return db
+    .prepare(
+      `
+      SELECT
+        id,
+        shift_date,
+        employee_name,
+        salary_amount,
+        deductions_amount,
+        bonuses_amount,
+        paid_amount,
+        created_by_telegram_id,
+        paid_at
+      FROM finance_shift_payments
+      WHERE location_code = ?
+        AND shift_date = ?
+        AND employee_name = ?
+      `
+    )
+    .get(locationCode, safeDate, safeName);
+}
+
+export function unmarkShiftPaid({ locationCode, paymentId }) {
+  const id = Number(paymentId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+
+  const existing = db
+    .prepare(
+      `
+      SELECT id, shift_date, employee_name, paid_amount
+      FROM finance_shift_payments
+      WHERE id = ?
+        AND location_code = ?
+      `
+    )
+    .get(id, locationCode);
+  if (!existing) return null;
+
+  db.prepare(
+    `
+    DELETE FROM finance_shift_payments
+    WHERE id = ?
+      AND location_code = ?
+    `
+  ).run(id, locationCode);
+
+  return {
+    id: existing.id,
+    shiftDate: existing.shift_date,
+    employeeName: existing.employee_name,
+    paidAmount: Number(existing.paid_amount || 0)
   };
 }
 
