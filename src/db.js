@@ -311,7 +311,7 @@ const CORE_EMPLOYEE = {
   firstName: "Владимир",
   lastName: "Ставицкий",
   fullName: "Владимир Ставицкий",
-  telegramId: "",
+  telegramId: "581404942",
   phone: "+7 922 924-24-94",
   telegramContact: "@i1wqq",
   vkContact: "https://vk.ru/volodyast",
