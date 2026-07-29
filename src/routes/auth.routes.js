@@ -98,13 +98,6 @@ router.post("/request-code", async (req, res, next) => {
       code: codeResult.code
     });
 
-    if (session?.session_id) {
-      setAuthCookies(req, res, {
-        authId: user.telegramId,
-        sessionId: session.session_id
-      });
-    }
-
     return res.json({
       ok: true,
       expiresAt: codeResult.record?.expiresAt || "",
@@ -240,6 +233,13 @@ router.post("/login", async (req, res, next) => {
           isNewDevice: true
         },
         systemView: "TARGET_USER"
+      });
+    }
+
+    if (session?.session_id) {
+      setAuthCookies(req, res, {
+        authId: user.telegramId,
+        sessionId: session.session_id
       });
     }
 
