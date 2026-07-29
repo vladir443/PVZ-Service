@@ -1249,6 +1249,40 @@
         border-radius: 10px;
       }
 
+      @media (min-width: 861px) {
+        body.schedule-table-view {
+          --app-width: 100%;
+        }
+
+        body.schedule-table-view .wrap {
+          width: 100%;
+          max-width: none;
+          margin: 0;
+          padding: 0;
+        }
+
+        body.schedule-table-view .card {
+          min-height: 100dvh;
+          border: 0;
+          border-radius: 0;
+          padding: 24px 28px 112px;
+          box-shadow: none;
+        }
+
+        body.schedule-table-view .table-wrap {
+          overflow-x: auto;
+          overflow-y: hidden;
+        }
+
+        body.schedule-table-view table {
+          min-width: 1400px;
+        }
+
+        body.schedule-table-view .bottom-nav {
+          width: 100%;
+        }
+      }
+
       .schedule-mobile {
         display: grid;
         gap: 10px;
@@ -2946,6 +2980,7 @@
 
       function renderBottomNav(active = state.activeTab) {
         state.activeTab = active;
+        document.body.classList.remove("schedule-table-view");
         const employeesLocked = !canManageEmployees();
         bottomNav.innerHTML = `
           <button class="bottom-nav-btn ${active === "home" ? "active" : ""}" data-tab="home">
@@ -6508,6 +6543,21 @@
             </div>
           `;
           renderBottomNav("schedule");
+          document.body.classList.toggle(
+            "schedule-table-view",
+            viewMode === "table" && !isPhoneClient()
+          );
+
+          const tableWrap = screen.querySelector(".table-wrap");
+          tableWrap?.addEventListener(
+            "wheel",
+            (event) => {
+              if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || event.shiftKey) return;
+              window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
+              event.preventDefault();
+            },
+            { passive: false }
+          );
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
           document.getElementById("toggleViewBtn").addEventListener("click", () => {
