@@ -3227,6 +3227,9 @@
           status.className = "status";
           status.textContent = "";
         });
+        input?.addEventListener("paste", (event) => {
+          replacePhoneFromPaste(event, input);
+        });
         codeInput?.addEventListener("input", () => {
           codeInput.value = onlyDigits(codeInput.value).slice(0, 6);
           status.className = "status";
@@ -5451,10 +5454,22 @@
       }
 
       function applyPhoneMask(value) {
-        const digits = onlyDigits(value);
+        let digits = onlyDigits(value);
         if (!digits) return "";
 
-        const normalized = `7${digits.startsWith("7") ? digits.slice(1) : digits}`;
+        // Some browsers append a pasted +7 number to the prefilled +7.
+        if (digits.length > 11 && digits.startsWith("77")) {
+          digits = digits.slice(1);
+        }
+
+        const hasCountryPrefix =
+          digits.length >= 11 && (digits.startsWith("7") || digits.startsWith("8"));
+        const nationalDigits = hasCountryPrefix
+          ? digits.slice(1)
+          : digits.startsWith("7")
+            ? digits.slice(1)
+            : digits;
+        const normalized = `7${nationalDigits}`;
         const cut = normalized.slice(0, 11);
         const p1 = cut.slice(1, 4);
         const p2 = cut.slice(4, 7);
@@ -5467,6 +5482,15 @@
         if (p3) out += `-${p3}`;
         if (p4) out += `-${p4}`;
         return out;
+      }
+
+      function replacePhoneFromPaste(event, input) {
+        const pastedValue = event.clipboardData?.getData("text") || "";
+        if (!onlyDigits(pastedValue)) return;
+
+        event.preventDefault();
+        input.value = applyPhoneMask(pastedValue);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
       }
 
       function normalizePhone(value) {
@@ -5805,6 +5829,9 @@
         });
         phoneInput.addEventListener("input", () => {
           phoneInput.value = applyPhoneMask(phoneInput.value);
+        });
+        phoneInput.addEventListener("paste", (event) => {
+          replacePhoneFromPaste(event, phoneInput);
         });
 
         saveEmployeeBtn.addEventListener("click", async () => {
