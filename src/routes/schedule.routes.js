@@ -12,7 +12,7 @@ import {
   listShiftPaymentsForMonth,
   listLocations,
   logAuditEvent,
-  markAllEmployeeShiftsPaid,
+  markEmployeePeriodPaid,
   markShiftPaid,
   unmarkShiftPaid,
   updateLocationHours,
@@ -387,11 +387,12 @@ const shiftPaymentSchema = z.object({
 
 const bulkShiftPaymentSchema = z.object({
   employeeName: z.string().trim().min(3).max(120),
-  month: z.string().regex(/^\d{4}-\d{2}$/)
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  period: z.enum(["first", "second"])
 });
 
 router.post(
-  "/:locationCode/shift-payments/pay-all",
+  "/:locationCode/shift-payments/pay-period",
   requireRole(Role.ADMIN, Role.SUPERADMIN),
   (req, res, next) => {
     try {
@@ -403,9 +404,10 @@ router.post(
         });
       }
 
-      const result = markAllEmployeeShiftsPaid({
+      const result = markEmployeePeriodPaid({
         locationCode: req.params.locationCode,
         month: parsed.data.month,
+        period: parsed.data.period,
         employeeName: parsed.data.employeeName,
         createdByTelegramId: req.user?.telegramId || ""
       });
@@ -418,7 +420,7 @@ router.post(
 
       logAuditEvent({
         scope: "SYSTEM",
-        eventType: "FINANCE_EMPLOYEE_MONTH_PAID",
+        eventType: "FINANCE_EMPLOYEE_PERIOD_PAID",
         actorUser: req.user,
         actorTelegramId: req.user.telegramId,
         actorRole: req.user.role,
@@ -429,6 +431,9 @@ router.post(
           locationCode: req.params.locationCode,
           employeeName: parsed.data.employeeName,
           month: parsed.data.month,
+          period: parsed.data.period,
+          periodFrom: result.periodFrom,
+          periodTo: result.periodTo,
           paidShiftCount: result.count,
           amount: result.totalAmount
         },

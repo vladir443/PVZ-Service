@@ -1270,9 +1270,10 @@ export function markShiftPaid({ locationCode, shiftDate, employeeName, createdBy
     .get(locationCode, safeDate, safeName);
 }
 
-export function markAllEmployeeShiftsPaid({
+export function markEmployeePeriodPaid({
   locationCode,
   month,
+  period,
   employeeName,
   createdByTelegramId
 }) {
@@ -1285,8 +1286,15 @@ export function markAllEmployeeShiftsPaid({
   }
   const { year, month: monthNum } = parseMonth(month);
   const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
-  const fromDate = `${month}-01`;
-  const toDate = `${month}-${String(lastDay).padStart(2, "0")}`;
+  const safePeriod = String(period || "").toLowerCase();
+  if (safePeriod !== "first" && safePeriod !== "second") {
+    throw new Error("Payment period is invalid");
+  }
+  const fromDate = safePeriod === "first" ? `${month}-01` : `${month}-16`;
+  const toDate =
+    safePeriod === "first"
+      ? `${month}-15`
+      : `${month}-${String(lastDay).padStart(2, "0")}`;
 
   const unpaidShifts = db
     .prepare(
@@ -1326,7 +1334,9 @@ export function markAllEmployeeShiftsPaid({
     totalAmount: payments.reduce(
       (sum, payment) => sum + Number(payment.paid_amount || 0),
       0
-    )
+    ),
+    periodFrom: fromDate,
+    periodTo: toDate
   };
 }
 

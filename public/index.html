@@ -1465,12 +1465,6 @@
         margin-bottom: 12px;
       }
 
-      .finance-pay-all-btn {
-        flex: 0 0 auto;
-        padding: 8px 12px;
-        font-size: 13px;
-      }
-
       .finance-month-control {
         width: min(320px, 100%);
         display: grid;
@@ -1492,8 +1486,14 @@
         overflow: hidden;
       }
 
+      .finance-period-head {
+        display: flex;
+        align-items: stretch;
+      }
+
       .finance-period-summary {
-        width: 100%;
+        flex: 1 1 auto;
+        min-width: 0;
         border: 0;
         background: transparent;
         padding: 12px;
@@ -1504,6 +1504,14 @@
         color: var(--text);
         text-align: left;
         cursor: pointer;
+      }
+
+      .finance-pay-period-btn {
+        flex: 0 0 auto;
+        align-self: center;
+        margin-right: 12px;
+        padding: 8px 12px;
+        font-size: 13px;
       }
 
       .finance-period-title {
@@ -2882,6 +2890,14 @@
           grid-template-columns: 1fr auto;
           gap: 8px;
         }
+        .finance-period-head {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .finance-pay-period-btn {
+          width: calc(100% - 24px);
+          margin: 0 12px 12px;
+        }
         .finance-period-summary .finance-period-stat {
           grid-column: 1 / -1;
           grid-template-columns: 94px 1fr;
@@ -2906,9 +2922,6 @@
         .finance-employee-head {
           align-items: flex-start;
           flex-direction: column;
-        }
-        .finance-pay-all-btn {
-          width: 100%;
         }
       }
 
@@ -5206,9 +5219,9 @@
             badge: "Финансы",
             tone: "warning"
           },
-          FINANCE_EMPLOYEE_MONTH_PAID: {
-            title: "Смены сотрудника оплачены",
-            description: "Все неоплаченные смены сотрудника за выбранный месяц отмечены оплаченными.",
+          FINANCE_EMPLOYEE_PERIOD_PAID: {
+            title: "Период сотрудника оплачен",
+            description: "Все неоплаченные смены сотрудника за выбранный период отмечены оплаченными.",
             badge: "Финансы",
             tone: "ok"
           },
@@ -6864,22 +6877,20 @@
             }
 
             const dayActions = [];
-            const employeeActions = [];
+            const periodActions = [];
             financeList.innerHTML = employeeNames
               .map((employeeName) => {
-                const employeeUnpaidDays = getFinancePeriods()
-                  .flatMap((period) => getFinanceDays(employeeName, period))
-                  .filter((day) => !day.payment);
-                const employeeActionIndex =
-                  employeeActions.push({
-                    employeeName,
-                    unpaidCount: employeeUnpaidDays.length,
-                    unpaidTotal: employeeUnpaidDays.reduce((sum, day) => sum + day.total, 0)
-                  }) - 1;
                 const periodsHtml = getFinancePeriods()
                   .map((period) => {
                     const days = getFinanceDays(employeeName, period);
                     const unpaidDays = days.filter((day) => !day.payment);
+                    const periodActionIndex =
+                      periodActions.push({
+                        employeeName,
+                        period,
+                        unpaidCount: unpaidDays.length,
+                        unpaidTotal: unpaidDays.reduce((sum, day) => sum + day.total, 0)
+                      }) - 1;
                     const salary = unpaidDays.reduce((sum, day) => sum + day.salary, 0);
                     const deductions = unpaidDays.reduce((sum, day) => sum + day.deductions, 0);
                     const bonuses = unpaidDays.reduce((sum, day) => sum + day.bonuses, 0);
@@ -6926,30 +6937,39 @@
 
                     return `
                       <div class="finance-period">
-                        <button class="finance-period-summary" type="button" data-finance-period="${escapeHtml(expandKey)}">
-                          <div class="finance-period-title">${period.label}</div>
-                          <div class="finance-period-stat">
-                            <span>Зарплата</span>
-                            <strong>${formatMoneyUnsigned(salary)}</strong>
-                          </div>
-                          <div class="finance-period-stat">
-                            <span>Удержания</span>
-                            <strong>${formatMoneyUnsigned(deductions)}</strong>
-                          </div>
-                          <div class="finance-period-stat">
-                            <span>Доплаты</span>
-                            <strong>${formatMoneyUnsigned(bonuses)}</strong>
-                          </div>
-                          <div class="finance-period-stat total">
-                            <span>К выплате</span>
-                            <strong>${formatPayoutBalance(total)}</strong>
-                          </div>
-                          <img
-                            class="finance-toggle-icon"
-                            src="${expanded ? "/icons/chevron_double_up_icon_143815.png" : "/icons/chevron_double_down_icon_143818.png"}"
-                            alt="${expanded ? "Свернуть" : "Развернуть"}"
-                          />
-                        </button>
+                        <div class="finance-period-head">
+                          <button class="finance-period-summary" type="button" data-finance-period="${escapeHtml(expandKey)}">
+                            <div class="finance-period-title">${period.label}</div>
+                            <div class="finance-period-stat">
+                              <span>Зарплата</span>
+                              <strong>${formatMoneyUnsigned(salary)}</strong>
+                            </div>
+                            <div class="finance-period-stat">
+                              <span>Удержания</span>
+                              <strong>${formatMoneyUnsigned(deductions)}</strong>
+                            </div>
+                            <div class="finance-period-stat">
+                              <span>Доплаты</span>
+                              <strong>${formatMoneyUnsigned(bonuses)}</strong>
+                            </div>
+                            <div class="finance-period-stat total">
+                              <span>К выплате</span>
+                              <strong>${formatPayoutBalance(total)}</strong>
+                            </div>
+                            <img
+                              class="finance-toggle-icon"
+                              src="${expanded ? "/icons/chevron_double_up_icon_143815.png" : "/icons/chevron_double_down_icon_143818.png"}"
+                              alt="${expanded ? "Свернуть" : "Развернуть"}"
+                            />
+                          </button>
+                          ${
+                            canMarkShiftPaid && unpaidDays.length
+                              ? `<button class="button finance-pay-period-btn" type="button" data-pay-period="${periodActionIndex}">Оплатить период</button>`
+                              : !unpaidDays.length && days.length
+                                ? `<span class="finance-paid-badge" style="align-self:center; margin-right:12px;">Оплачено</span>`
+                                : ""
+                          }
+                        </div>
                         <div class="finance-period-details ${expanded ? "" : "hidden"}">${daysHtml}</div>
                       </div>
                     `;
@@ -6960,13 +6980,6 @@
                   <section class="finance-employee-card">
                     <div class="finance-employee-head">
                       <h4 class="finance-employee-name">${escapeHtml(employeeName)}</h4>
-                      ${
-                        canMarkShiftPaid && employeeUnpaidDays.length
-                          ? `<button class="button finance-pay-all-btn" type="button" data-pay-all="${employeeActionIndex}">Оплатить всё</button>`
-                          : employeeUnpaidDays.length
-                            ? ""
-                            : `<span class="finance-paid-badge">Всё оплачено</span>`
-                      }
                     </div>
                     <div class="finance-periods">${periodsHtml}</div>
                   </section>
@@ -6986,24 +6999,25 @@
               });
             }
 
-            for (const button of financeList.querySelectorAll("[data-pay-all]")) {
+            for (const button of financeList.querySelectorAll("[data-pay-period]")) {
               button.addEventListener("click", async () => {
-                const action = employeeActions[Number(button.dataset.payAll)];
+                const action = periodActions[Number(button.dataset.payPeriod)];
                 if (!action?.unpaidCount) return;
                 const confirmed = await confirmAction(
-                  `Оплатить все неоплаченные смены сотрудника ${action.employeeName} за ${formatMonthYear(financeMonth).toLowerCase()}? Смен: ${action.unpaidCount}, сумма: ${formatPayoutBalance(action.unpaidTotal)}.`
+                  `Оплатить все неоплаченные смены сотрудника ${action.employeeName} за период ${action.period.label}? Смен: ${action.unpaidCount}, сумма: ${formatPayoutBalance(action.unpaidTotal)}.`
                 );
                 if (!confirmed) return;
                 button.disabled = true;
                 financeError.textContent = "";
                 try {
                   const result = await api(
-                    `/api/schedule/${state.selectedLocation.code}/shift-payments/pay-all`,
+                    `/api/schedule/${state.selectedLocation.code}/shift-payments/pay-period`,
                     {
                       method: "POST",
                       body: JSON.stringify({
                         employeeName: action.employeeName,
-                        month: financeMonth
+                        month: financeMonth,
+                        period: action.period.key
                       })
                     }
                   );
