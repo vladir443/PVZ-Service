@@ -5449,6 +5449,15 @@
         return raw.startsWith("@") ? raw : `@${raw}`;
       }
 
+      function normalizeVkContact(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        return raw.replace(
+          /^https?:\/\/(?:m\.)?vk\.com\//i,
+          "https://vk.ru/"
+        );
+      }
+
       function onlyDigits(value) {
         return String(value || "").replace(/\D/g, "");
       }
@@ -5601,9 +5610,10 @@
                           ${(() => {
                             const raw = String(emp.vkContact || "").trim();
                             if (!raw) return "";
-                            const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+                            const canonical = normalizeVkContact(raw);
+                            const href = /^https?:\/\//i.test(canonical) ? canonical : `https://${canonical}`;
                             return `<div class="employee-contact-row">
-                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">VK: ${escapeHtml(raw)}</a>
+                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">VK: ${escapeHtml(canonical)}</a>
                               <button
                                 type="button"
                                 class="employee-contact-copy-btn"
@@ -5694,7 +5704,7 @@
                     </div>
                     <div class="employee-form-field">
                       <div class="employee-form-label">VK контакт</div>
-                      <input id="vkInput" type="text" placeholder="https://vk.com/username" />
+                      <input id="vkInput" type="text" placeholder="https://vk.ru/username" />
                     </div>
                   </div>
                 </div>
@@ -5780,7 +5790,7 @@
           lastNameInput.value = employee.lastName || "";
           phoneInput.value = employee.phone || "";
           telegramInput.value = employee.telegramContact || "";
-          vkInput.value = employee.vkContact || "";
+          vkInput.value = normalizeVkContact(employee.vkContact || "");
           positionInput.value = employee.position || "manager";
           reliabilityInput.value = employee.reliability || "checking";
           accessRoleInput.innerHTML = accessRoleOptionsHtml(
@@ -5839,7 +5849,7 @@
           const lastName = lastNameInput.value.trim();
           const normalizedPhone = normalizePhone(phoneInput.value);
           const telegramContact = normalizeTelegramContact(telegramInput.value);
-          const vkContact = vkInput.value.trim();
+          const vkContact = normalizeVkContact(vkInput.value);
           const position = positionInput.value;
           const reliability = reliabilityInput.value;
           const accessRole = accessRoleInput.value || "PARTICIPANT";

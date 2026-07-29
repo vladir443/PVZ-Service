@@ -314,7 +314,7 @@ const CORE_EMPLOYEE = {
   telegramId: "",
   phone: "+7 922 924-24-94",
   telegramContact: "@i1wqq",
-  vkContact: "https://vk.com/volodyast",
+  vkContact: "https://vk.ru/volodyast",
   position: "owner",
   reliability: "reliable"
 };
@@ -329,6 +329,12 @@ function normalizePhoneDigits(value) {
   const digits = String(value || "").replace(/\D/g, "");
   if (!digits) return "";
   return digits.startsWith("8") ? `7${digits.slice(1)}` : digits;
+}
+
+function normalizeVkContactValue(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^https?:\/\/(?:m\.)?vk\.com\//i, "https://vk.ru/");
 }
 
 export function authIdFromPhone(phone) {
@@ -402,6 +408,24 @@ function ensureCoreEmployee() {
 }
 
 ensureCoreEmployee();
+
+db.exec(`
+  UPDATE employees
+  SET vk_contact = replace(
+    replace(
+      replace(
+        replace(vk_contact, 'https://m.vk.com/', 'https://vk.ru/'),
+        'http://m.vk.com/',
+        'https://vk.ru/'
+      ),
+      'https://vk.com/',
+      'https://vk.ru/'
+    ),
+    'http://vk.com/',
+    'https://vk.ru/'
+  )
+  WHERE vk_contact LIKE '%vk.com/%';
+`);
 
 const LOCATION_SEED = [
   { code: "WB_AMUNDSENA_15K2", title: "wb Амундсена 15к2" },
@@ -1306,7 +1330,7 @@ export function createEmployee({
       avatarUrl.trim(),
       phone.trim(),
       telegramContact.trim(),
-      vkContact.trim(),
+      normalizeVkContactValue(vkContact),
       position,
       reliability,
       toDbRole(accessRole)
@@ -1416,7 +1440,7 @@ export function updateEmployeeById({
       avatarUrl.trim(),
       phone.trim(),
       telegramContact.trim(),
-      vkContact.trim(),
+      normalizeVkContactValue(vkContact),
       position,
       reliability,
       toDbRole(accessRole),

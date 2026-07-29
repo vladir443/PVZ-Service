@@ -69,8 +69,13 @@ function validateContacts(data) {
     return "Telegram контакт укажи как username: @username";
   }
 
-  if (data.vkContact && !/^https?:\/\/(vk\.com|m\.vk\.com)\/[A-Za-z0-9_.-]+$/i.test(data.vkContact)) {
-    return "VK контакт укажи ссылкой вида https://vk.com/username";
+  if (
+    data.vkContact &&
+    !/^https?:\/\/(vk\.ru|m\.vk\.ru|vk\.com|m\.vk\.com)\/[A-Za-z0-9_.-]+$/i.test(
+      data.vkContact
+    )
+  ) {
+    return "VK контакт укажи ссылкой вида https://vk.ru/username";
   }
 
   return null;
