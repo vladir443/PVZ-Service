@@ -12,6 +12,7 @@ import {
   listShiftPaymentsForMonth,
   listLocations,
   logAuditEvent,
+  markAllEmployeeShiftsPaid,
   markShiftPaid,
   unmarkShiftPaid,
   updateLocationHours,
@@ -383,6 +384,63 @@ const shiftPaymentSchema = z.object({
   employeeName: z.string().trim().min(3).max(120),
   shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 });
+
+const bulkShiftPaymentSchema = z.object({
+  employeeName: z.string().trim().min(3).max(120),
+  month: z.string().regex(/^\d{4}-\d{2}$/)
+});
+
+router.post(
+  "/:locationCode/shift-payments/pay-all",
+  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  (req, res, next) => {
+    try {
+      const parsed = bulkShiftPaymentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "ValidationError",
+          issues: parsed.error.flatten()
+        });
+      }
+
+      const result = markAllEmployeeShiftsPaid({
+        locationCode: req.params.locationCode,
+        month: parsed.data.month,
+        employeeName: parsed.data.employeeName,
+        createdByTelegramId: req.user?.telegramId || ""
+      });
+      if (!result) {
+        return res.status(404).json({
+          error: "NotFound",
+          message: "ПВЗ не найден"
+        });
+      }
+
+      logAuditEvent({
+        scope: "SYSTEM",
+        eventType: "FINANCE_EMPLOYEE_MONTH_PAID",
+        actorUser: req.user,
+        actorTelegramId: req.user.telegramId,
+        actorRole: req.user.role,
+        sessionId: req.session?.id || "",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: {
+          locationCode: req.params.locationCode,
+          employeeName: parsed.data.employeeName,
+          month: parsed.data.month,
+          paidShiftCount: result.count,
+          amount: result.totalAmount
+        },
+        systemView: "ALL_ADMINS"
+      });
+
+      return res.status(201).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
 
 router.post(
   "/:locationCode/shift-payments",

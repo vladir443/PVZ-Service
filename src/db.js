@@ -1270,6 +1270,66 @@ export function markShiftPaid({ locationCode, shiftDate, employeeName, createdBy
     .get(locationCode, safeDate, safeName);
 }
 
+export function markAllEmployeeShiftsPaid({
+  locationCode,
+  month,
+  employeeName,
+  createdByTelegramId
+}) {
+  const location = db.prepare("SELECT code FROM locations WHERE code = ?").get(locationCode);
+  if (!location) return null;
+
+  const safeName = String(employeeName || "").trim();
+  if (!safeName) {
+    throw new Error("Employee name is required");
+  }
+  const { year, month: monthNum } = parseMonth(month);
+  const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+  const fromDate = `${month}-01`;
+  const toDate = `${month}-${String(lastDay).padStart(2, "0")}`;
+
+  const unpaidShifts = db
+    .prepare(
+      `
+      SELECT shifts.shift_date
+      FROM shifts
+      LEFT JOIN finance_shift_payments AS paid
+        ON paid.location_code = shifts.location_code
+       AND paid.shift_date = shifts.shift_date
+       AND paid.employee_name = ?
+      WHERE shifts.location_code = ?
+        AND shifts.shift_date >= ?
+        AND shifts.shift_date <= ?
+        AND (shifts.executor1 = ? OR shifts.executor2 = ?)
+        AND paid.id IS NULL
+      ORDER BY shifts.shift_date ASC
+      `
+    )
+    .all(safeName, locationCode, fromDate, toDate, safeName, safeName);
+
+  const markAll = db.transaction(() =>
+    unpaidShifts
+      .map((shift) =>
+        markShiftPaid({
+          locationCode,
+          shiftDate: shift.shift_date,
+          employeeName: safeName,
+          createdByTelegramId
+        })
+      )
+      .filter(Boolean)
+  );
+  const payments = markAll();
+
+  return {
+    count: payments.length,
+    totalAmount: payments.reduce(
+      (sum, payment) => sum + Number(payment.paid_amount || 0),
+      0
+    )
+  };
+}
+
 export function unmarkShiftPaid({ locationCode, paymentId }) {
   const id = Number(paymentId);
   if (!Number.isInteger(id) || id <= 0) return null;

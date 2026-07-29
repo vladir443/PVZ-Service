@@ -1452,9 +1452,32 @@
       }
 
       .finance-employee-name {
-        margin: 0 0 12px;
+        margin: 0;
         font-size: 17px;
         line-height: 1.25;
+      }
+
+      .finance-employee-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .finance-pay-all-btn {
+        flex: 0 0 auto;
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+
+      .finance-month-control {
+        width: min(320px, 100%);
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
       }
 
       .finance-periods {
@@ -2880,6 +2903,13 @@
         .finance-day-action {
           width: 100%;
         }
+        .finance-employee-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .finance-pay-all-btn {
+          width: 100%;
+        }
       }
 
       @media (max-width: 380px) {
@@ -2984,6 +3014,20 @@
         "Октябрь",
         "Ноябрь",
         "Декабрь"
+      ];
+      const monthNamesGenitiveRu = [
+        "января",
+        "февраля",
+        "марта",
+        "апреля",
+        "мая",
+        "июня",
+        "июля",
+        "августа",
+        "сентября",
+        "октября",
+        "ноября",
+        "декабря"
       ];
       const deductionRules = [
         { code: "mess", title: "Беспорядок", fixed: -300, hint: "-300 рублей" },
@@ -5162,6 +5206,12 @@
             badge: "Финансы",
             tone: "warning"
           },
+          FINANCE_EMPLOYEE_MONTH_PAID: {
+            title: "Смены сотрудника оплачены",
+            description: "Все неоплаченные смены сотрудника за выбранный месяц отмечены оплаченными.",
+            badge: "Финансы",
+            tone: "ok"
+          },
           PIN_VERIFY_LOCKED: {
             title: "PIN временно заблокирован",
             description: "Сработала защита от перебора PIN-кода.",
@@ -5246,6 +5296,8 @@
           operationType: "Тип операции",
           amount: "Сумма",
           paymentId: "ID выплаты",
+          month: "Месяц",
+          paidShiftCount: "Оплачено смен",
           enabled14: "Напоминание 14 часов",
           enabled24: "Напоминание 24 часа"
         };
@@ -6607,12 +6659,16 @@
                     <button class="open-arrow-btn" id="closeFinanceBtnTop" type="button" aria-label="Назад">
                       <img src="/icons/back-arrow.png" alt="Назад" />
                     </button>
-                    <h3 class="panel-title">Финансы — ${escapeHtml(formatMonthYear(state.selectedMonth))}</h3>
+                    <h3 id="financeTitle" class="panel-title">Финансы</h3>
                   </div>
                   <button class="icon-button" id="refreshFinanceBtn" type="button" title="Обновить">
                     <img src="/icons/refresh-new.png" alt="Обновить" />
                   </button>
                 </div>
+                <label class="finance-month-control mt12">
+                  <span>Месяц расчёта</span>
+                  <input id="financeMonthInput" type="month" />
+                </label>
                 <p class="muted mt12">Каждый сотрудник разделён на зарплату за 1–15 и 16–конец месяца. Оплаченные дни не входят в остаток.</p>
                 <p id="financeStatus" class="status mt8"></p>
                 <p id="financeError" class="status error mt8"></p>
@@ -6689,25 +6745,34 @@
           const financeStatus = document.getElementById("financeStatus");
           const financeError = document.getElementById("financeError");
           const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
+          const financeMonthInput = document.getElementById("financeMonthInput");
+          const financeTitle = document.getElementById("financeTitle");
           const canMarkShiftPaid = editable;
           const expandedFinancePeriods = new Set();
+          let financeMonth = monthNow();
           let financeShifts = shifts;
           let financeShiftPayments = shiftPayments;
 
-          const financePeriods = [
-            {
-              key: "first",
-              label: "1–15 зарплата",
-              from: monthBounds.start,
-              to: `${state.selectedMonth}-15`
-            },
-            {
-              key: "second",
-              label: "16–конец месяца зарплата",
-              from: `${state.selectedMonth}-16`,
-              to: monthBounds.end
-            }
-          ];
+          const getFinancePeriods = () => {
+            const bounds = getMonthBounds(financeMonth);
+            const monthIndex = Number(financeMonth.slice(5, 7)) - 1;
+            const monthName = monthNamesGenitiveRu[monthIndex] || "месяца";
+            const lastDay = Number(bounds.end.slice(-2));
+            return [
+              {
+                key: "first",
+                label: `1–15 ${monthName}`,
+                from: bounds.start,
+                to: `${financeMonth}-15`
+              },
+              {
+                key: "second",
+                label: `16–${lastDay} ${monthName}`,
+                from: `${financeMonth}-16`,
+                to: bounds.end
+              }
+            ];
+          };
 
           const financePaymentKey = (date, employeeName) =>
             `${String(date || "")}::${String(employeeName || "").trim().toLowerCase()}`;
@@ -6799,9 +6864,19 @@
             }
 
             const dayActions = [];
+            const employeeActions = [];
             financeList.innerHTML = employeeNames
               .map((employeeName) => {
-                const periodsHtml = financePeriods
+                const employeeUnpaidDays = getFinancePeriods()
+                  .flatMap((period) => getFinanceDays(employeeName, period))
+                  .filter((day) => !day.payment);
+                const employeeActionIndex =
+                  employeeActions.push({
+                    employeeName,
+                    unpaidCount: employeeUnpaidDays.length,
+                    unpaidTotal: employeeUnpaidDays.reduce((sum, day) => sum + day.total, 0)
+                  }) - 1;
+                const periodsHtml = getFinancePeriods()
                   .map((period) => {
                     const days = getFinanceDays(employeeName, period);
                     const unpaidDays = days.filter((day) => !day.payment);
@@ -6883,7 +6958,16 @@
 
                 return `
                   <section class="finance-employee-card">
-                    <h4 class="finance-employee-name">${escapeHtml(employeeName)}</h4>
+                    <div class="finance-employee-head">
+                      <h4 class="finance-employee-name">${escapeHtml(employeeName)}</h4>
+                      ${
+                        canMarkShiftPaid && employeeUnpaidDays.length
+                          ? `<button class="button finance-pay-all-btn" type="button" data-pay-all="${employeeActionIndex}">Оплатить всё</button>`
+                          : employeeUnpaidDays.length
+                            ? ""
+                            : `<span class="finance-paid-badge">Всё оплачено</span>`
+                      }
+                    </div>
                     <div class="finance-periods">${periodsHtml}</div>
                   </section>
                 `;
@@ -6899,6 +6983,39 @@
                   expandedFinancePeriods.add(key);
                 }
                 renderFinance();
+              });
+            }
+
+            for (const button of financeList.querySelectorAll("[data-pay-all]")) {
+              button.addEventListener("click", async () => {
+                const action = employeeActions[Number(button.dataset.payAll)];
+                if (!action?.unpaidCount) return;
+                const confirmed = await confirmAction(
+                  `Оплатить все неоплаченные смены сотрудника ${action.employeeName} за ${formatMonthYear(financeMonth).toLowerCase()}? Смен: ${action.unpaidCount}, сумма: ${formatPayoutBalance(action.unpaidTotal)}.`
+                );
+                if (!confirmed) return;
+                button.disabled = true;
+                financeError.textContent = "";
+                try {
+                  const result = await api(
+                    `/api/schedule/${state.selectedLocation.code}/shift-payments/pay-all`,
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        employeeName: action.employeeName,
+                        month: financeMonth
+                      })
+                    }
+                  );
+                  await refreshFinanceData();
+                  setFinanceStatus(
+                    `Оплачено смен: ${Number(result.count || 0)}. Обновлено: ${financeTimeLabel()}`
+                  );
+                } catch (error) {
+                  financeError.textContent = `Ошибка массовой оплаты: ${error.message}`;
+                } finally {
+                  button.disabled = false;
+                }
               });
             }
 
@@ -6960,35 +7077,51 @@
           const refreshFinanceData = async () => {
             refreshFinanceBtn.disabled = true;
             financeError.textContent = "";
+            financeTitle.textContent = `Финансы — ${formatMonthYear(financeMonth)}`;
             try {
               const [latestSchedule, latestShiftPayments] = await Promise.all([
-                api(`/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`),
+                api(`/api/schedule/${state.selectedLocation.code}?month=${financeMonth}`),
                 api(
-                  `/api/schedule/${state.selectedLocation.code}/shift-payments?month=${state.selectedMonth}`
+                  `/api/schedule/${state.selectedLocation.code}/shift-payments?month=${financeMonth}`
                 )
               ]);
               financeShifts = latestSchedule.shifts || [];
               financeShiftPayments = latestShiftPayments.shiftPayments || [];
               renderFinance();
+              return true;
             } catch (error) {
               financeError.textContent = `Ошибка обновления: ${error.message}`;
+              return false;
             } finally {
               refreshFinanceBtn.disabled = false;
             }
           };
 
           document.getElementById("openFinanceBtn").addEventListener("click", async () => {
+            financeMonth = monthNow();
+            financeMonthInput.value = financeMonth;
             expandedFinancePeriods.clear();
             financeModal.classList.remove("hidden");
-            await refreshFinanceData();
-            setFinanceStatus(`Обновлено: ${financeTimeLabel()}`);
+            if (await refreshFinanceData()) {
+              setFinanceStatus(`Обновлено: ${financeTimeLabel()}`);
+            }
           });
           document.getElementById("closeFinanceBtnTop").addEventListener("click", () => {
             financeModal.classList.add("hidden");
           });
           refreshFinanceBtn.addEventListener("click", async () => {
-            await refreshFinanceData();
-            setFinanceStatus(`Обновлено: ${financeTimeLabel()}`);
+            if (await refreshFinanceData()) {
+              setFinanceStatus(`Обновлено: ${financeTimeLabel()}`);
+            }
+          });
+          financeMonthInput.addEventListener("change", async () => {
+            const nextMonth = String(financeMonthInput.value || "");
+            if (!/^\d{4}-\d{2}$/.test(nextMonth)) return;
+            financeMonth = nextMonth;
+            expandedFinancePeriods.clear();
+            if (await refreshFinanceData()) {
+              setFinanceStatus(`Выбран ${formatMonthYear(financeMonth).toLowerCase()}`);
+            }
           });
 
           function legacyFinanceUiDisabled() {
