@@ -1549,12 +1549,36 @@
         font-weight: 800;
         box-shadow: 0 3px 10px rgba(24, 46, 78, 0.05);
         cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: none;
+      }
+
+      .finance-location-control {
+        position: relative;
+      }
+
+      .finance-location-control::after {
+        content: "";
+        position: absolute;
+        right: 17px;
+        bottom: 19px;
+        width: 9px;
+        height: 9px;
+        border-right: 2px solid #718099;
+        border-bottom: 2px solid #718099;
+        transform: rotate(45deg);
+        pointer-events: none;
       }
 
       body.theme-dark .finance-location-select {
         background-color: #152238;
         border-color: #314665;
         color: #e8eef8;
+      }
+
+      body.theme-dark .finance-location-control::after {
+        border-color: #c6d4e9;
       }
 
       .month-picker-trigger {
@@ -7104,7 +7128,7 @@
                     <span>Месяц расчёта</span>
                     <button class="month-picker-trigger" id="financeMonthBtn" type="button"></button>
                   </div>
-                  <label class="finance-month-control">
+                  <label class="finance-month-control finance-location-control">
                     <span>Пункт выдачи</span>
                     <select class="finance-location-select" id="financeLocationSelect">
                       <option value="all">Все ПВЗ</option>
