@@ -1773,7 +1773,7 @@ export function syncEmployeeTelegramProfile({ telegramId, username, photoUrl }) 
 }
 
 const PIN_MIN_LENGTH = 4;
-const PIN_MAX_LENGTH = 8;
+const PIN_MAX_LENGTH = 4;
 const PIN_MAX_ATTEMPTS = 5;
 const PIN_LOCK_MINUTES = 15;
 
@@ -1794,7 +1794,7 @@ function normalizePin(value) {
 }
 
 function isValidPinFormat(pin) {
-  return /^\d+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH;
+  return /^\d{4}$/.test(pin);
 }
 
 function createPinHash(pin, salt) {

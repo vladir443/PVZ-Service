@@ -3222,17 +3222,17 @@
           step === "new"
             ? {
                 title: "Создайте PIN-код",
-                subtitle: "Придумайте код из 4-8 цифр. Он будет запрашиваться при входе.",
+                subtitle: "Придумайте код из 4 цифр. Он будет запрашиваться при входе.",
                 progress: "Шаг 1 из 2",
                 button: "Продолжить",
-                dotCount: 8
+                dotCount: 4
               }
             : {
                 title: "Повторите PIN",
                 subtitle: "Введите PIN ещё раз, чтобы мы точно не ошиблись.",
                 progress: "Шаг 2 из 2",
                 button: "Создать PIN",
-                dotCount: Math.max(4, Math.min(8, firstPin.length || 8))
+                dotCount: 4
               };
 
         const renderDots = (dotCount) =>
@@ -3283,7 +3283,7 @@
 
           for (const btn of screen.querySelectorAll("[data-initial-pin-key]")) {
             btn.addEventListener("click", () => {
-              if (busy || pinValue.length >= 8) return;
+              if (busy || pinValue.length >= 4) return;
               pinValue = normalizePinDigitsGlobal(pinValue + btn.dataset.initialPinKey);
               statusText = "";
               statusClass = "";
@@ -3316,7 +3316,7 @@
         const continueSetup = async () => {
           if (busy) return;
           if (!isPinLengthValidGlobal(pinValue)) {
-            showError("PIN должен быть от 4 до 8 цифр");
+            showError("PIN должен состоять ровно из 4 цифр");
             return;
           }
           if (step === "new") {
@@ -3355,7 +3355,7 @@
 
       function renderPinGate(pinState = null) {
         setAppTitle("");
-        const pinLength = Math.max(4, Math.min(8, Number(pinState?.pinLength || 4)));
+        const pinLength = 4;
         const lockText = pinState?.lockedUntil
           ? `Вход заблокирован до ${formatDateTime(pinState.lockedUntil)}`
           : "";
@@ -4079,8 +4079,8 @@
         const securityLogsSection = document.getElementById("securityLogsSection");
         
 
-        const normalizePinDigits = (value) => String(value || "").replace(/\D/g, "").slice(0, 8);
-        const isPinLengthValid = (pin) => /^\d{4,8}$/.test(String(pin || ""));
+        const normalizePinDigits = (value) => String(value || "").replace(/\D/g, "").slice(0, 4);
+        const isPinLengthValid = (pin) => /^\d{4}$/.test(String(pin || ""));
         const setupSecurityTabs = () => {
           if (!securityTabsNav) return;
           const sections = {
@@ -4191,7 +4191,7 @@
                     <div class="pin-field">
                       <label for="pinEnableNewInput">Новый PIN</label>
                       <div class="pin-input-wrap">
-                        <input class="pin-input" id="pinEnableNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                        <input class="pin-input" id="pinEnableNewInput" type="password" inputmode="numeric" maxlength="4" placeholder="4 цифры" />
                         <button class="pin-eye-btn" data-pin-toggle="pinEnableNewInput" type="button" aria-label="Показать PIN">&#128065;</button>
                       </div>
                     </div>
@@ -4220,7 +4220,7 @@
               const repeatPin = normalizePinDigits(repeatInput?.value || "");
               if (!isPinLengthValid(pin)) {
                 enableStatus.className = "status error";
-                enableStatus.textContent = "PIN должен быть от 4 до 8 цифр";
+                enableStatus.textContent = "PIN должен состоять ровно из 4 цифр";
                 return;
               }
               if (pin !== repeatPin) {
@@ -4267,7 +4267,7 @@
                   <div class="pin-field">
                     <label for="pinChangeNewInput">Новый PIN</label>
                     <div class="pin-input-wrap">
-                      <input class="pin-input" id="pinChangeNewInput" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 цифр" />
+                      <input class="pin-input" id="pinChangeNewInput" type="password" inputmode="numeric" maxlength="4" placeholder="4 цифры" />
                       <button class="pin-eye-btn" data-pin-toggle="pinChangeNewInput" type="button" aria-label="Показать PIN">&#128065;</button>
                     </div>
                   </div>
@@ -4317,7 +4317,7 @@
             const repeatNewPin = normalizePinDigits(repeatInput?.value || "");
             if (!isPinLengthValid(currentPin) || !isPinLengthValid(newPin)) {
               changeStatus.className = "status error";
-              changeStatus.textContent = "PIN должен быть от 4 до 8 цифр";
+              changeStatus.textContent = "PIN должен состоять ровно из 4 цифр";
               return;
             }
             if (newPin !== repeatNewPin) {
@@ -4387,7 +4387,7 @@
               }
               return {
                 title: "Новый PIN",
-                subtitle: "Придумайте код из 4-8 цифр",
+                subtitle: "Придумайте код из 4 цифр",
                 progress: "Шаг 1 из 2",
                 button: "Продолжить"
               };
@@ -4397,7 +4397,7 @@
               if (stateMachine.step === "enter_new") {
                 return {
                   title: "Новый PIN",
-                  subtitle: "Придумайте код из 4-8 цифр",
+                  subtitle: "Придумайте код из 4 цифр",
                   progress: "Шаг 2 из 3",
                   button: "Продолжить"
                 };
@@ -4498,7 +4498,7 @@
 
             const pin = normalizePinDigits(stateMachine.value);
             if (!isPinLengthValid(pin)) {
-              setError("PIN должен быть от 4 до 8 цифр");
+              setError("PIN должен состоять ровно из 4 цифр");
               return;
             }
 
@@ -4560,7 +4560,7 @@
           };
 
           const renderDots = () =>
-            Array.from({ length: 8 })
+            Array.from({ length: 4 })
               .map((_, index) => {
                 const classes = ["pin-gate-dot"];
                 if (index < stateMachine.value.length) classes.push("filled");
@@ -4625,7 +4625,7 @@
             });
             for (const btn of modal.querySelectorAll("[data-pin-modal-key]")) {
               btn.addEventListener("click", () => {
-                if (stateMachine.busy || stateMachine.value.length >= 8) return;
+                if (stateMachine.busy || stateMachine.value.length >= 4) return;
                 const digit = btn.getAttribute("data-pin-modal-key");
                 if (!/^\d$/.test(String(digit || ""))) return;
                 stateMachine.value += digit;
@@ -5345,11 +5345,11 @@
       }
 
       function normalizePinDigitsGlobal(value) {
-        return String(value || "").replace(/\D/g, "").slice(0, 8);
+        return String(value || "").replace(/\D/g, "").slice(0, 4);
       }
 
       function isPinLengthValidGlobal(pin) {
-        return /^\d{4,8}$/.test(String(pin || ""));
+        return /^\d{4}$/.test(String(pin || ""));
       }
 
       async function renderEmployeesBase() {

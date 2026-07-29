@@ -38,16 +38,16 @@ function requirePinVerified(req, res, next) {
 }
 
 const pinOnlySchema = z.object({
-  pin: z.string().trim().min(4).max(8)
+  pin: z.string().trim().regex(/^\d{4}$/)
 });
 
 const pinChangeSchema = z.object({
-  currentPin: z.string().trim().min(4).max(8),
-  newPin: z.string().trim().min(4).max(8)
+  currentPin: z.string().trim().regex(/^\d{4}$/),
+  newPin: z.string().trim().regex(/^\d{4}$/)
 });
 
 const pinDisableSchema = z.object({
-  currentPin: z.string().trim().min(4).max(8)
+  currentPin: z.string().trim().regex(/^\d{4}$/)
 });
 
 const logQuerySchema = z.object({
@@ -174,7 +174,7 @@ router.post("/pin/enable", requirePinVerified, (req, res, next) => {
     if (!result.ok) {
       return res.status(400).json({
         error: "ValidationError",
-        message: "PIN должен быть от 4 до 8 цифр"
+        message: "PIN должен состоять ровно из 4 цифр"
       });
     }
     logAuditEvent({
@@ -217,7 +217,7 @@ router.post("/pin/change", requirePinVerified, (req, res, next) => {
         message:
           result.reason === "invalid_current_pin"
             ? "Текущий PIN неверный"
-            : "Новый PIN должен быть от 4 до 8 цифр"
+            : "Новый PIN должен состоять ровно из 4 цифр"
       });
     }
     logAuditEvent({
