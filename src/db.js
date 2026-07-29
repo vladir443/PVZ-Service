@@ -1740,21 +1740,33 @@ export function getEmployeeByPhone(phone) {
 }
 
 export function getEmployeeByAuth({ telegramId, username, phone = "" }) {
-  const byPhone = getEmployeeByPhone(phone);
-  if (byPhone) return byPhone;
+  const safePhone = String(phone || "").trim();
+  if (safePhone) {
+    return getEmployeeByPhone(safePhone);
+  }
+
+  const safeTelegramId = String(telegramId || "").trim();
   const normalizedUsername = normalizeUsername(username);
+  if (!safeTelegramId && !normalizedUsername) return null;
+
   const row = db
     .prepare(
       `
       SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
-      WHERE telegram_id = ?
-         OR lower(replace(telegram_contact, '@', '')) = ?
+      WHERE (? <> '' AND telegram_id = ?)
+         OR (? <> '' AND lower(replace(telegram_contact, '@', '')) = ?)
       ORDER BY CASE WHEN telegram_id = ? THEN 0 ELSE 1 END, id ASC
       LIMIT 1
       `
     )
-    .get(String(telegramId || "").trim(), normalizedUsername, String(telegramId || "").trim());
+    .get(
+      safeTelegramId,
+      safeTelegramId,
+      normalizedUsername,
+      normalizedUsername,
+      safeTelegramId
+    );
 
   if (!row) return null;
   return {

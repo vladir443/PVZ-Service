@@ -1,4 +1,10 @@
-import { getActiveSessionWithUser, getPinStateByTelegramId, touchSession } from "../db.js";
+import {
+  getActiveSessionWithUser,
+  getEmployeeByAuth,
+  getPinStateByTelegramId,
+  revokeSession,
+  touchSession
+} from "../db.js";
 import { clearAuthCookies, readAuthCookies } from "../lib/auth-cookies.js";
 
 async function authBase(req, res, next, { allowUnverifiedPin = false } = {}) {
@@ -36,6 +42,26 @@ async function authBase(req, res, next, { allowUnverifiedPin = false } = {}) {
       return res.status(401).json({
         error: "Unauthorized",
         message: "Сессия не найдена. Выполните вход заново."
+      });
+    }
+
+    const phone = telegramId.startsWith("phone:")
+      ? telegramId.slice("phone:".length)
+      : "";
+    const employee = getEmployeeByAuth({
+      phone,
+      telegramId: phone ? "" : telegramId,
+      username: ""
+    });
+    if (!employee) {
+      revokeSession({
+        userId: authPayload.session.userId,
+        sessionId: authPayload.session.id
+      });
+      clearAuthCookies(req, res);
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Доступ закрыт: пользователь не найден в базе сотрудников"
       });
     }
 
