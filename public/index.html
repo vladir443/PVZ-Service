@@ -14,17 +14,28 @@
         --primary: #0f3b75;
         --primary-dark: #0b2f5d;
         --danger: #b42318;
-        --app-width: 760px;
+        --app-width: 960px;
       }
 
       * { box-sizing: border-box; }
 
+      html {
+        width: 100%;
+        min-width: 0;
+        min-height: 100%;
+        overflow-x: hidden;
+      }
+
       body {
+        width: 100%;
+        min-width: 0;
+        min-height: 100dvh;
         margin: 0;
         color: var(--text);
         background: linear-gradient(180deg, #f8faff 0%, #f1f5fb 100%);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         overscroll-behavior-y: none;
+        overflow-x: hidden;
       }
 
       body.modal-open {
@@ -46,19 +57,33 @@
       .wrap {
         width: min(var(--app-width), 100%);
         max-width: var(--app-width);
+        min-width: 0;
         margin: 0 auto;
-        padding: 10px;
+        padding: 18px;
         min-height: 100dvh;
       }
 
       .card {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
         background: var(--card);
-        border-radius: 18px;
-        padding: 16px;
-        padding-bottom: 88px;
+        border-radius: 22px;
+        padding: 22px 24px;
+        padding-bottom: 104px;
         border: 1px solid #e7edf7;
         box-shadow: 0 8px 26px rgba(22, 37, 63, 0.08);
-        min-height: calc(100dvh - 20px);
+        min-height: calc(100dvh - 36px);
+      }
+
+      #screen {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      .card:has(.login-panel) {
+        padding-bottom: 22px;
       }
 
       body.theme-dark .card {
@@ -67,18 +92,23 @@
       }
 
       .login-panel {
-        min-height: calc(100dvh - 170px);
-        display: grid;
-        place-items: center;
-        padding: 24px 12px 96px;
+        width: 100%;
+        min-width: 0;
+        min-height: calc(100dvh - 130px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 28px 0 52px;
       }
 
       .login-card {
-        width: min(360px, calc(100vw - 32px));
+        width: 100%;
+        max-width: 440px;
+        min-width: 0;
         border: 1px solid var(--line);
-        border-radius: 18px;
+        border-radius: 20px;
         background: #ffffff;
-        padding: 22px 20px;
+        padding: 28px;
         box-shadow: 0 18px 40px rgba(21, 35, 58, 0.1);
       }
 
@@ -106,7 +136,10 @@
       }
 
       .login-card input {
+        display: block;
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         margin-top: 8px;
         border: 1px solid #cfd9e8;
         border-radius: 14px;
@@ -622,10 +655,15 @@
         box-shadow: 0 -8px 24px rgba(20, 29, 45, 0.06);
       }
 
+      .bottom-nav:empty {
+        display: none;
+      }
+
       @media (max-width: 640px) {
         .wrap {
           width: 100%;
           max-width: none;
+          padding: 0;
         }
 
         .bottom-nav {
@@ -638,7 +676,7 @@
           border-right: 0;
           border-bottom: 0;
           border-radius: 0;
-          padding: 12px 8px calc(14px + env(safe-area-inset-bottom));
+          padding: 9px 6px calc(9px + env(safe-area-inset-bottom));
         }
       }
 
@@ -2580,10 +2618,49 @@
       @media (max-width: 640px) {
         .wrap { padding: 0; }
         .card {
-          padding: 10px;
-          padding-bottom: 128px;
+          padding: 16px 14px;
+          padding-bottom: 104px;
           min-height: 100dvh;
           border-radius: 0;
+          border-left: 0;
+          border-right: 0;
+          box-shadow: none;
+        }
+        .card:has(.login-panel) {
+          padding-bottom: 16px;
+        }
+        .login-panel {
+          min-height: calc(100dvh - 88px);
+          padding: 22px 0 30px;
+        }
+        .login-card {
+          max-width: 420px;
+          padding: 24px 20px;
+          border-radius: 18px;
+        }
+        .login-title {
+          font-size: clamp(22px, 7vw, 26px);
+        }
+        .login-subtitle {
+          font-size: 14px;
+        }
+        .login-card label {
+          margin-top: 17px;
+        }
+        .login-card input {
+          border-radius: 12px;
+          font-size: 16px;
+          padding: 12px 13px;
+        }
+        .login-button {
+          min-height: 50px;
+          border-radius: 13px;
+        }
+        .bottom-nav-btn {
+          min-height: 52px;
+          padding: 0 2px;
+          gap: 4px;
+          font-size: 12px;
         }
         h1 { font-size: 22px; }
         .employee-row {
@@ -2596,6 +2673,32 @@
         .overview-grid,
         .quick-grid {
           grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 380px) {
+        .card {
+          padding-right: 12px;
+          padding-left: 12px;
+        }
+        .login-card {
+          padding: 22px 16px;
+        }
+        .dash-user {
+          gap: 10px;
+          padding: 12px;
+        }
+        .dash-avatar {
+          width: 58px;
+          height: 58px;
+          font-size: 27px;
+        }
+        .home-list-item {
+          grid-template-columns: 70px 10px minmax(0, 1fr);
+          gap: 4px;
+        }
+        .bottom-nav-btn {
+          font-size: 11px;
         }
       }
     </style>
