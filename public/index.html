@@ -3644,10 +3644,13 @@
             status.textContent = String(error?.message || "Ошибка");
           }
         });
-        document.getElementById("pinGateCloseBtn")?.addEventListener("click", () => {
+        document.getElementById("pinGateCloseBtn")?.addEventListener("click", async () => {
+          await api("/api/auth/logout", { method: "POST" }).catch(() => {});
           state.sessionId = "";
+          state.telegramId = "";
           try {
             localStorage.removeItem(SESSION_STORAGE_KEY);
+            localStorage.removeItem(AUTH_ID_STORAGE_KEY);
           } catch {}
           renderPhoneLogin();
         });
@@ -3672,23 +3675,29 @@
             if (savedSessionId && savedAuthId) {
               state.telegramId = savedAuthId;
               state.sessionId = savedSessionId;
-              const sessionData = await api("/api/auth/session");
-              state.user = sessionData?.user || null;
-              state.security.pinState = sessionData?.security?.pinState || null;
-              if (state.user) {
-                state.selectedMonth = monthNow();
-                state.avatarNonce = String(Date.now());
-                if (sessionData?.security?.pinRequired) {
-                  renderPinGate(sessionData?.security?.pinState || null);
-                  return;
-                }
-                if (!sessionData?.security?.pinEnabled) {
-                  renderInitialPinSetup();
-                  return;
-                }
-                await bootstrapAfterAuth();
+            }
+            const sessionData = await api("/api/auth/session");
+            state.user = sessionData?.user || null;
+            state.security.pinState = sessionData?.security?.pinState || null;
+            if (state.user) {
+              state.telegramId = String(state.user.telegramId || "");
+              state.sessionId = String(sessionData?.session?.id || "");
+              try {
+                localStorage.setItem(AUTH_ID_STORAGE_KEY, state.telegramId);
+                localStorage.setItem(SESSION_STORAGE_KEY, state.sessionId);
+              } catch {}
+              state.selectedMonth = monthNow();
+              state.avatarNonce = String(Date.now());
+              if (sessionData?.security?.pinRequired) {
+                renderPinGate(sessionData?.security?.pinState || null);
                 return;
               }
+              if (!sessionData?.security?.pinEnabled) {
+                renderInitialPinSetup();
+                return;
+              }
+              await bootstrapAfterAuth();
+              return;
             }
           } catch {
             state.telegramId = "";

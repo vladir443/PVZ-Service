@@ -1,9 +1,20 @@
 import { getActiveSessionWithUser, getPinStateByTelegramId, touchSession } from "../db.js";
+import { clearAuthCookies, readAuthCookies } from "../lib/auth-cookies.js";
 
 async function authBase(req, res, next, { allowUnverifiedPin = false } = {}) {
   try {
-    const telegramId = (req.header("x-auth-id") || req.header("x-telegram-id") || "").trim();
-    const sessionId = req.header("x-session-id")?.trim();
+    const cookies = readAuthCookies(req);
+    const telegramId = (
+      req.header("x-auth-id") ||
+      req.header("x-telegram-id") ||
+      cookies.authId ||
+      ""
+    ).trim();
+    const sessionId = (
+      req.header("x-session-id") ||
+      cookies.sessionId ||
+      ""
+    ).trim();
 
     if (!telegramId) {
       return res.status(401).json({
@@ -21,6 +32,7 @@ async function authBase(req, res, next, { allowUnverifiedPin = false } = {}) {
 
     const authPayload = getActiveSessionWithUser({ telegramId, sessionId });
     if (!authPayload?.user || !authPayload?.session) {
+      clearAuthCookies(req, res);
       return res.status(401).json({
         error: "Unauthorized",
         message: "Сессия не найдена. Выполните вход заново."

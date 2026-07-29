@@ -13,6 +13,7 @@ import {
   getUserByTelegramId,
   isCoreAdminUsername,
   logAuditEvent,
+  revokeSession,
   syncEmployeeTelegramProfile,
   updateUserReminderSettings,
   updateUserProfile,
@@ -21,6 +22,7 @@ import {
 } from "../db.js";
 import { getAdminTelegramIds, Role } from "../lib/roles.js";
 import { env } from "../config/env.js";
+import { clearAuthCookies, setAuthCookies } from "../lib/auth-cookies.js";
 
 const router = express.Router();
 
@@ -95,6 +97,13 @@ router.post("/request-code", async (req, res, next) => {
       phone: employee.phone || parsed.data.phone,
       code: codeResult.code
     });
+
+    if (session?.session_id) {
+      setAuthCookies(req, res, {
+        authId: user.telegramId,
+        sessionId: session.session_id
+      });
+    }
 
     return res.json({
       ok: true,
@@ -279,6 +288,15 @@ router.get("/session", requireAuthAllowUnverifiedPin, (req, res) => {
       pinState
     }
   });
+});
+
+router.post("/logout", requireAuthAllowUnverifiedPin, (req, res) => {
+  revokeSession({
+    userId: req.session?.userId,
+    sessionId: req.session?.id
+  });
+  clearAuthCookies(req, res);
+  return res.json({ ok: true });
 });
 
 const reminderSettingsSchema = z.object({
