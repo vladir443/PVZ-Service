@@ -53,7 +53,7 @@ async function sendSmsCode({ phone, code }) {
     },
     body: JSON.stringify({
       phone,
-      text: `PVZ Service: код входа ${code}`,
+      text: `PVZ Group: код входа ${code}`,
       code
     })
   });

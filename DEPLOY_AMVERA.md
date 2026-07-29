@@ -1,4 +1,4 @@
-# Публикация PVZ Service в Amvera
+# Публикация PVZ Group в Amvera
 
 ## 1. Создание приложения
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PVZ Service</title>
+    <title>PVZ Group</title>
     <style>
       :root {
         --bg: #f3f6fb;
@@ -2603,7 +2603,7 @@
   <body>
     <div class="wrap">
       <div class="card">
-        <h1 id="appTitle" class="app-title">PVZ Service</h1>
+        <h1 id="appTitle" class="app-title">PVZ Group</h1>
         <div id="screen" class="mt12"></div>
       </div>
     </div>
@@ -3050,7 +3050,7 @@
       }
 
       function renderPhoneLogin() {
-        setAppTitle("PVZ Service");
+        setAppTitle("PVZ Group");
         bottomNav.innerHTML = "";
         let requestedPhone = "";
         screen.innerHTML = `
@@ -3562,7 +3562,7 @@
       }
 
       async function renderMain() {
-        setAppTitle("PVZ Service");
+        setAppTitle("PVZ Group");
         const currentEmployee = getCurrentEmployeeFromState();
         const photo = withAvatarCacheBust(currentEmployee?.avatarUrl || "");
         const initials = (state.user?.fullName || "?")
