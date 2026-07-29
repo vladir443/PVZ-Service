@@ -3,10 +3,14 @@ import { z } from "zod";
 
 dotenv.config();
 
+const defaultDatabasePath = process.env.AMVERA
+  ? "/data/grafik.db"
+  : "./data/grafik.db";
+
 const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   HOST: z.string().default("0.0.0.0"),
-  DATABASE_PATH: z.string().min(1),
+  DATABASE_PATH: z.string().min(1).default(defaultDatabasePath),
   TELEGRAM_BOT_TOKEN: z.string().default(""),
   ADMIN_TELEGRAM_IDS: z.string().default(""),
   SMS_WEBHOOK_URL: z.string().default(""),
