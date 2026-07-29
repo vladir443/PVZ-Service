@@ -12,6 +12,10 @@ const envSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   DATABASE_PATH: z.string().min(1).default(defaultDatabasePath),
   TELEGRAM_BOT_TOKEN: z.string().default(""),
+  PUBLIC_APP_URL: z
+    .string()
+    .url()
+    .default("https://pvz-group-fildy11.amvera.io"),
   ADMIN_TELEGRAM_IDS: z.string().default(""),
   SMS_WEBHOOK_URL: z.string().default(""),
   SMS_WEBHOOK_TOKEN: z.string().default("")
