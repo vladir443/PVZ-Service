@@ -332,6 +332,31 @@
         cursor: pointer;
       }
 
+      .main-position-row {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .participant-preview-btn {
+        border: 1px solid #9db3d2;
+        border-radius: 9px;
+        padding: 5px 9px;
+        background: #eef4ff;
+        color: #234b82;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .participant-preview-btn.active {
+        border-color: #d89c3d;
+        background: #fff6df;
+        color: #7a4c00;
+      }
+
       .dash-avatar {
         width: 72px;
         height: 72px;
@@ -770,6 +795,12 @@
         border-color: #2a3d59;
       }
 
+      body.theme-dark .schedule-readonly-value {
+        background: #0f1a2d;
+        border-color: #334a6c;
+        color: #e8eef8;
+      }
+
       body.theme-dark .finance-period-details {
         border-top-color: #2a3d59;
       }
@@ -786,6 +817,18 @@
       body.theme-dark .dash-user {
         background: linear-gradient(180deg, #152238 0%, #122034 100%);
         border-color: #2a3d59;
+      }
+
+      body.theme-dark .participant-preview-btn {
+        border-color: #3b5f8c;
+        background: #1a2e4c;
+        color: #b9d5ff;
+      }
+
+      body.theme-dark .participant-preview-btn.active {
+        border-color: #8f682d;
+        background: #3b2d17;
+        color: #f4cf88;
       }
 
       body.theme-dark .muted,
@@ -1344,6 +1387,10 @@
           min-width: 1400px;
         }
 
+        body.schedule-table-view table.participant-table {
+          min-width: 720px;
+        }
+
       }
 
       .schedule-mobile {
@@ -1400,6 +1447,17 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
+      }
+
+      .schedule-readonly-value {
+        margin-top: 4px;
+        min-height: 38px;
+        border: 1px solid #d5dfec;
+        border-radius: 9px;
+        padding: 9px 10px;
+        background: #f8fbff;
+        color: var(--text);
+        font-size: 14px;
       }
 
       .schedule-card-details.hidden {
@@ -3070,6 +3128,7 @@
         scheduleViewMode: null,
         activeTab: "home",
         theme: "light",
+        participantPreview: false,
         security: {
           pinState: null
         }
@@ -3207,11 +3266,26 @@
       }
 
       function canManageEmployees() {
+        if (state.participantPreview) return false;
         return state.user?.role === "ADMIN" || state.user?.role === "SUPERADMIN";
       }
 
       function canEditSchedule() {
+        if (state.participantPreview) return false;
         return state.user?.role === "ADMIN" || state.user?.role === "SUPERADMIN";
+      }
+
+      function currentEmployeePosition() {
+        return String(getCurrentEmployeeFromState()?.position || state.user?.position || "");
+      }
+
+      function isParticipantView() {
+        return state.participantPreview || state.user?.role === "PARTICIPANT";
+      }
+
+      function canAccessFinance() {
+        if (state.participantPreview) return false;
+        return ["owner", "owner_manager"].includes(currentEmployeePosition());
       }
 
       function isPhoneClient() {
@@ -3226,6 +3300,7 @@
 
       function canEditEmployeeFromList(employee) {
         if (!state.user) return false;
+        if (state.participantPreview) return false;
         if (state.user.role === "SUPERADMIN") return true;
         if (state.user.role === "ADMIN") {
           const normalize = (value) =>
@@ -4174,6 +4249,7 @@
             `;
           })
           .join("");
+        const canUseParticipantPreview = currentEmployeePosition() === "owner";
         screen.innerHTML = `
           <div class="dash-user mt12" id="openProfileFromMain">
             ${
@@ -4183,7 +4259,16 @@
             }
             <div>
               <div style="font-size:20px;"><strong>${escapeHtml((state.user.fullName || "").split(" ")[0] || state.user.fullName)}</strong></div>
-              <div class="muted mt8">Должность: <strong>${escapeHtml(positionLabel)}</strong></div>
+              <div class="main-position-row">
+                <div class="muted">Должность: <strong>${escapeHtml(positionLabel)}</strong></div>
+                ${
+                  canUseParticipantPreview
+                    ? `<button id="participantPreviewBtn" class="participant-preview-btn ${state.participantPreview ? "active" : ""}" type="button">${
+                        state.participantPreview ? "Вернуться к владельцу" : "Просмотр участника"
+                      }</button>`
+                    : ""
+                }
+              </div>
               <div class="muted mt8"><span class="dash-dot ${escapeHtml(shiftDotClass)}"></span> ${escapeHtml(shiftText)}</div>
             </div>
             <img class="dash-arrow" src="/icons/right-arrow.png" alt="Открыть" />
@@ -4210,6 +4295,11 @@
         document.getElementById("openProfileFromMain")?.addEventListener("click", () => {
           renderProfile();
         });
+        document.getElementById("participantPreviewBtn")?.addEventListener("click", (event) => {
+          event.stopPropagation();
+          state.participantPreview = !state.participantPreview;
+          renderMain();
+        });
       }
 
       async function renderProfile() {
@@ -4225,7 +4315,9 @@
             employeeProfile = todayData.employee;
           }
         } catch {}
-        const roleLabel = userRoles[state.user.role] || state.user.role;
+        const roleLabel = state.participantPreview
+          ? userRoles.PARTICIPANT
+          : userRoles[state.user.role] || state.user.role;
         const positionLabel = positions[employeeProfile?.position] || "Сотрудник";
         let monthShiftCount = 0;
         try {
@@ -6400,9 +6492,12 @@
         screen.innerHTML = `<p class="muted">Загружаем график...</p>`;
 
         try {
+          const financeAllowed = canAccessFinance();
           const [data, shiftPaymentsData, otherSchedules] = await Promise.all([
             api(`/api/schedule/${state.selectedLocation.code}?month=${state.selectedMonth}`),
-            api(`/api/schedule/${state.selectedLocation.code}/shift-payments?month=${state.selectedMonth}`),
+            financeAllowed
+              ? api(`/api/schedule/${state.selectedLocation.code}/shift-payments?month=${state.selectedMonth}`)
+              : Promise.resolve({ shiftPayments: [] }),
             Promise.all(
               (state.locations || [])
                 .filter((loc) => String(loc.code) !== String(state.selectedLocation.code))
@@ -6432,6 +6527,7 @@
           }
           const monthBounds = getMonthBounds(state.selectedMonth);
           const editable = canEditSchedule();
+          const participantView = isParticipantView();
           if (!state.scheduleViewMode) {
             state.scheduleViewMode = isPhoneClient() ? "mobile" : "table";
           }
@@ -6442,59 +6538,79 @@
               (row) => `
                 <tr
                   data-date="${row.date}"
-                  data-deductions1-meta="${escapeHtml(JSON.stringify(row.deductions1Meta || []))}"
-                  data-deductions2-meta="${escapeHtml(JSON.stringify(row.deductions2Meta || []))}"
-                  data-bonuses1-meta="${escapeHtml(JSON.stringify(row.bonuses1Meta || []))}"
-                  data-bonuses2-meta="${escapeHtml(JSON.stringify(row.bonuses2Meta || []))}"
+                  ${
+                    participantView
+                      ? ""
+                      : `
+                        data-deductions1-meta="${escapeHtml(JSON.stringify(row.deductions1Meta || []))}"
+                        data-deductions2-meta="${escapeHtml(JSON.stringify(row.deductions2Meta || []))}"
+                        data-bonuses1-meta="${escapeHtml(JSON.stringify(row.bonuses1Meta || []))}"
+                        data-bonuses2-meta="${escapeHtml(JSON.stringify(row.bonuses2Meta || []))}"
+                      `
+                  }
                 >
                   <td class="day">${dayNameFromIso(row.date)}</td>
                   <td>${ruDate(row.date)}</td>
                   <td>
-                    <select data-f="executor1">${employeeSelectOptionsHtml(
-                      row.executor1 || "",
-                      roleBusyByDate.get(row.date)?.executor1 || new Set()
-                    )}</select>
+                    ${
+                      participantView
+                        ? escapeHtml(row.executor1 || "—")
+                        : `<select data-f="executor1">${employeeSelectOptionsHtml(
+                            row.executor1 || "",
+                            roleBusyByDate.get(row.date)?.executor1 || new Set()
+                          )}</select>`
+                    }
                   </td>
                   <td>
-                    <select data-f="executor2">${employeeSelectOptionsHtml(
-                      row.executor2 || "",
-                      roleBusyByDate.get(row.date)?.executor2 || new Set()
-                    )}</select>
+                    ${
+                      participantView
+                        ? escapeHtml(row.executor2 || "—")
+                        : `<select data-f="executor2">${employeeSelectOptionsHtml(
+                            row.executor2 || "",
+                            roleBusyByDate.get(row.date)?.executor2 || new Set()
+                          )}</select>`
+                    }
                   </td>
-                  <td><input type="number" min="0" step="100" data-f="rate1" value="${Number(
-                    row.rate1 || 0
-                  )}" /></td>
-                  <td><input type="number" min="0" step="100" data-f="rate2" value="${Number(
-                    row.rate2 || 0
-                  )}" /></td>
-                  <td>
-                    <input type="hidden" data-f="deductions1" value="${Number(row.deductions1 || 0)}" />
-                    <button type="button" class="button secondary" data-adjust-open="deductions1">${adjustButtonLabel(
-                      "deductions1",
-                      Number(row.deductions1 || 0)
-                    )}</button>
-                  </td>
-                  <td>
-                    <input type="hidden" data-f="deductions2" value="${Number(row.deductions2 || 0)}" />
-                    <button type="button" class="button secondary" data-adjust-open="deductions2">${adjustButtonLabel(
-                      "deductions2",
-                      Number(row.deductions2 || 0)
-                    )}</button>
-                  </td>
-                  <td>
-                    <input type="hidden" data-f="bonuses1" value="${Number(row.bonuses1 || 0)}" />
-                    <button type="button" class="button secondary" data-adjust-open="bonuses1">${adjustButtonLabel(
-                      "bonuses1",
-                      Number(row.bonuses1 || 0)
-                    )}</button>
-                  </td>
-                  <td>
-                    <input type="hidden" data-f="bonuses2" value="${Number(row.bonuses2 || 0)}" />
-                    <button type="button" class="button secondary" data-adjust-open="bonuses2">${adjustButtonLabel(
-                      "bonuses2",
-                      Number(row.bonuses2 || 0)
-                    )}</button>
-                  </td>
+                  ${
+                    participantView
+                      ? ""
+                      : `
+                        <td><input type="number" min="0" step="100" data-f="rate1" value="${Number(
+                          row.rate1 || 0
+                        )}" /></td>
+                        <td><input type="number" min="0" step="100" data-f="rate2" value="${Number(
+                          row.rate2 || 0
+                        )}" /></td>
+                        <td>
+                          <input type="hidden" data-f="deductions1" value="${Number(row.deductions1 || 0)}" />
+                          <button type="button" class="button secondary" data-adjust-open="deductions1">${adjustButtonLabel(
+                            "deductions1",
+                            Number(row.deductions1 || 0)
+                          )}</button>
+                        </td>
+                        <td>
+                          <input type="hidden" data-f="deductions2" value="${Number(row.deductions2 || 0)}" />
+                          <button type="button" class="button secondary" data-adjust-open="deductions2">${adjustButtonLabel(
+                            "deductions2",
+                            Number(row.deductions2 || 0)
+                          )}</button>
+                        </td>
+                        <td>
+                          <input type="hidden" data-f="bonuses1" value="${Number(row.bonuses1 || 0)}" />
+                          <button type="button" class="button secondary" data-adjust-open="bonuses1">${adjustButtonLabel(
+                            "bonuses1",
+                            Number(row.bonuses1 || 0)
+                          )}</button>
+                        </td>
+                        <td>
+                          <input type="hidden" data-f="bonuses2" value="${Number(row.bonuses2 || 0)}" />
+                          <button type="button" class="button secondary" data-adjust-open="bonuses2">${adjustButtonLabel(
+                            "bonuses2",
+                            Number(row.bonuses2 || 0)
+                          )}</button>
+                        </td>
+                      `
+                  }
                 </tr>
               `
             )
@@ -6506,37 +6622,58 @@
                 <div
                   class="schedule-card"
                   data-date="${row.date}"
-                  data-deductions1-meta="${escapeHtml(JSON.stringify(row.deductions1Meta || []))}"
-                  data-deductions2-meta="${escapeHtml(JSON.stringify(row.deductions2Meta || []))}"
-                  data-bonuses1-meta="${escapeHtml(JSON.stringify(row.bonuses1Meta || []))}"
-                  data-bonuses2-meta="${escapeHtml(JSON.stringify(row.bonuses2Meta || []))}"
+                  ${
+                    participantView
+                      ? ""
+                      : `
+                        data-deductions1-meta="${escapeHtml(JSON.stringify(row.deductions1Meta || []))}"
+                        data-deductions2-meta="${escapeHtml(JSON.stringify(row.deductions2Meta || []))}"
+                        data-bonuses1-meta="${escapeHtml(JSON.stringify(row.bonuses1Meta || []))}"
+                        data-bonuses2-meta="${escapeHtml(JSON.stringify(row.bonuses2Meta || []))}"
+                      `
+                  }
                 >
                   <div class="schedule-card-head">
                     <span>${dayNameFromIso(row.date)}</span>
                     <div class="schedule-date-wrap">
                       <span>${ruDate(row.date)}</span>
-                      <button class="card-toggle" type="button" data-toggle-card="${row.date}" aria-label="Развернуть день">
-                        <img src="/icons/chevron_double_down_icon_143818.png" alt="Развернуть" />
-                      </button>
+                      ${
+                        participantView
+                          ? ""
+                          : `<button class="card-toggle" type="button" data-toggle-card="${row.date}" aria-label="Развернуть день">
+                              <img src="/icons/chevron_double_down_icon_143818.png" alt="Развернуть" />
+                            </button>`
+                      }
                     </div>
                   </div>
                   <div class="schedule-card-grid">
                     <div>
                       <div class="muted">Исполнитель1</div>
-                      <select data-shift-input="1" data-f="executor1">${employeeSelectOptionsHtml(
-                        row.executor1 || "",
-                        roleBusyByDate.get(row.date)?.executor1 || new Set()
-                      )}</select>
+                      ${
+                        participantView
+                          ? `<div class="schedule-readonly-value">${escapeHtml(row.executor1 || "—")}</div>`
+                          : `<select data-shift-input="1" data-f="executor1">${employeeSelectOptionsHtml(
+                              row.executor1 || "",
+                              roleBusyByDate.get(row.date)?.executor1 || new Set()
+                            )}</select>`
+                      }
                     </div>
                     <div>
                       <div class="muted">Исполнитель2</div>
-                      <select data-shift-input="1" data-f="executor2">${employeeSelectOptionsHtml(
-                        row.executor2 || "",
-                        roleBusyByDate.get(row.date)?.executor2 || new Set()
-                      )}</select>
+                      ${
+                        participantView
+                          ? `<div class="schedule-readonly-value">${escapeHtml(row.executor2 || "—")}</div>`
+                          : `<select data-shift-input="1" data-f="executor2">${employeeSelectOptionsHtml(
+                              row.executor2 || "",
+                              roleBusyByDate.get(row.date)?.executor2 || new Set()
+                            )}</select>`
+                      }
                     </div>
                   </div>
-                  <div class="schedule-card-details hidden" data-details="1">
+                  ${
+                    participantView
+                      ? ""
+                      : `<div class="schedule-card-details hidden" data-details="1">
                     <div class="schedule-card-grid">
                     <div>
                       <div class="muted">Ставка И1</div>
@@ -6584,6 +6721,8 @@
                     </div>
                     </div>
                   </div>
+                  `
+                  }
                 </div>
               `
             )
@@ -6598,7 +6737,7 @@
                 viewMode === "mobile" ? "Полный график" : "Мобильный режим"
               }</button>
               ${
-                viewMode === "mobile"
+                viewMode === "mobile" && !participantView
                   ? `<button class="button secondary" id="toggleAllCardsBtn">Развернуть все</button>`
                   : ""
               }
@@ -6608,7 +6747,7 @@
               <button class="button secondary" id="monthPickerBtn">${escapeHtml(
                 formatMonthYear(state.selectedMonth)
               )}</button>
-              <button class="button secondary" id="openFinanceBtn">Финансы</button>
+              ${financeAllowed ? `<button class="button secondary" id="openFinanceBtn">Финансы</button>` : ""}
             </div>
             <p id="scheduleStatus" class="status mt8"></p>
             ${
@@ -6616,19 +6755,25 @@
                 ? `<div class="schedule-mobile mt12">${mobileCards}</div>`
                 : `
                   <div class="table-wrap mt12">
-                    <table>
+                    <table class="${participantView ? "participant-table" : ""}">
                       <thead>
                         <tr>
                           <th>День</th>
                           <th>Дата</th>
                           <th>Исполнитель1</th>
                           <th>Исполнитель2</th>
-                          <th>Ставка И1</th>
-                          <th>Ставка И2</th>
-                          <th>Удержания И1</th>
-                          <th>Удержания И2</th>
-                          <th>Доплаты И1</th>
-                          <th>Доплаты И2</th>
+                          ${
+                            participantView
+                              ? ""
+                              : `
+                                <th>Ставка И1</th>
+                                <th>Ставка И2</th>
+                                <th>Удержания И1</th>
+                                <th>Удержания И2</th>
+                                <th>Доплаты И1</th>
+                                <th>Доплаты И2</th>
+                              `
+                          }
                         </tr>
                       </thead>
                       <tbody>${rows}</tbody>
@@ -6760,7 +6905,7 @@
           const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
           const financeMonthInput = document.getElementById("financeMonthInput");
           const financeTitle = document.getElementById("financeTitle");
-          const canMarkShiftPaid = editable;
+          const canMarkShiftPaid = financeAllowed;
           const expandedFinancePeriods = new Set();
           let financeMonth = monthNow();
           let financeShifts = shifts;
@@ -7111,7 +7256,7 @@
             }
           };
 
-          document.getElementById("openFinanceBtn").addEventListener("click", async () => {
+          document.getElementById("openFinanceBtn")?.addEventListener("click", async () => {
             financeMonth = monthNow();
             financeMonthInput.value = financeMonth;
             expandedFinancePeriods.clear();

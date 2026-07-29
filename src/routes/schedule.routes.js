@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requirePosition, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
 import {
   createFinancePayment,
@@ -180,13 +180,32 @@ router.get("/:locationCode", (req, res, next) => {
       });
     }
 
+    const privilegedPosition = ["owner", "owner_manager"].includes(
+      String(req.employee?.position || "")
+    );
+    const participantLimited =
+      req.user?.role === Role.PARTICIPANT && !privilegedPosition;
+    if (participantLimited) {
+      return res.json({
+        ...schedule,
+        shifts: (schedule.shifts || []).map((shift) => ({
+          date: shift.date,
+          executor1: shift.executor1 || "",
+          executor2: shift.executor2 || ""
+        }))
+      });
+    }
+
     return res.json(schedule);
   } catch (error) {
     return next(error);
   }
 });
 
-router.get("/:locationCode/payments", (req, res, next) => {
+router.get(
+  "/:locationCode/payments",
+  requirePosition("owner", "owner_manager"),
+  (req, res, next) => {
   try {
     const parsed = monthSchema.safeParse(req.query);
     if (!parsed.success) {
@@ -212,9 +231,13 @@ router.get("/:locationCode/payments", (req, res, next) => {
   } catch (error) {
     return next(error);
   }
-});
+  }
+);
 
-router.get("/:locationCode/shift-payments", (req, res, next) => {
+router.get(
+  "/:locationCode/shift-payments",
+  requirePosition("owner", "owner_manager"),
+  (req, res, next) => {
   try {
     const parsed = monthSchema.safeParse(req.query);
     if (!parsed.success) {
@@ -238,7 +261,8 @@ router.get("/:locationCode/shift-payments", (req, res, next) => {
   } catch (error) {
     return next(error);
   }
-});
+  }
+);
 
 const shiftSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -393,7 +417,7 @@ const bulkShiftPaymentSchema = z.object({
 
 router.post(
   "/:locationCode/shift-payments/pay-period",
-  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  requirePosition("owner", "owner_manager"),
   (req, res, next) => {
     try {
       const parsed = bulkShiftPaymentSchema.safeParse(req.body);
@@ -449,7 +473,7 @@ router.post(
 
 router.post(
   "/:locationCode/shift-payments",
-  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  requirePosition("owner", "owner_manager"),
   (req, res, next) => {
     try {
       const parsed = shiftPaymentSchema.safeParse(req.body);
@@ -511,7 +535,7 @@ router.post(
 
 router.delete(
   "/:locationCode/shift-payments/:paymentId",
-  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  requirePosition("owner", "owner_manager"),
   (req, res, next) => {
     try {
       const deleted = unmarkShiftPaid({
@@ -550,7 +574,10 @@ router.delete(
   }
 );
 
-router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
+router.post(
+  "/:locationCode/payments",
+  requirePosition("owner", "owner_manager"),
+  (req, res, next) => {
   try {
     const parsed = financePaymentSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -612,11 +639,12 @@ router.post("/:locationCode/payments", requireRole(Role.ADMIN, Role.SUPERADMIN),
   } catch (error) {
     return next(error);
   }
-});
+  }
+);
 
 router.delete(
   "/:locationCode/payments/:paymentId",
-  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  requirePosition("owner", "owner_manager"),
   (req, res, next) => {
     try {
       const paymentId = Number(req.params.paymentId);

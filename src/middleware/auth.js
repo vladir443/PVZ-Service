@@ -79,7 +79,11 @@ async function authBase(req, res, next, { allowUnverifiedPin = false } = {}) {
     }
 
     touchSession(sessionId);
-    req.user = authPayload.user;
+    req.user = {
+      ...authPayload.user,
+      position: employee.position || ""
+    };
+    req.employee = employee;
     req.session = authPayload.session;
     req.pinState = pinState || null;
     return next();
@@ -109,6 +113,26 @@ export function requireRole(...allowedRoles) {
       return res.status(403).json({
         error: "Forbidden",
         message: "Недостаточно прав"
+      });
+    }
+
+    return next();
+  };
+}
+
+export function requirePosition(...allowedPositions) {
+  return (req, res, next) => {
+    if (!req.user || !req.employee) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "Authentication is required"
+      });
+    }
+
+    if (!allowedPositions.includes(String(req.employee.position || ""))) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Финансы доступны только владельцу и управляющему"
       });
     }
 

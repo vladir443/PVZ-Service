@@ -244,7 +244,10 @@ router.post("/login", async (req, res, next) => {
     }
 
     return res.json({
-      user,
+      user: {
+        ...user,
+        position: employee.position || ""
+      },
       session: session
         ? {
             id: session.session_id,
