@@ -3205,7 +3205,6 @@
                 <input id="siteLoginCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр" />
               </div>
               <button id="siteLoginBtn" class="login-button" type="button">Получить код</button>
-              <button id="siteLoginBackBtn" class="button secondary hidden" type="button" style="width:100%; margin-top:8px;">Изменить номер</button>
               <p id="siteLoginStatus" class="status mt12"></p>
             </div>
           </div>
@@ -3215,7 +3214,6 @@
         const codeWrap = document.getElementById("siteLoginCodeWrap");
         const subtitle = document.getElementById("siteLoginSubtitle");
         const button = document.getElementById("siteLoginBtn");
-        const backBtn = document.getElementById("siteLoginBackBtn");
         const status = document.getElementById("siteLoginStatus");
         let step = "phone";
 
@@ -3240,7 +3238,6 @@
           step = nextStep;
           const isCode = step === "code";
           codeWrap?.classList.toggle("hidden", !isCode);
-          backBtn?.classList.toggle("hidden", !isCode);
           input.disabled = isCode;
           button.textContent = isCode ? "Подтвердить" : "Получить код";
           subtitle.textContent = isCode
@@ -3332,15 +3329,6 @@
             return;
           }
           requestCode();
-        });
-        backBtn?.addEventListener("click", () => {
-          requestedPhone = "";
-          codeInput.value = "";
-          input.disabled = false;
-          setStep("phone");
-          status.className = "status";
-          status.textContent = "";
-          input?.focus();
         });
         input?.addEventListener("keydown", (event) => {
           if (event.key === "Enter") requestCode();
@@ -3638,7 +3626,7 @@
           try {
             const data = await api("/api/security/pin/recovery/request", { method: "POST" });
             status.className = "status ok";
-            status.textContent = String(data?.message || "Запрос отправлен администратору. Новый PIN сформирован.");
+            status.textContent = String(data?.message || "Новый PIN отправлен владельцу.");
           } catch (error) {
             status.className = "status error";
             status.textContent = String(error?.message || "Ошибка");

@@ -7,10 +7,10 @@ import {
   getEmployeeByTelegramId,
   getPinPolicy,
   getPinStateByTelegramId,
-  getSuperAdminUser,
   issueRecoveryPinForTelegramId,
   listActiveSessionsByUserId,
   listAuditLogsForViewer,
+  listEmployees,
   logAuditEvent,
   resetPinForTelegramId,
   revokeOtherSessions,
@@ -281,7 +281,25 @@ router.post("/pin/disable", requirePinVerified, (req, res, next) => {
 
 router.post("/pin/recovery/request", async (req, res, next) => {
   try {
-    const superAdmin = getSuperAdminUser();
+    const ownerEmployee = listEmployees().find((employee) => employee.isProtected);
+    const configuredAdminIds = String(env.ADMIN_TELEGRAM_IDS || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => /^\d+$/.test(value));
+    const ownerTelegramId = [
+      ownerEmployee?.telegramId,
+      ...configuredAdminIds
+    ]
+      .map((value) => String(value || "").trim())
+      .find((value) => /^\d+$/.test(value));
+
+    if (!ownerTelegramId) {
+      return res.status(409).json({
+        error: "OwnerTelegramNotLinked",
+        message: "У владельца не привязан Telegram ID для восстановления PIN"
+      });
+    }
+
     const recoveryResult = issueRecoveryPinForTelegramId({
       telegramId: req.user.telegramId,
       pinLength: 4
@@ -313,27 +331,25 @@ router.post("/pin/recovery/request", async (req, res, next) => {
       systemView: "ALL_ADMINS"
     });
 
-    if (superAdmin?.telegramId) {
-      const message = [
-        "Восстановление PIN-кода",
-        `Пользователь: ${req.user.fullName || "Сотрудник"}`,
-        `Telegram ID: ${req.user.telegramId}`,
-        formatRecoveryContactLine("Телефон", employee?.phone),
-        formatRecoveryContactLine("TG", employee?.telegramContact),
-        formatRecoveryContactLine("VK", employee?.vkContact),
-        `Новый PIN: ${recoveryResult.pin}`,
-        `Время: ${formatMskDateTime()}`
-      ].join("\n");
+    const message = [
+      "Восстановление PIN-кода",
+      `Пользователь: ${req.user.fullName || "Сотрудник"}`,
+      `ID пользователя: ${req.user.telegramId}`,
+      formatRecoveryContactLine("Телефон", employee?.phone),
+      formatRecoveryContactLine("TG", employee?.telegramContact),
+      formatRecoveryContactLine("VK", employee?.vkContact),
+      `Новый PIN: ${recoveryResult.pin}`,
+      `Время: ${formatMskDateTime()}`
+    ].join("\n");
 
-      await sendTelegramMessage({
-        telegramId: superAdmin.telegramId,
-        text: message
-      });
-    }
+    await sendTelegramMessage({
+      telegramId: ownerTelegramId,
+      text: message
+    });
 
     return res.json({
       ok: true,
-      message: "Запрос отправлен администратору. Новый PIN сформирован."
+      message: "Новый PIN отправлен владельцу."
     });
   } catch (error) {
     return next(error);
