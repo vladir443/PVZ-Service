@@ -651,6 +651,34 @@
         object-fit: contain;
       }
 
+      .fullscreen-modal-header {
+        min-width: 0;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: nowrap;
+      }
+
+      .fullscreen-modal-header .open-arrow-btn {
+        flex: 0 0 34px;
+        align-self: center;
+      }
+
+      .fullscreen-modal-header .panel-title {
+        min-width: 0;
+        margin: 0;
+        line-height: 1.25;
+        align-self: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .panel-head > .fullscreen-modal-header {
+        flex: 1 1 auto;
+      }
+
       .location-btn-inner {
         width: 100%;
         display: grid;
@@ -4737,7 +4765,7 @@
           </div>
           <div id="securityModal" class="modal fullscreen-modal hidden">
             <div class="panel">
-              <div class="row" style="justify-content: flex-start; gap: 10px;">
+              <div class="fullscreen-modal-header">
                 <button id="closeSecurityBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
                   <img src="/icons/back-arrow.png" alt="Назад" />
                 </button>
@@ -4779,7 +4807,7 @@
           </div>
           <div id="notificationsModal" class="modal fullscreen-modal hidden">
             <div class="panel">
-              <div class="row" style="justify-content: flex-start; gap: 10px;">
+              <div class="fullscreen-modal-header">
                 <button id="closeNotificationsBtnTop" class="open-arrow-btn" type="button" aria-label="Назад">
                   <img src="/icons/back-arrow.png" alt="Назад" />
                 </button>
@@ -4811,7 +4839,7 @@
           </div>
           <div id="adminHoursModal" class="modal fullscreen-modal hidden">
             <div class="panel">
-              <div class="row" style="justify-content: flex-start; gap: 10px;">
+              <div class="fullscreen-modal-header">
                 <button id="closeAdminPanelBtnTop" class="open-arrow-btn" type="button">
                   <img src="/icons/back-arrow.png" alt="Выход" />
                 </button>
@@ -7113,7 +7141,7 @@
             <div id="financeModal" class="modal fullscreen-modal hidden">
               <div class="panel">
                 <div class="panel-head">
-                  <div class="row">
+                  <div class="fullscreen-modal-header">
                     <button class="open-arrow-btn" id="closeFinanceBtnTop" type="button" aria-label="Назад">
                       <img src="/icons/back-arrow.png" alt="Назад" />
                     </button>
