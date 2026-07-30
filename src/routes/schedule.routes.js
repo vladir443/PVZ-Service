@@ -92,6 +92,92 @@ const monthSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/)
 });
 
+function timeToMinutes(value) {
+  const match = String(value || "").match(/^(\d{2}):(\d{2})$/);
+  if (!match) return Number.NaN;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return Number.NaN;
+  return hours * 60 + minutes;
+}
+
+export function calculateShiftRates({
+  dailyRate,
+  locationWorkStart,
+  locationWorkEnd,
+  executor1,
+  executor2,
+  executor1Start,
+  executor1End,
+  executor2Start,
+  executor2End
+}) {
+  const locationStartMinutes = timeToMinutes(locationWorkStart);
+  const locationEndMinutes = timeToMinutes(locationWorkEnd);
+  const locationMinutes = locationEndMinutes - locationStartMinutes;
+  if (!Number.isFinite(locationMinutes) || locationMinutes <= 0) {
+    return { ok: false, message: "В админ-панели указан некорректный график ПВЗ" };
+  }
+
+  const normalizeExecutorTime = (executor, start, end, label) => {
+    if (!executor) return { start: "", end: "", minutes: 0 };
+    const safeStart = String(start || locationWorkStart);
+    const safeEnd = String(end || locationWorkEnd);
+    const startMinutes = timeToMinutes(safeStart);
+    const endMinutes = timeToMinutes(safeEnd);
+    if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) {
+      return { error: `Укажите корректное время для ${label}` };
+    }
+    if (startMinutes < locationStartMinutes || endMinutes > locationEndMinutes) {
+      return {
+        error: `${label}: время должно быть в пределах работы ПВЗ ${locationWorkStart}–${locationWorkEnd}`
+      };
+    }
+    if (endMinutes <= startMinutes) {
+      return { error: `${label}: окончание должно быть позже начала` };
+    }
+    return { start: safeStart, end: safeEnd, minutes: endMinutes - startMinutes };
+  };
+
+  const first = normalizeExecutorTime(
+    executor1,
+    executor1Start,
+    executor1End,
+    "Исполнителя1"
+  );
+  if (first.error) return { ok: false, message: first.error };
+  const second = normalizeExecutorTime(
+    executor2,
+    executor2Start,
+    executor2End,
+    "Исполнителя2"
+  );
+  if (second.error) return { ok: false, message: second.error };
+
+  const totalEmployeeMinutes = first.minutes + second.minutes;
+  const divisor = Math.max(locationMinutes, totalEmployeeMinutes);
+  let rate1 = divisor > 0 ? Math.round((dailyRate * first.minutes) / divisor) : 0;
+  let rate2 = divisor > 0 ? Math.round((dailyRate * second.minutes) / divisor) : 0;
+  const overflow = rate1 + rate2 - dailyRate;
+  if (overflow > 0) {
+    if (rate2 > 0) rate2 = Math.max(0, rate2 - overflow);
+    else rate1 = Math.max(0, rate1 - overflow);
+  }
+
+  return {
+    ok: true,
+    executor1Start: first.start,
+    executor1End: first.end,
+    executor2Start: second.start,
+    executor2End: second.end,
+    executor1Minutes: first.minutes,
+    executor2Minutes: second.minutes,
+    locationMinutes,
+    rate1,
+    rate2
+  };
+}
+
 const todaySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 });
@@ -249,12 +335,19 @@ router.get("/me/finances", (req, res, next) => {
         const paid = payment ? Number(payment.paidAmount || 0) : 0;
         const deductionMeta = slot === 1 ? row.deductions1Meta : row.deductions2Meta;
         const bonusMeta = slot === 1 ? row.bonuses1Meta : row.bonuses2Meta;
+        const workStart = slot === 1 ? row.executor1Start : row.executor2Start;
+        const workEnd = slot === 1 ? row.executor1End : row.executor2End;
+        const workedMinutes = Math.max(0, timeToMinutes(workEnd) - timeToMinutes(workStart));
 
         shifts.push({
           date: row.date,
           locationCode: location.code,
           locationTitle: location.title,
           executorSlot: slot,
+          workStart,
+          workEnd,
+          workedMinutes: Number.isFinite(workedMinutes) ? workedMinutes : 0,
+          dailyRate: Number(row.dailyRate || 0),
           salary,
           deductions,
           bonuses,
@@ -429,6 +522,11 @@ const shiftSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   executor1: z.string().max(120).default(""),
   executor2: z.string().max(120).default(""),
+  executor1Start: z.string().regex(/^\d{2}:\d{2}$/).or(z.literal("")).default(""),
+  executor1End: z.string().regex(/^\d{2}:\d{2}$/).or(z.literal("")).default(""),
+  executor2Start: z.string().regex(/^\d{2}:\d{2}$/).or(z.literal("")).default(""),
+  executor2End: z.string().regex(/^\d{2}:\d{2}$/).or(z.literal("")).default(""),
+  dailyRate: z.coerce.number().min(0).max(1000000).optional(),
   rate1: z.coerce.number().min(0).max(1000000).default(0),
   rate2: z.coerce.number().min(0).max(1000000).default(0),
   deductions1: z.coerce.number().min(-1000000).max(0).default(0),
@@ -509,13 +607,49 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
       });
     }
 
+    const location = listLocations().find(
+      (item) => String(item.code) === String(req.params.locationCode)
+    );
+    if (!location) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "ПВЗ не найден"
+      });
+    }
+    const dailyRate =
+      parsed.data.dailyRate == null
+        ? Math.max(0, Number(parsed.data.rate1 || 0) + Number(parsed.data.rate2 || 0))
+        : Number(parsed.data.dailyRate || 0);
+    const rateCalculation = calculateShiftRates({
+      dailyRate,
+      locationWorkStart: location.workStart,
+      locationWorkEnd: location.workEnd,
+      executor1: normalizedExecutor1,
+      executor2: normalizedExecutor2,
+      executor1Start: parsed.data.executor1Start,
+      executor1End: parsed.data.executor1End,
+      executor2Start: parsed.data.executor2Start,
+      executor2End: parsed.data.executor2End
+    });
+    if (!rateCalculation.ok) {
+      return res.status(409).json({
+        error: "ValidationError",
+        message: rateCalculation.message
+      });
+    }
+
     const shift = upsertShift({
       locationCode: req.params.locationCode,
       date: parsed.data.date,
       executor1: normalizedExecutor1,
       executor2: normalizedExecutor2,
-      rate1: parsed.data.rate1,
-      rate2: parsed.data.rate2,
+      executor1Start: rateCalculation.executor1Start,
+      executor1End: rateCalculation.executor1End,
+      executor2Start: rateCalculation.executor2Start,
+      executor2End: rateCalculation.executor2End,
+      dailyRate,
+      rate1: rateCalculation.rate1,
+      rate2: rateCalculation.rate2,
       deductions1: parsed.data.deductions1,
       deductions2: parsed.data.deductions2,
       bonuses1: parsed.data.bonuses1,
@@ -545,7 +679,14 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
         locationCode: req.params.locationCode,
         date: parsed.data.date,
         executor1: normalizedExecutor1,
-        executor2: normalizedExecutor2
+        executor2: normalizedExecutor2,
+        executor1Start: rateCalculation.executor1Start,
+        executor1End: rateCalculation.executor1End,
+        executor2Start: rateCalculation.executor2Start,
+        executor2End: rateCalculation.executor2End,
+        dailyRate,
+        rate1: rateCalculation.rate1,
+        rate2: rateCalculation.rate2
       },
       systemView: "ALL_ADMINS"
     });

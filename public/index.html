@@ -1566,6 +1566,7 @@
       input[type="number"],
       input[type="month"],
       input[type="date"],
+      input[type="time"],
       input[type="tel"],
       select {
         width: 100%;
@@ -1673,7 +1674,7 @@
         }
 
         body.schedule-table-view table {
-          min-width: 1400px;
+          min-width: 1680px;
         }
 
         body.schedule-table-view table.participant-table {
@@ -1685,6 +1686,56 @@
       .schedule-mobile {
         display: grid;
         gap: 10px;
+      }
+
+      .schedule-executor {
+        display: grid;
+        gap: 7px;
+        min-width: 190px;
+      }
+
+      .schedule-time-range {
+        display: grid;
+        grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
+        align-items: center;
+        gap: 5px;
+      }
+
+      .schedule-time-range input[type="time"] {
+        min-width: 0;
+        padding: 6px;
+        font-size: 13px;
+      }
+
+      .schedule-time-range > span {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .schedule-rate-output {
+        display: inline-flex;
+        min-height: 36px;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f6f9fd;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .schedule-card .schedule-time-range {
+        margin-top: 7px;
+      }
+
+      .schedule-card .schedule-executor {
+        min-width: 0;
+      }
+
+      body.theme-dark .schedule-rate-output {
+        background: #132540;
+        color: #f4f8ff;
       }
 
       .schedule-card {
@@ -4965,6 +5016,14 @@
             minute: "2-digit"
           });
         };
+        const workedTimeLabel = (shift) => {
+          const minutes = Math.max(0, Number(shift.workedMinutes || 0));
+          const hours = Math.floor(minutes / 60);
+          const restMinutes = minutes % 60;
+          const duration = restMinutes ? `${hours} ч ${restMinutes} мин` : `${hours} ч`;
+          if (!shift.workStart || !shift.workEnd) return duration;
+          return `${escapeHtml(shift.workStart)}–${escapeHtml(shift.workEnd)} · ${duration}`;
+        };
         const financeItemHtml = ({ title, meta, amount, amountClass = "" }) => `
           <div class="personal-finance-item">
             <div class="personal-finance-item-main">
@@ -5015,7 +5074,9 @@
               .map((shift) =>
                 financeItemHtml({
                   title: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(shift.locationTitle)}`,
-                  meta: `Исполнитель${Number(shift.executorSlot || 1)}`,
+                  meta: `${workedTimeLabel(shift)} · ставка за день ${formatMoneyUnsigned(
+                    shift.dailyRate
+                  )}`,
                   amount: formatMoneyUnsigned(shift.salary)
                 })
               )
@@ -7241,6 +7302,66 @@
         `;
       }
 
+      function scheduleTimeToMinutes(value) {
+        const match = String(value || "").match(/^(\d{2}):(\d{2})$/);
+        if (!match) return Number.NaN;
+        const hours = Number(match[1]);
+        const minutes = Number(match[2]);
+        if (hours > 23 || minutes > 59) return Number.NaN;
+        return hours * 60 + minutes;
+      }
+
+      function calculateScheduleRatesPreview(row) {
+        const get = (name) => row.querySelector(`[data-f='${name}']`)?.value ?? "";
+        const locationStart = String(state.selectedLocation?.workStart || "14:00");
+        const locationEnd = String(state.selectedLocation?.workEnd || "22:00");
+        const locationMinutes =
+          scheduleTimeToMinutes(locationEnd) - scheduleTimeToMinutes(locationStart);
+        const dailyRate = Math.max(0, Number(get("dailyRate") || 0));
+
+        const employeeMinutes = (slot) => {
+          if (!String(get(`executor${slot}`) || "").trim()) return 0;
+          const start = scheduleTimeToMinutes(get(`executor${slot}Start`) || locationStart);
+          const end = scheduleTimeToMinutes(get(`executor${slot}End`) || locationEnd);
+          return Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : 0;
+        };
+
+        const minutes1 = employeeMinutes(1);
+        const minutes2 = employeeMinutes(2);
+        const divisor = Math.max(locationMinutes, minutes1 + minutes2);
+        let rate1 = divisor > 0 ? Math.round((dailyRate * minutes1) / divisor) : 0;
+        let rate2 = divisor > 0 ? Math.round((dailyRate * minutes2) / divisor) : 0;
+        const overflow = rate1 + rate2 - dailyRate;
+        if (overflow > 0) {
+          if (rate2 > 0) rate2 = Math.max(0, rate2 - overflow);
+          else rate1 = Math.max(0, rate1 - overflow);
+        }
+
+        const rate1Input = row.querySelector("[data-f='rate1']");
+        const rate2Input = row.querySelector("[data-f='rate2']");
+        if (rate1Input) rate1Input.value = String(rate1);
+        if (rate2Input) rate2Input.value = String(rate2);
+        const rate1Output = row.querySelector("[data-rate-output='1']");
+        const rate2Output = row.querySelector("[data-rate-output='2']");
+        if (rate1Output) rate1Output.textContent = formatMoney(rate1);
+        if (rate2Output) rate2Output.textContent = formatMoney(rate2);
+        return { rate1, rate2 };
+      }
+
+      function syncExecutorTimeDefaults(row, slot) {
+        const executor = row.querySelector(`[data-f='executor${slot}']`);
+        const start = row.querySelector(`[data-f='executor${slot}Start']`);
+        const end = row.querySelector(`[data-f='executor${slot}End']`);
+        if (!executor || !start || !end) return;
+        if (!String(executor.value || "").trim()) {
+          start.value = "";
+          end.value = "";
+          return;
+        }
+        if (!start.value) start.value = String(state.selectedLocation?.workStart || "14:00");
+        if (!end.value) end.value = String(state.selectedLocation?.workEnd || "22:00");
+      }
+
       function createRowAutoSaver(locationCode) {
         const timers = new Map();
         return (tr) => {
@@ -7261,8 +7382,12 @@
           const payload = {
             executor1,
             executor2,
-            rate1: Number(get("rate1") || 0),
-            rate2: Number(get("rate2") || 0),
+            executor1Start: get("executor1Start"),
+            executor1End: get("executor1End"),
+            executor2Start: get("executor2Start"),
+            executor2End: get("executor2End"),
+            dailyRate: Number(get("dailyRate") || 0),
+            ...calculateScheduleRatesPreview(tr),
             deductions1: Number(get("deductions1") || 0),
             deductions2: Number(get("deductions2") || 0),
             bonuses1: Number(get("bonuses1") || 0),
@@ -7393,32 +7518,71 @@
                     ${
                       participantView
                         ? escapeHtml(row.executor1 || "—")
-                        : `<select data-f="executor1">${employeeSelectOptionsHtml(
-                            row.executor1 || "",
-                            roleBusyByDate.get(row.date)?.executor1 || new Set()
-                          )}</select>`
+                        : `<div class="schedule-executor">
+                            <select data-f="executor1">${employeeSelectOptionsHtml(
+                              row.executor1 || "",
+                              roleBusyByDate.get(row.date)?.executor1 || new Set()
+                            )}</select>
+                            <div class="schedule-time-range">
+                              <input type="time" data-f="executor1Start" min="${escapeHtml(
+                                data.location.workStart
+                              )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                                row.executor1Start || ""
+                              )}" aria-label="Начало смены исполнителя 1" />
+                              <span>–</span>
+                              <input type="time" data-f="executor1End" min="${escapeHtml(
+                                data.location.workStart
+                              )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                                row.executor1End || ""
+                              )}" aria-label="Конец смены исполнителя 1" />
+                            </div>
+                          </div>`
                     }
                   </td>
                   <td>
                     ${
                       participantView
                         ? escapeHtml(row.executor2 || "—")
-                        : `<select data-f="executor2">${employeeSelectOptionsHtml(
-                            row.executor2 || "",
-                            roleBusyByDate.get(row.date)?.executor2 || new Set()
-                          )}</select>`
+                        : `<div class="schedule-executor">
+                            <select data-f="executor2">${employeeSelectOptionsHtml(
+                              row.executor2 || "",
+                              roleBusyByDate.get(row.date)?.executor2 || new Set()
+                            )}</select>
+                            <div class="schedule-time-range">
+                              <input type="time" data-f="executor2Start" min="${escapeHtml(
+                                data.location.workStart
+                              )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                                row.executor2Start || ""
+                              )}" aria-label="Начало смены исполнителя 2" />
+                              <span>–</span>
+                              <input type="time" data-f="executor2End" min="${escapeHtml(
+                                data.location.workStart
+                              )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                                row.executor2End || ""
+                              )}" aria-label="Конец смены исполнителя 2" />
+                            </div>
+                          </div>`
                     }
                   </td>
                   ${
                     participantView
                       ? ""
                       : `
-                        <td><input type="number" min="0" step="100" data-f="rate1" value="${Number(
-                          row.rate1 || 0
-                        )}" /></td>
-                        <td><input type="number" min="0" step="100" data-f="rate2" value="${Number(
-                          row.rate2 || 0
-                        )}" /></td>
+                        <td><input type="number" min="0" step="100" data-f="dailyRate" value="${Number(
+                          row.dailyRate || 0
+                        )}" aria-label="Ставка за день" /></td>
+                        <td>
+                          <input type="hidden" data-f="rate1" value="${Number(row.rate1 || 0)}" />
+                          <span class="schedule-rate-output" data-rate-output="1">${formatMoney(
+                            Number(row.rate1 || 0)
+                          )}</span>
+                        </td>
+                        <td>
+                          <input type="hidden" data-f="rate2" value="${Number(row.rate2 || 0)}" />
+                          <span class="schedule-rate-output" data-rate-output="2">${formatMoney(
+                            Number(row.rate2 || 0)
+                          )}</span>
+                        </td>
                         <td>
                           <input type="hidden" data-f="deductions1" value="${Number(row.deductions1 || 0)}" />
                           <button type="button" class="button secondary" data-adjust-open="deductions1">${adjustButtonLabel(
@@ -7514,16 +7678,55 @@
                       : `<div class="schedule-card-details hidden" data-details="1">
                     <div class="schedule-card-grid">
                     <div>
-                      <div class="muted">Ставка И1</div>
-                      <input data-shift-input="1" type="number" min="0" step="100" data-f="rate1" value="${Number(
-                        row.rate1 || 0
+                      <div class="muted">Время И1</div>
+                      <div class="schedule-time-range">
+                        <input data-shift-input="1" type="time" data-f="executor1Start" min="${escapeHtml(
+                          data.location.workStart
+                        )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                          row.executor1Start || ""
+                        )}" aria-label="Начало смены исполнителя 1" />
+                        <span>–</span>
+                        <input data-shift-input="1" type="time" data-f="executor1End" min="${escapeHtml(
+                          data.location.workStart
+                        )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                          row.executor1End || ""
+                        )}" aria-label="Конец смены исполнителя 1" />
+                      </div>
+                    </div>
+                    <div>
+                      <div class="muted">Время И2</div>
+                      <div class="schedule-time-range">
+                        <input data-shift-input="1" type="time" data-f="executor2Start" min="${escapeHtml(
+                          data.location.workStart
+                        )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                          row.executor2Start || ""
+                        )}" aria-label="Начало смены исполнителя 2" />
+                        <span>–</span>
+                        <input data-shift-input="1" type="time" data-f="executor2End" min="${escapeHtml(
+                          data.location.workStart
+                        )}" max="${escapeHtml(data.location.workEnd)}" value="${escapeHtml(
+                          row.executor2End || ""
+                        )}" aria-label="Конец смены исполнителя 2" />
+                      </div>
+                    </div>
+                    <div>
+                      <div class="muted">Ставка за день</div>
+                      <input data-shift-input="1" type="number" min="0" step="100" data-f="dailyRate" value="${Number(
+                        row.dailyRate || 0
                       )}" />
                     </div>
                     <div>
-                      <div class="muted">Ставка И2</div>
-                      <input data-shift-input="1" type="number" min="0" step="100" data-f="rate2" value="${Number(
-                        row.rate2 || 0
-                      )}" />
+                      <div class="muted">Начислено И1 / И2</div>
+                      <input type="hidden" data-f="rate1" value="${Number(row.rate1 || 0)}" />
+                      <input type="hidden" data-f="rate2" value="${Number(row.rate2 || 0)}" />
+                      <div class="row">
+                        <span class="schedule-rate-output" data-rate-output="1">${formatMoney(
+                          Number(row.rate1 || 0)
+                        )}</span>
+                        <span class="schedule-rate-output" data-rate-output="2">${formatMoney(
+                          Number(row.rate2 || 0)
+                        )}</span>
+                      </div>
                     </div>
                     <div>
                       <div class="muted">Удержания И1</div>
@@ -7604,8 +7807,9 @@
                             participantView
                               ? ""
                               : `
-                                <th>Ставка И1</th>
-                                <th>Ставка И2</th>
+                                <th>Ставка за день</th>
+                                <th>Начислено И1</th>
+                                <th>Начислено И2</th>
                                 <th>Удержания И1</th>
                                 <th>Удержания И2</th>
                                 <th>Доплаты И1</th>
@@ -7824,6 +8028,8 @@
                 date: row.date,
                 locationCode: row.locationCode,
                 locationTitle: row.locationTitle,
+                workStart: slot === 1 ? row.executor1Start : row.executor2Start,
+                workEnd: slot === 1 ? row.executor1End : row.executor2End,
                 salary,
                 deductions,
                 bonuses,
@@ -7879,6 +8085,9 @@
                                 <div class="finance-day-date">
                                   <span>${ruDate(day.date)}</span>
                                   <span class="finance-day-location">${escapeHtml(day.locationTitle || "")}</span>
+                                  <span class="finance-day-location">${escapeHtml(
+                                    day.workStart || ""
+                                  )}–${escapeHtml(day.workEnd || "")}</span>
                                 </div>
                                 <div class="finance-day-value">
                                   <span>Зарплата</span>
@@ -8743,8 +8952,16 @@
             }
           } else {
             for (const input of screen.querySelectorAll("[data-shift-input='1'], tbody input, tbody select")) {
-              input.addEventListener("input", () => autosave(input.closest("[data-date]")));
-              input.addEventListener("change", () => autosave(input.closest("[data-date]")));
+              const handleScheduleInput = () => {
+                const row = input.closest("[data-date]");
+                if (!row) return;
+                if (input.matches("[data-f='executor1']")) syncExecutorTimeDefaults(row, 1);
+                if (input.matches("[data-f='executor2']")) syncExecutorTimeDefaults(row, 2);
+                calculateScheduleRatesPreview(row);
+                autosave(row);
+              };
+              input.addEventListener("input", handleScheduleInput);
+              input.addEventListener("change", handleScheduleInput);
             }
             for (const btn of screen.querySelectorAll("[data-adjust-open]")) {
               btn.addEventListener("click", () => {

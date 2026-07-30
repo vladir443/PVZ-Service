@@ -63,6 +63,11 @@ db.exec(`
     shift_date TEXT NOT NULL,
     executor1 TEXT NOT NULL DEFAULT '',
     executor2 TEXT NOT NULL DEFAULT '',
+    executor1_start TEXT NOT NULL DEFAULT '',
+    executor1_end TEXT NOT NULL DEFAULT '',
+    executor2_start TEXT NOT NULL DEFAULT '',
+    executor2_end TEXT NOT NULL DEFAULT '',
+    daily_rate REAL NOT NULL DEFAULT 0,
     rate1 REAL NOT NULL DEFAULT 0,
     rate2 REAL NOT NULL DEFAULT 0,
     deductions REAL NOT NULL DEFAULT 0,
@@ -304,6 +309,26 @@ if (!hasColumn("shifts", "bonuses1_meta")) {
 }
 if (!hasColumn("shifts", "bonuses2_meta")) {
   db.exec("ALTER TABLE shifts ADD COLUMN bonuses2_meta TEXT NOT NULL DEFAULT '[]';");
+}
+if (!hasColumn("shifts", "executor1_start")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN executor1_start TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("shifts", "executor1_end")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN executor1_end TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("shifts", "executor2_start")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN executor2_start TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("shifts", "executor2_end")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN executor2_end TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("shifts", "daily_rate")) {
+  db.exec("ALTER TABLE shifts ADD COLUMN daily_rate REAL NOT NULL DEFAULT 0;");
+  db.exec(`
+    UPDATE shifts
+    SET daily_rate = MAX(0, COALESCE(rate1, 0) + COALESCE(rate2, 0))
+    WHERE daily_rate = 0
+  `);
 }
 if (!hasColumn("locations", "work_start")) {
   db.exec("ALTER TABLE locations ADD COLUMN work_start TEXT NOT NULL DEFAULT '14:00';");
@@ -738,7 +763,7 @@ export function getScheduleForMonth({ locationCode, month }) {
   const location = db
     .prepare(
       `
-      SELECT code, title
+      SELECT code, title, work_start, work_end
       FROM locations
       WHERE code = ?
       `
@@ -758,7 +783,9 @@ export function getScheduleForMonth({ locationCode, month }) {
     .prepare(
       `
       SELECT
-        shift_date, executor1, executor2, rate1, rate2,
+        shift_date, executor1, executor2,
+        executor1_start, executor1_end, executor2_start, executor2_end,
+        daily_rate, rate1, rate2,
         deductions, bonuses, deductions_meta, bonuses_meta,
         deductions1, deductions2, bonuses1, bonuses2,
         deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta
@@ -777,6 +804,21 @@ export function getScheduleForMonth({ locationCode, month }) {
       date: day,
       executor1: existing?.executor1 ?? "",
       executor2: existing?.executor2 ?? "",
+      executor1Start: existing?.executor1
+        ? existing?.executor1_start || location.work_start || "14:00"
+        : "",
+      executor1End: existing?.executor1
+        ? existing?.executor1_end || location.work_end || "22:00"
+        : "",
+      executor2Start: existing?.executor2
+        ? existing?.executor2_start || location.work_start || "14:00"
+        : "",
+      executor2End: existing?.executor2
+        ? existing?.executor2_end || location.work_end || "22:00"
+        : "",
+      dailyRate:
+        Number(existing?.daily_rate || 0) ||
+        Math.max(0, Number(existing?.rate1 || 0) + Number(existing?.rate2 || 0)),
       rate1: existing?.rate1 ?? 0,
       rate2: existing?.rate2 ?? 0,
       deductions1: existing?.deductions1 ?? existing?.deductions ?? 0,
@@ -791,7 +833,12 @@ export function getScheduleForMonth({ locationCode, month }) {
   });
 
   return {
-    location,
+    location: {
+      code: location.code,
+      title: location.title,
+      workStart: location.work_start || "14:00",
+      workEnd: location.work_end || "22:00"
+    },
     month,
     shifts
   };
@@ -802,6 +849,11 @@ export function upsertShift({
   date,
   executor1,
   executor2,
+  executor1Start = "",
+  executor1End = "",
+  executor2Start = "",
+  executor2End = "",
+  dailyRate = 0,
   rate1,
   rate2,
   deductions1,
@@ -830,14 +882,21 @@ export function upsertShift({
   db.prepare(
     `
     INSERT INTO shifts (
-      location_code, shift_date, executor1, executor2, rate1, rate2,
+      location_code, shift_date, executor1, executor2,
+      executor1_start, executor1_end, executor2_start, executor2_end,
+      daily_rate, rate1, rate2,
       deductions, bonuses, deductions_meta, bonuses_meta,
       deductions1, deductions2, bonuses1, bonuses2,
       deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(location_code, shift_date) DO UPDATE SET
       executor1 = excluded.executor1,
       executor2 = excluded.executor2,
+      executor1_start = excluded.executor1_start,
+      executor1_end = excluded.executor1_end,
+      executor2_start = excluded.executor2_start,
+      executor2_end = excluded.executor2_end,
+      daily_rate = excluded.daily_rate,
       rate1 = excluded.rate1,
       rate2 = excluded.rate2,
       deductions = excluded.deductions,
@@ -859,6 +918,11 @@ export function upsertShift({
     date,
     executor1,
     executor2,
+    executor1Start,
+    executor1End,
+    executor2Start,
+    executor2End,
+    dailyRate,
     rate1,
     rate2,
     deductions1,
@@ -879,7 +943,9 @@ export function upsertShift({
     .prepare(
       `
       SELECT
-        location_code, shift_date, executor1, executor2, rate1, rate2,
+        location_code, shift_date, executor1, executor2,
+        executor1_start, executor1_end, executor2_start, executor2_end,
+        daily_rate, rate1, rate2,
         deductions, bonuses, deductions_meta, bonuses_meta,
         deductions1, deductions2, bonuses1, bonuses2,
         deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta,
@@ -997,7 +1063,11 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         l.work_start,
         l.work_end,
         s.executor1,
-        s.executor2
+        s.executor2,
+        s.executor1_start,
+        s.executor1_end,
+        s.executor2_start,
+        s.executor2_end
       FROM shifts s
       JOIN locations l ON l.code = s.location_code
       WHERE s.shift_date = ?
@@ -1020,8 +1090,10 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         coworkerName: normalizedExecutor2 || "",
         executor1: normalizedExecutor1,
         executor2: normalizedExecutor2,
-        workStart: row.work_start || "14:00",
-        workEnd: row.work_end || "22:00"
+        workStart: row.executor1_start || row.work_start || "14:00",
+        workEnd: row.executor1_end || row.work_end || "22:00",
+        locationWorkStart: row.work_start || "14:00",
+        locationWorkEnd: row.work_end || "22:00"
       });
     }
     if (rowExecutor2 && aliases.has(rowExecutor2)) {
@@ -1032,8 +1104,10 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         coworkerName: normalizedExecutor1 || "",
         executor1: normalizedExecutor1,
         executor2: normalizedExecutor2,
-        workStart: row.work_start || "14:00",
-        workEnd: row.work_end || "22:00"
+        workStart: row.executor2_start || row.work_start || "14:00",
+        workEnd: row.executor2_end || row.work_end || "22:00",
+        locationWorkStart: row.work_start || "14:00",
+        locationWorkEnd: row.work_end || "22:00"
       });
     }
   }
@@ -1093,7 +1167,11 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
         s.location_code,
         l.title AS location_title,
         l.work_start,
-        l.work_end
+        l.work_end,
+        s.executor1_start,
+        s.executor1_end,
+        s.executor2_start,
+        s.executor2_end
       FROM shifts s
       JOIN locations l ON l.code = s.location_code
       WHERE s.shift_date >= ?
@@ -1124,8 +1202,14 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
         coworkerName: isE1
           ? normalizeEmployeeName(row.executor2)
           : normalizeEmployeeName(row.executor1),
-        workStart: row.work_start || "14:00",
-        workEnd: row.work_end || "22:00"
+        workStart: isE1
+          ? row.executor1_start || row.work_start || "14:00"
+          : row.executor2_start || row.work_start || "14:00",
+        workEnd: isE1
+          ? row.executor1_end || row.work_end || "22:00"
+          : row.executor2_end || row.work_end || "22:00",
+        locationWorkStart: row.work_start || "14:00",
+        locationWorkEnd: row.work_end || "22:00"
       });
     }
   }
@@ -1795,6 +1879,10 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         l.work_end,
         s.executor1,
         s.executor2,
+        s.executor1_start,
+        s.executor1_end,
+        s.executor2_start,
+        s.executor2_end,
         u.reminder_24_enabled,
         u.reminder_14_enabled,
         e.telegram_id,
@@ -1827,6 +1915,10 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         l.work_end,
         s.executor1,
         s.executor2,
+        s.executor1_start,
+        s.executor1_end,
+        s.executor2_start,
+        s.executor2_end,
         u.reminder_24_enabled,
         u.reminder_14_enabled,
         e.telegram_id,
@@ -1862,8 +1954,16 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
         locationCode: row.location_code,
         locationTitle: row.location_title,
         shiftDate: row.shift_date,
-        workStart: row.work_start || "14:00",
-        workEnd: row.work_end || "22:00",
+        workStart:
+          row.shift_role === "executor1"
+            ? row.executor1_start || row.work_start || "14:00"
+            : row.executor2_start || row.work_start || "14:00",
+        workEnd:
+          row.shift_role === "executor1"
+            ? row.executor1_end || row.work_end || "22:00"
+            : row.executor2_end || row.work_end || "22:00",
+        locationWorkStart: row.work_start || "14:00",
+        locationWorkEnd: row.work_end || "22:00",
         telegramId: String(row.telegram_id || "").trim(),
         employeeName: row.full_name,
         shiftRole: row.shift_role,

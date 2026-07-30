@@ -85,6 +85,8 @@ function buildReminderText({
   shiftDate,
   workStart,
   workEnd,
+  locationWorkStart,
+  locationWorkEnd,
   locationTitle,
   pointLabel,
   coworkerName,
@@ -104,7 +106,7 @@ function buildReminderText({
     `${employeeName || "Сотрудник"}, у вас смена ${formatRuDate(shiftDate)} с ${workStart} - ${workEnd}`,
     teammateLine,
     `ПВЗ: ${locationTitle}`,
-    `Часы работы: ${workStart} - ${workEnd}`
+    `Часы работы ПВЗ: ${locationWorkStart || workStart} - ${locationWorkEnd || workEnd}`
   ].join("\n");
 }
 
@@ -150,6 +152,8 @@ async function processShiftRemindersTick() {
             shiftDate: assignment.shiftDate,
             workStart: assignment.workStart,
             workEnd: assignment.workEnd,
+            locationWorkStart: assignment.locationWorkStart,
+            locationWorkEnd: assignment.locationWorkEnd,
             locationTitle: assignment.locationTitle,
             pointLabel: point.label,
             coworkerName: assignment.coworkerName,
