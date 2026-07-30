@@ -1449,6 +1449,24 @@
         color: #aebbd0;
       }
 
+      body.theme-dark .security-log-filter {
+        color: #aebbd0;
+      }
+
+      body.theme-dark .security-log-filter select {
+        background: #102038;
+        border-color: #335174;
+        color: #eef5ff;
+      }
+
+      body.theme-dark .security-log-actor {
+        color: #aebbd0;
+      }
+
+      body.theme-dark .security-log-actor strong {
+        color: #eef5ff;
+      }
+
       body.theme-dark .security-log-detail strong {
         color: #e5edf8;
       }
@@ -2585,6 +2603,51 @@
         gap: 18px;
       }
 
+      .security-log-filters {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .security-log-filter {
+        display: grid;
+        gap: 6px;
+        color: #526681;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .security-log-filter select {
+        min-height: 42px;
+        border-radius: 11px;
+        background: #ffffff;
+        color: #213650;
+      }
+
+      .security-log-scroll {
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        padding: 2px 8px 20px 2px;
+      }
+
+      .security-log-actor {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        color: #526681;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .security-log-actor strong {
+        color: #243b59;
+        font-weight: 850;
+      }
+
       .security-log-group {
         display: grid;
         gap: 10px;
@@ -3635,6 +3698,30 @@
         margin-left: auto;
       }
 
+      #securityModal.security-logs-active {
+        overflow: hidden;
+      }
+
+      #securityModal.security-logs-active > .panel {
+        height: 100dvh;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      #securityModal.security-logs-active #securityLogsSection {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      #securityModal.security-logs-active #securityLogsSection.hidden {
+        display: none;
+      }
+
       body.theme-dark #securityModal {
         background: #111b2d;
       }
@@ -3752,6 +3839,10 @@
         }
         .finance-list {
           grid-template-columns: 1fr;
+        }
+        .security-log-filters {
+          grid-template-columns: 1fr;
+          gap: 8px;
         }
         .finance-period-summary {
           grid-template-columns: 1fr auto;
@@ -3898,10 +3989,15 @@
           const openModals = [...document.querySelectorAll(".modal:not(.hidden)")];
           const openModal = openModals[openModals.length - 1] || null;
           const pinOverlay = document.querySelector(".pin-gate-overlay");
+          const securityLogScroll = event.target instanceof Element
+            ? event.target.closest(".security-log-scroll")
+            : null;
           let scrollTarget = null;
 
           if (pinOverlay) {
             scrollTarget = pinOverlay;
+          } else if (securityLogScroll) {
+            scrollTarget = securityLogScroll;
           } else if (openModal?.classList.contains("fullscreen-modal")) {
             scrollTarget = openModal;
           } else if (openModal) {
@@ -5724,8 +5820,35 @@
                   <button id="logsPersonalBtn" class="security-log-tab active" type="button">Персональный</button>
                   <button id="logsSystemBtn" class="security-log-tab" type="button">Системный</button>
                 </div>
-                <div id="securityLogsList" class="mt12"></div>
+                <div class="security-log-filters">
+                  <label class="security-log-filter">
+                    <span>Период</span>
+                    <select id="logsPeriodFilter">
+                      <option value="all">Всё время</option>
+                      <option value="today">Сегодня</option>
+                      <option value="7">Последние 7 дней</option>
+                      <option value="30">Последние 30 дней</option>
+                    </select>
+                  </label>
+                  <label class="security-log-filter">
+                    <span>Раздел</span>
+                    <select id="logsCategoryFilter">
+                      <option value="all">Все действия</option>
+                      <option value="employees">Сотрудники</option>
+                      <option value="schedule">График и ПВЗ</option>
+                      <option value="finance">Финансы</option>
+                      <option value="security">Безопасность</option>
+                    </select>
+                  </label>
+                  <label id="logsActorFilterWrap" class="security-log-filter hidden">
+                    <span>Кто выполнил</span>
+                    <select id="logsActorFilter">
+                      <option value="all">Все сотрудники</option>
+                    </select>
+                  </label>
+                </div>
                 <p id="securityLogsStatus" class="status mt8"></p>
+                <div id="securityLogsList" class="security-log-scroll mt8"></div>
               </div>
             </div>
           </div>
@@ -5825,10 +5948,16 @@
         const logsSystemBtn = document.getElementById("logsSystemBtn");
         const securityLogsList = document.getElementById("securityLogsList");
         const securityLogsStatus = document.getElementById("securityLogsStatus");
+        const logsPeriodFilter = document.getElementById("logsPeriodFilter");
+        const logsCategoryFilter = document.getElementById("logsCategoryFilter");
+        const logsActorFilterWrap = document.getElementById("logsActorFilterWrap");
+        const logsActorFilter = document.getElementById("logsActorFilter");
         const securityTabsNav = document.getElementById("securityTabsNav");
         const securityPinSection = document.getElementById("securityPinSection");
         const securitySessionsSection = document.getElementById("securitySessionsSection");
         const securityLogsSection = document.getElementById("securityLogsSection");
+        let activeSecurityLogsScope = "PERSONAL";
+        let securityLogsCache = [];
         
 
         const normalizePinDigits = (value) => String(value || "").replace(/\D/g, "").slice(0, 4);
@@ -5849,6 +5978,7 @@
             Object.entries(sections).forEach(([key, section]) => {
               section?.classList.toggle("hidden", key !== tab);
             });
+            securityModal?.classList.toggle("security-logs-active", tab === "logs");
           };
           buttons.forEach((btn) => {
             btn.addEventListener("click", () => activate(btn.dataset.tab || "pin"));
@@ -6751,17 +6881,78 @@
           });
         };
 
-        const loadLogs = async (scope) => {
-          const data = await api(`/api/security/journal?scope=${encodeURIComponent(scope)}&limit=50`);
-          const logs = (data?.logs || []).filter((log) => {
-            if (log.eventType === "PIN_VERIFY_SUCCESS") return false;
-            if (log.eventType === "AUTH_LOGIN_SUCCESS") return !!log.meta?.isNewDevice;
-            return true;
+        const parseSecurityLogDateTime = (value) => {
+          const raw = String(value || "").trim();
+          if (!raw) return null;
+          const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+            ? `${raw.replace(" ", "T")}Z`
+            : raw;
+          const date = new Date(normalized);
+          return Number.isFinite(date.getTime()) ? date : null;
+        };
+
+        const getSecurityLogCategory = (eventType) => {
+          const type = String(eventType || "");
+          if (type.startsWith("EMPLOYEE_") || type === "USER_ROLE_CHANGED") return "employees";
+          if (type.startsWith("SHIFT_") || type.startsWith("LOCATION_")) return "schedule";
+          if (type.startsWith("FINANCE_")) return "finance";
+          return "security";
+        };
+
+        const getSecurityLogActorName = (log) =>
+          String(
+            log?.actorFullName ||
+            log?.meta?.actorName ||
+            log?.actorTelegramId ||
+            "Система"
+          ).trim();
+
+        const updateSecurityLogActorOptions = () => {
+          if (!logsActorFilter || !logsActorFilterWrap) return;
+          const isSystem = activeSecurityLogsScope === "SYSTEM";
+          logsActorFilterWrap.classList.toggle("hidden", !isSystem);
+          if (!isSystem) {
+            logsActorFilter.value = "all";
+            return;
+          }
+
+          const previousValue = logsActorFilter.value || "all";
+          const actors = new Map();
+          for (const log of securityLogsCache) {
+            const key = String(log.actorUserId || log.actorTelegramId || "system");
+            if (!actors.has(key)) actors.set(key, getSecurityLogActorName(log));
+          }
+          const options = [...actors.entries()]
+            .sort((left, right) => left[1].localeCompare(right[1], "ru"))
+            .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+            .join("");
+          logsActorFilter.innerHTML = `<option value="all">Все сотрудники</option>${options}`;
+          logsActorFilter.value = [...actors.keys()].includes(previousValue) ? previousValue : "all";
+        };
+
+        const renderSecurityLogs = () => {
+          const period = logsPeriodFilter?.value || "all";
+          const category = logsCategoryFilter?.value || "all";
+          const actor = logsActorFilter?.value || "all";
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+          const logs = securityLogsCache.filter((log) => {
+            if (category !== "all" && getSecurityLogCategory(log.eventType) !== category) return false;
+            if (activeSecurityLogsScope === "SYSTEM" && actor !== "all") {
+              const actorKey = String(log.actorUserId || log.actorTelegramId || "system");
+              if (actorKey !== actor) return false;
+            }
+            if (period === "all") return true;
+            const createdAt = parseSecurityLogDateTime(log.createdAt);
+            if (!createdAt) return false;
+            if (period === "today") return createdAt.getTime() >= todayStart;
+            const days = Number(period);
+            return Number.isFinite(days) && createdAt.getTime() >= now.getTime() - days * 86400000;
           });
-          logsPersonalBtn.classList.toggle("active", scope === "PERSONAL");
-          logsSystemBtn.classList.toggle("active", scope === "SYSTEM");
+
           if (!logs.length) {
-            securityLogsList.innerHTML = `<div class="muted">Записей нет</div>`;
+            securityLogsList.innerHTML = `<div class="muted">По выбранным фильтрам записей нет</div>`;
             return;
           }
           const groups = { "Сегодня": [], "Вчера": [], "Ранее": [] };
@@ -6792,6 +6983,13 @@
                                   <div class="security-log-time">${escapeHtml(formatSecurityLogTime(log.createdAt))}</div>
                                 </div>
                                 <div class="security-log-description">${escapeHtml(info.description)}</div>
+                                ${activeSecurityLogsScope === "SYSTEM" ? `
+                                  <div class="security-log-actor">
+                                    <span>Выполнил:</span>
+                                    <strong>${escapeHtml(getSecurityLogActorName(log))}</strong>
+                                    ${log.actorRole ? `<span>· ${escapeHtml(userRoles[log.actorRole] || log.actorRole)}</span>` : ""}
+                                  </div>
+                                ` : ""}
                                 ${renderSecurityLogDetails(log.meta || {})}
                               </div>
                             `;
@@ -6804,6 +7002,21 @@
                 .join("")}
             </div>
           `;
+        };
+
+        const loadLogs = async (scope) => {
+          const data = await api(`/api/security/journal?scope=${encodeURIComponent(scope)}&limit=200`);
+          activeSecurityLogsScope = scope === "SYSTEM" ? "SYSTEM" : "PERSONAL";
+          securityLogsCache = (data?.logs || []).filter((log) => {
+            if (log.eventType === "PIN_VERIFY_SUCCESS") return false;
+            if (log.eventType === "AUTH_LOGIN_SUCCESS") return !!log.meta?.isNewDevice;
+            return true;
+          });
+          logsPersonalBtn.classList.toggle("active", activeSecurityLogsScope === "PERSONAL");
+          logsSystemBtn.classList.toggle("active", activeSecurityLogsScope === "SYSTEM");
+          updateSecurityLogActorOptions();
+          renderSecurityLogs();
+          securityLogsList.scrollTop = 0;
         };
 
         setupSecurityTabs();
@@ -6856,6 +7069,18 @@
             securitySessionsStatus.className = "status error";
             securitySessionsStatus.textContent = `Ошибка: ${error.message}`;
           }
+        });
+        logsPeriodFilter?.addEventListener("change", () => {
+          renderSecurityLogs();
+          securityLogsList.scrollTop = 0;
+        });
+        logsCategoryFilter?.addEventListener("change", () => {
+          renderSecurityLogs();
+          securityLogsList.scrollTop = 0;
+        });
+        logsActorFilter?.addEventListener("change", () => {
+          renderSecurityLogs();
+          securityLogsList.scrollTop = 0;
         });
         logsPersonalBtn?.addEventListener("click", async () => {
           try {

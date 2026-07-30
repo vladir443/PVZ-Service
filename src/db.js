@@ -3006,14 +3006,35 @@ export function listAuditLogsForViewer({ viewerUser, scope = "PERSONAL", limit =
       .all(viewerUser.id, viewerUser.id, safeLimit);
   }
 
+  const referencedUserIds = [
+    ...new Set(
+      rows
+        .flatMap((row) => [row.actor_user_id, row.target_user_id])
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  ];
+  const userNamesById = new Map();
+  if (referencedUserIds.length) {
+    const placeholders = referencedUserIds.map(() => "?").join(", ");
+    const users = db
+      .prepare(`SELECT id, full_name FROM users WHERE id IN (${placeholders})`)
+      .all(...referencedUserIds);
+    for (const user of users) {
+      userNamesById.set(Number(user.id), String(user.full_name || "").trim());
+    }
+  }
+
   return rows.map((row) => ({
     id: row.id,
     scope: row.scope,
     eventType: row.event_type,
     actorUserId: row.actor_user_id,
+    actorFullName: userNamesById.get(Number(row.actor_user_id)) || "",
     actorTelegramId: row.actor_telegram_id,
     actorRole: row.actor_role,
     targetUserId: row.target_user_id,
+    targetFullName: userNamesById.get(Number(row.target_user_id)) || "",
     targetTelegramId: row.target_telegram_id,
     sessionId: row.session_id,
     ipAddress: row.ip_address,
