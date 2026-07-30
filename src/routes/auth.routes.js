@@ -3,16 +3,19 @@ import { z } from "zod";
 import { requireAuth, requireAuthAllowUnverifiedPin } from "../middleware/auth.js";
 import {
   authIdFromPhone,
+  createPersonalDataConsent,
   createPhoneLoginCode,
   createUserSession,
   bindEmployeeTelegramId,
   createUser,
   getPinStateByTelegramId,
+  getPersonalDataConsent,
   listActiveSessionsByUserId,
   getEmployeeByAuth,
   getUserByTelegramId,
   isCoreAdminUsername,
   logAuditEvent,
+  linkPersonalDataConsentToAuthSession,
   revokeSession,
   syncEmployeeTelegramProfile,
   updateUserReminderSettings,
@@ -21,6 +24,10 @@ import {
   verifyPhoneLoginCode
 } from "../db.js";
 import { getAdminTelegramIds, Role } from "../lib/roles.js";
+import {
+  PERSONAL_DATA_CONSENT_PATH,
+  PERSONAL_DATA_CONSENT_VERSION
+} from "../lib/privacy-consent.js";
 import { env } from "../config/env.js";
 import { clearAuthCookies, setAuthCookies } from "../lib/auth-cookies.js";
 
@@ -34,11 +41,16 @@ const loginSchema = z.object({
   username: z.string().max(64).optional().default(""),
   photoUrl: z.string().max(2000).optional().default(""),
   deviceName: z.string().max(120).optional().default(""),
-  platform: z.string().max(60).optional().default("")
+  platform: z.string().max(60).optional().default(""),
+  consentSessionId: z.string().max(128).optional().default("")
 });
 
 const requestCodeSchema = z.object({
-  phone: z.string().min(1).max(40)
+  phone: z.string().min(1).max(40),
+  consentAccepted: z.boolean().optional().default(false),
+  consentVersion: z.string().max(80).optional().default(""),
+  deviceName: z.string().max(120).optional().default(""),
+  platform: z.string().max(60).optional().default("")
 });
 
 async function sendSmsCode({ phone, code }) {
@@ -55,7 +67,7 @@ async function sendSmsCode({ phone, code }) {
     },
     body: JSON.stringify({
       phone,
-      text: `PVZ Group: код входа ${code}`,
+      text: `PVZ Group: код для входа ${code}. Никому не сообщайте код.`,
       code
     })
   });
@@ -77,11 +89,38 @@ router.post("/request-code", async (req, res, next) => {
       });
     }
 
+    if (
+      !parsed.data.consentAccepted ||
+      parsed.data.consentVersion !== PERSONAL_DATA_CONSENT_VERSION
+    ) {
+      return res.status(400).json({
+        error: "ConsentRequired",
+        message: "Подтвердите согласие на обработку персональных данных",
+        consentVersion: PERSONAL_DATA_CONSENT_VERSION,
+        consentUrl: PERSONAL_DATA_CONSENT_PATH
+      });
+    }
+
     const employee = getEmployeeByAuth({ phone: parsed.data.phone, telegramId: "", username: "" });
     if (!employee) {
       return res.status(403).json({
         error: "Forbidden",
         message: "Доступ закрыт: этот номер не найден в базе сотрудников"
+      });
+    }
+
+    const consent = createPersonalDataConsent({
+      phone: parsed.data.phone,
+      documentVersion: PERSONAL_DATA_CONSENT_VERSION,
+      ipAddress: req.ip || "",
+      userAgent: req.headers["user-agent"] || "",
+      deviceName: parsed.data.deviceName,
+      platform: parsed.data.platform
+    });
+    if (!consent) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: "Не удалось зафиксировать согласие. Проверьте номер телефона"
       });
     }
 
@@ -101,7 +140,9 @@ router.post("/request-code", async (req, res, next) => {
     return res.json({
       ok: true,
       expiresAt: codeResult.record?.expiresAt || "",
-      devCode: smsResult.devCode || ""
+      devCode: smsResult.devCode || "",
+      consentSessionId: consent.consentSessionId,
+      consentVersion: consent.documentVersion
     });
   } catch (error) {
     return next(error);
@@ -119,7 +160,15 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    const { phone, smsCode, username, photoUrl, deviceName, platform } = parsed.data;
+    const {
+      phone,
+      smsCode,
+      username,
+      photoUrl,
+      deviceName,
+      platform,
+      consentSessionId
+    } = parsed.data;
     const phoneAuthId = authIdFromPhone(phone);
     const telegramId = phoneAuthId || String(parsed.data.telegramId || "").trim();
 
@@ -131,6 +180,20 @@ router.post("/login", async (req, res, next) => {
     }
 
     if (phoneAuthId) {
+      const consent = getPersonalDataConsent({
+        phone,
+        consentSessionId,
+        documentVersion: PERSONAL_DATA_CONSENT_VERSION
+      });
+      if (!consent) {
+        return res.status(400).json({
+          error: "ConsentRequired",
+          message: "Согласие не найдено. Запросите новый SMS-код",
+          consentVersion: PERSONAL_DATA_CONSENT_VERSION,
+          consentUrl: PERSONAL_DATA_CONSENT_PATH
+        });
+      }
+
       const codeResult = verifyPhoneLoginCode({ phone, code: smsCode });
       if (!codeResult.ok) {
         return res.status(401).json({
@@ -212,6 +275,12 @@ router.post("/login", async (req, res, next) => {
       userAgent: req.headers["user-agent"] || "",
       ipAddress: req.ip || ""
     });
+    if (phoneAuthId && session?.session_id) {
+      linkPersonalDataConsentToAuthSession({
+        consentSessionId,
+        authSessionId: session.session_id
+      });
+    }
     const pinState = getPinStateByTelegramId(user.telegramId);
     const pinRequired = !!pinState?.enabled;
     if (isNewDevice) {

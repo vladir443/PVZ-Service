@@ -211,6 +211,24 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS personal_data_consents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone_digits TEXT NOT NULL,
+    document_version TEXT NOT NULL,
+    accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
+    ip_address TEXT NOT NULL DEFAULT '',
+    consent_session_id TEXT NOT NULL UNIQUE,
+    auth_session_id TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    device_name TEXT NOT NULL DEFAULT '',
+    platform TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_personal_data_consents_phone
+    ON personal_data_consents(phone_digits, accepted_at);
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS security_audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scope TEXT NOT NULL CHECK(scope IN ('PERSONAL', 'SYSTEM')),
@@ -2340,6 +2358,112 @@ export function createPhoneLoginCode({ phone, ttlMinutes = 10 }) {
     .get(result.lastInsertRowid);
 
   return { ok: true, code, record: mapPhoneLoginCodeRow(row) };
+}
+
+function mapPersonalDataConsentRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    phoneDigits: row.phone_digits,
+    documentVersion: row.document_version,
+    acceptedAt: row.accepted_at,
+    ipAddress: row.ip_address,
+    consentSessionId: row.consent_session_id,
+    authSessionId: row.auth_session_id,
+    userAgent: row.user_agent,
+    deviceName: row.device_name,
+    platform: row.platform
+  };
+}
+
+export function createPersonalDataConsent({
+  phone,
+  documentVersion,
+  ipAddress = "",
+  userAgent = "",
+  deviceName = "",
+  platform = ""
+}) {
+  const phoneDigits = normalizePhoneDigits(phone);
+  const safeVersion = String(documentVersion || "").trim();
+  if (!phoneDigits || !safeVersion) return null;
+
+  const consentSessionId = crypto.randomBytes(24).toString("hex");
+  const result = db
+    .prepare(
+      `
+      INSERT INTO personal_data_consents (
+        phone_digits,
+        document_version,
+        ip_address,
+        consent_session_id,
+        user_agent,
+        device_name,
+        platform
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+    .run(
+      phoneDigits,
+      safeVersion,
+      String(ipAddress || ""),
+      consentSessionId,
+      String(userAgent || ""),
+      String(deviceName || ""),
+      String(platform || "")
+    );
+
+  return mapPersonalDataConsentRow(
+    db
+      .prepare(
+        `
+        SELECT *
+        FROM personal_data_consents
+        WHERE id = ?
+        `
+      )
+      .get(result.lastInsertRowid)
+  );
+}
+
+export function getPersonalDataConsent({ phone, consentSessionId, documentVersion }) {
+  const phoneDigits = normalizePhoneDigits(phone);
+  const safeConsentSessionId = String(consentSessionId || "").trim();
+  const safeVersion = String(documentVersion || "").trim();
+  if (!phoneDigits || !safeConsentSessionId || !safeVersion) return null;
+
+  return mapPersonalDataConsentRow(
+    db
+      .prepare(
+        `
+        SELECT *
+        FROM personal_data_consents
+        WHERE phone_digits = ?
+          AND consent_session_id = ?
+          AND document_version = ?
+        LIMIT 1
+        `
+      )
+      .get(phoneDigits, safeConsentSessionId, safeVersion)
+  );
+}
+
+export function linkPersonalDataConsentToAuthSession({ consentSessionId, authSessionId }) {
+  const safeConsentSessionId = String(consentSessionId || "").trim();
+  const safeAuthSessionId = String(authSessionId || "").trim();
+  if (!safeConsentSessionId || !safeAuthSessionId) return false;
+
+  const result = db
+    .prepare(
+      `
+      UPDATE personal_data_consents
+      SET auth_session_id = ?
+      WHERE consent_session_id = ?
+      `
+    )
+    .run(safeAuthSessionId, safeConsentSessionId);
+  return result.changes > 0;
 }
 
 export function verifyPhoneLoginCode({ phone, code }) {
