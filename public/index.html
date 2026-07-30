@@ -4887,7 +4887,7 @@
       }
 
       async function renderMain() {
-        setAppTitle("PVZ Group");
+        setAppTitle("");
         const currentEmployee = getCurrentEmployeeFromState();
         const photo = withAvatarCacheBust(currentEmployee?.avatarUrl || "");
         const initials = (state.user?.fullName || "?")
