@@ -3658,12 +3658,28 @@
       document.addEventListener(
         "wheel",
         (event) => {
-          if (!document.body.classList.contains("schedule-table-view")) return;
-          if (document.body.classList.contains("modal-open")) return;
           if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-          const tableWrap = document.querySelector(".table-wrap");
-          if (!tableWrap || tableWrap.scrollHeight <= tableWrap.clientHeight) return;
-          tableWrap.scrollTop += event.deltaY;
+          const openModals = [...document.querySelectorAll(".modal:not(.hidden)")];
+          const openModal = openModals[openModals.length - 1] || null;
+          const pinOverlay = document.querySelector(".pin-gate-overlay");
+          let scrollTarget = null;
+
+          if (pinOverlay) {
+            scrollTarget = pinOverlay;
+          } else if (openModal?.classList.contains("fullscreen-modal")) {
+            scrollTarget = openModal;
+          } else if (openModal) {
+            scrollTarget = openModal.querySelector(":scope > .panel") || openModal;
+          } else if (document.body.classList.contains("schedule-table-view")) {
+            scrollTarget = document.querySelector(".table-wrap");
+          } else {
+            scrollTarget = document.scrollingElement;
+          }
+
+          if (!scrollTarget || scrollTarget.scrollHeight <= scrollTarget.clientHeight) return;
+          const deltaMultiplier =
+            event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+          scrollTarget.scrollTop += event.deltaY * deltaMultiplier;
           event.preventDefault();
         },
         { passive: false, capture: true }
