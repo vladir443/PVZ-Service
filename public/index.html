@@ -2605,9 +2605,13 @@
 
       .security-log-filters {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 360px);
         gap: 10px;
         margin-top: 12px;
+      }
+
+      .security-log-filters.system {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       .security-log-filter {
@@ -5830,7 +5834,7 @@
                       <option value="30">Последние 30 дней</option>
                     </select>
                   </label>
-                  <label class="security-log-filter">
+                  <label id="logsCategoryFilterWrap" class="security-log-filter hidden">
                     <span>Раздел</span>
                     <select id="logsCategoryFilter">
                       <option value="all">Все действия</option>
@@ -5949,6 +5953,8 @@
         const securityLogsList = document.getElementById("securityLogsList");
         const securityLogsStatus = document.getElementById("securityLogsStatus");
         const logsPeriodFilter = document.getElementById("logsPeriodFilter");
+        const securityLogFilters = logsPeriodFilter?.closest(".security-log-filters");
+        const logsCategoryFilterWrap = document.getElementById("logsCategoryFilterWrap");
         const logsCategoryFilter = document.getElementById("logsCategoryFilter");
         const logsActorFilterWrap = document.getElementById("logsActorFilterWrap");
         const logsActorFilter = document.getElementById("logsActorFilter");
@@ -6908,8 +6914,11 @@
           ).trim();
 
         const updateSecurityLogActorOptions = () => {
-          if (!logsActorFilter || !logsActorFilterWrap) return;
           const isSystem = activeSecurityLogsScope === "SYSTEM";
+          securityLogFilters?.classList.toggle("system", isSystem);
+          logsCategoryFilterWrap?.classList.toggle("hidden", !isSystem);
+          if (!isSystem && logsCategoryFilter) logsCategoryFilter.value = "all";
+          if (!logsActorFilter || !logsActorFilterWrap) return;
           logsActorFilterWrap.classList.toggle("hidden", !isSystem);
           if (!isSystem) {
             logsActorFilter.value = "all";
