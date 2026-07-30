@@ -1669,8 +1669,23 @@
         }
 
         body.schedule-table-view .table-wrap {
-          overflow-x: auto;
-          overflow-y: hidden;
+          max-height: calc(100dvh - 390px);
+          overflow: auto;
+          overscroll-behavior: contain;
+          scrollbar-gutter: stable;
+        }
+
+        body.schedule-table-view .table-wrap thead th {
+          position: sticky;
+          top: 0;
+          z-index: 4;
+          background: #f7f9fc;
+          box-shadow: 0 1px 0 var(--line), 0 5px 12px rgba(25, 42, 70, 0.07);
+        }
+
+        body.theme-dark.schedule-table-view .table-wrap thead th {
+          background: #182843;
+          color: #f4f8ff;
         }
 
         body.schedule-table-view table {
@@ -7879,17 +7894,6 @@
           document.body.classList.toggle(
             "schedule-table-view",
             viewMode === "table" && !isPhoneClient()
-          );
-
-          const tableWrap = screen.querySelector(".table-wrap");
-          tableWrap?.addEventListener(
-            "wheel",
-            (event) => {
-              if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || event.shiftKey) return;
-              window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
-              event.preventDefault();
-            },
-            { passive: false }
           );
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
