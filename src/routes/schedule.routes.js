@@ -101,6 +101,38 @@ const upcomingSchema = z.object({
   limit: z.coerce.number().int().min(1).max(10).optional()
 });
 
+function normalizeFinanceEmployeeName(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function employeeFinanceAliases(employee) {
+  return new Set(
+    [
+      employee?.fullName,
+      [employee?.firstName, employee?.lastName].filter(Boolean).join(" "),
+      [employee?.lastName, employee?.firstName].filter(Boolean).join(" ")
+    ]
+      .map(normalizeFinanceEmployeeName)
+      .filter(Boolean)
+  );
+}
+
+function normalizeFinanceItems(items, fallbackReason, fallbackAmount) {
+  const normalized = (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      reason: String(item?.reason || fallbackReason).trim() || fallbackReason,
+      description: String(item?.note || "").trim(),
+      amount: Math.abs(Number(item?.amount || 0))
+    }))
+    .filter((item) => item.amount > 0);
+  if (normalized.length || fallbackAmount <= 0) return normalized;
+  return [{ reason: fallbackReason, description: "", amount: fallbackAmount }];
+}
+
 router.get("/me/today", (req, res, next) => {
   try {
     const parsed = todaySchema.safeParse(req.query);
@@ -152,6 +184,135 @@ router.get("/me/upcoming", (req, res, next) => {
       fromDate,
       employee: result.employee,
       shifts: result.shifts
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/me/finances", (req, res, next) => {
+  try {
+    const parsed = monthSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: "Выберите корректный месяц",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const aliases = employeeFinanceAliases(req.employee);
+    if (!aliases.size) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Сотрудник не найден"
+      });
+    }
+
+    const locations = listLocations();
+    const shifts = [];
+    for (const location of locations) {
+      const schedule = getScheduleForMonth({
+        locationCode: location.code,
+        month: parsed.data.month
+      });
+      const paymentData = listShiftPaymentsForMonth({
+        locationCode: location.code,
+        month: parsed.data.month
+      });
+      const paymentMap = new Map(
+        (paymentData?.shiftPayments || [])
+          .filter((payment) => aliases.has(normalizeFinanceEmployeeName(payment.employeeName)))
+          .map((payment) => [String(payment.shiftDate), payment])
+      );
+
+      for (const row of schedule?.shifts || []) {
+        const executor1 = normalizeFinanceEmployeeName(row.executor1);
+        const executor2 = normalizeFinanceEmployeeName(row.executor2);
+        const slot = aliases.has(executor1) ? 1 : aliases.has(executor2) ? 2 : 0;
+        if (!slot) continue;
+
+        const payment = paymentMap.get(String(row.date)) || null;
+        const currentSalary = Number(slot === 1 ? row.rate1 : row.rate2) || 0;
+        const currentDeductions = Math.abs(
+          Math.min(0, Number(slot === 1 ? row.deductions1 : row.deductions2) || 0)
+        );
+        const currentBonuses = Math.max(
+          0,
+          Number(slot === 1 ? row.bonuses1 : row.bonuses2) || 0
+        );
+        const salary = payment ? Number(payment.salaryAmount || 0) : currentSalary;
+        const deductions = payment
+          ? Number(payment.deductionsAmount || 0)
+          : currentDeductions;
+        const bonuses = payment ? Number(payment.bonusesAmount || 0) : currentBonuses;
+        const paid = payment ? Number(payment.paidAmount || 0) : 0;
+        const deductionMeta = slot === 1 ? row.deductions1Meta : row.deductions2Meta;
+        const bonusMeta = slot === 1 ? row.bonuses1Meta : row.bonuses2Meta;
+
+        shifts.push({
+          date: row.date,
+          locationCode: location.code,
+          locationTitle: location.title,
+          executorSlot: slot,
+          salary,
+          deductions,
+          bonuses,
+          accrued: salary + bonuses - deductions,
+          paid,
+          balance: salary + bonuses - deductions - paid,
+          deductionItems: normalizeFinanceItems(
+            deductionMeta,
+            "Удержание",
+            deductions
+          ),
+          bonusItems: normalizeFinanceItems(bonusMeta, "Доплата", bonuses),
+          payment: payment
+            ? {
+                id: payment.id,
+                amount: paid,
+                paidAt: payment.paidAt,
+                reason: `Оплата смены ${row.date}`
+              }
+            : null
+        });
+      }
+    }
+
+    shifts.sort(
+      (a, b) =>
+        String(a.date).localeCompare(String(b.date)) ||
+        String(a.locationTitle).localeCompare(String(b.locationTitle), "ru")
+    );
+    const summary = shifts.reduce(
+      (totals, shift) => ({
+        shiftCount: totals.shiftCount + 1,
+        salary: totals.salary + shift.salary,
+        deductions: totals.deductions + shift.deductions,
+        bonuses: totals.bonuses + shift.bonuses,
+        accrued: totals.accrued + shift.accrued,
+        paid: totals.paid + shift.paid,
+        balance: totals.balance + shift.balance
+      }),
+      {
+        shiftCount: 0,
+        salary: 0,
+        deductions: 0,
+        bonuses: 0,
+        accrued: 0,
+        paid: 0,
+        balance: 0
+      }
+    );
+
+    return res.json({
+      month: parsed.data.month,
+      employee: {
+        id: req.employee.id,
+        fullName: req.employee.fullName
+      },
+      summary,
+      shifts
     });
   } catch (error) {
     return next(error);

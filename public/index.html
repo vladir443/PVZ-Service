@@ -357,6 +357,47 @@
         color: #7a4c00;
       }
 
+      .my-finances-home-btn {
+        width: 100%;
+        min-height: 52px;
+        margin-top: 12px;
+        border: 1px solid #cbd9ed;
+        border-radius: 15px;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, #eef5ff 0%, #f7faff 100%);
+        color: #17375f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 800;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(24, 44, 78, 0.06);
+      }
+
+      .my-finances-home-btn::after {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-right: 2px solid #547092;
+        border-bottom: 2px solid #547092;
+        transform: rotate(-45deg);
+        flex: 0 0 auto;
+      }
+
+      body.theme-dark .my-finances-home-btn {
+        border-color: #314967;
+        background: linear-gradient(135deg, #172a46 0%, #142238 100%);
+        color: #e8eef8;
+      }
+
+      body.theme-dark .my-finances-home-btn::after {
+        border-color: #c7d7ec;
+      }
+
       .dash-avatar {
         width: 72px;
         height: 72px;
@@ -559,6 +600,187 @@
         border-radius: 999px;
         padding: 4px 10px;
         background: rgba(255, 255, 255, 0.12);
+      }
+
+      .profile-phone {
+        margin-top: 9px;
+        color: rgba(255, 255, 255, 0.96);
+        font-size: 14px;
+        font-weight: 650;
+        line-height: 1.3;
+      }
+
+      .personal-finance-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .personal-finance-head h2 {
+        margin: 0;
+        min-width: 0;
+      }
+
+      .personal-finance-balance {
+        margin-top: 16px;
+        border: 1px solid #cfe0f5;
+        border-radius: 20px;
+        padding: 20px;
+        background: linear-gradient(135deg, #123f7a 0%, #2868bd 100%);
+        color: #ffffff;
+        box-shadow: 0 12px 28px rgba(24, 76, 145, 0.18);
+      }
+
+      .personal-finance-balance-label {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.78);
+      }
+
+      .personal-finance-balance-value {
+        margin-top: 7px;
+        font-size: clamp(30px, 5vw, 42px);
+        line-height: 1;
+        font-weight: 850;
+        letter-spacing: -0.03em;
+      }
+
+      .personal-finance-balance-note {
+        margin-top: 10px;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .personal-finance-sections {
+        margin-top: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .personal-finance-section {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #ffffff;
+        overflow: hidden;
+        box-shadow: 0 4px 14px rgba(24, 44, 78, 0.05);
+      }
+
+      .personal-finance-summary {
+        width: 100%;
+        min-height: 66px;
+        border: 0;
+        padding: 13px 15px;
+        background: transparent;
+        color: var(--text);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 12px;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .personal-finance-summary-title {
+        display: grid;
+        gap: 4px;
+        font-weight: 800;
+      }
+
+      .personal-finance-summary-title span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .personal-finance-summary-amount {
+        font-size: 17px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+
+      .personal-finance-summary-amount.negative {
+        color: #b42318;
+      }
+
+      .personal-finance-summary-amount.positive {
+        color: #16824b;
+      }
+
+      .personal-finance-chevron {
+        width: 17px;
+        height: 17px;
+        object-fit: contain;
+        opacity: 0.68;
+      }
+
+      .personal-finance-details {
+        border-top: 1px solid var(--line);
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+        background: #f8fbff;
+      }
+
+      .personal-finance-details.hidden {
+        display: none;
+      }
+
+      .personal-finance-item {
+        border: 1px solid #e0e8f3;
+        border-radius: 12px;
+        padding: 11px 12px;
+        background: #ffffff;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .personal-finance-item-main {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+      }
+
+      .personal-finance-item-title {
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+
+      .personal-finance-item-meta {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .personal-finance-item-amount {
+        font-size: 14px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+
+      .personal-finance-item-amount.negative {
+        color: #b42318;
+      }
+
+      .personal-finance-item-amount.positive {
+        color: #16824b;
+      }
+
+      body.theme-dark .personal-finance-section,
+      body.theme-dark .personal-finance-item {
+        background: #152238;
+        border-color: #2a3d59;
+      }
+
+      body.theme-dark .personal-finance-details {
+        background: #101c30;
+        border-top-color: #2a3d59;
+      }
+
+      body.theme-dark .personal-finance-chevron {
+        filter: brightness(0) invert(1);
       }
 
       .settings-list {
@@ -4657,6 +4879,9 @@
             </div>
             <img class="dash-arrow" src="/icons/right-arrow.png" alt="Открыть" />
           </div>
+          <button class="my-finances-home-btn" id="openMyFinancesBtn" type="button">
+            <span>Мои финансы</span>
+          </button>
           <h2 class="mt16">Обзор</h2>
           <div class="overview-grid mt12">
             <div class="overview-card blue">
@@ -4679,11 +4904,231 @@
         document.getElementById("openProfileFromMain")?.addEventListener("click", () => {
           renderProfile();
         });
+        document.getElementById("openMyFinancesBtn")?.addEventListener("click", () => {
+          renderMyFinances();
+        });
         document.getElementById("participantPreviewBtn")?.addEventListener("click", (event) => {
           event.stopPropagation();
           state.participantPreview = !state.participantPreview;
           renderMain();
         });
+      }
+
+      async function renderMyFinances() {
+        setAppTitle("");
+        renderBottomNav("home");
+        let selectedMonth = monthNow();
+        const expandedSections = new Set();
+
+        screen.innerHTML = `
+          <div class="personal-finance-head">
+            <button class="back-icon-btn" id="closeMyFinancesBtn" type="button" aria-label="Назад">
+              <img src="/icons/back-arrow.png" alt="Назад" />
+            </button>
+            <h2>Мои финансы</h2>
+          </div>
+          <div class="finance-month-control mt16" style="max-width:340px;">
+            <span>Месяц</span>
+            <button class="month-picker-trigger" id="myFinanceMonthBtn" type="button"></button>
+          </div>
+          <p id="myFinanceStatus" class="status mt12">Загрузка...</p>
+          <div id="myFinanceContent"></div>
+        `;
+
+        const monthButton = document.getElementById("myFinanceMonthBtn");
+        const status = document.getElementById("myFinanceStatus");
+        const content = document.getElementById("myFinanceContent");
+        let cachedFinanceData = null;
+        monthButton.textContent = formatMonthYear(selectedMonth);
+
+        const displayPaidAt = (value) => {
+          if (!value) return "";
+          const date = new Date(String(value).replace(" ", "T") + (String(value).includes("Z") ? "" : "Z"));
+          if (Number.isNaN(date.getTime())) return "";
+          return date.toLocaleString("ru-RU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+        };
+        const financeItemHtml = ({ title, meta, amount, amountClass = "" }) => `
+          <div class="personal-finance-item">
+            <div class="personal-finance-item-main">
+              <div class="personal-finance-item-title">${title}</div>
+              <div class="personal-finance-item-meta">${meta}</div>
+            </div>
+            <div class="personal-finance-item-amount ${amountClass}">${amount}</div>
+          </div>
+        `;
+        const sectionHtml = ({ key, title, caption, amount, amountClass, details }) => {
+          const expanded = expandedSections.has(key);
+          return `
+            <section class="personal-finance-section">
+              <button class="personal-finance-summary" type="button" data-my-finance-section="${key}">
+                <div class="personal-finance-summary-title">
+                  ${escapeHtml(title)}
+                  <span>${escapeHtml(caption)}</span>
+                </div>
+                <div class="personal-finance-summary-amount ${amountClass || ""}">${amount}</div>
+                <img
+                  class="personal-finance-chevron"
+                  src="${expanded ? "/icons/chevron_double_up_icon_143815.png" : "/icons/chevron_double_down_icon_143818.png"}"
+                  alt="${expanded ? "Свернуть" : "Развернуть"}"
+                />
+              </button>
+              <div class="personal-finance-details ${expanded ? "" : "hidden"}">
+                ${details || `<div class="muted">За выбранный месяц данных нет.</div>`}
+              </div>
+            </section>
+          `;
+        };
+
+        const load = async (refresh = true) => {
+          if (refresh) {
+            status.className = "status mt12";
+            status.textContent = "Загрузка...";
+            content.innerHTML = "";
+          }
+          try {
+            const data = refresh
+              ? await api(`/api/schedule/me/finances?month=${selectedMonth}`)
+              : cachedFinanceData;
+            if (!data) return;
+            cachedFinanceData = data;
+            const summary = data.summary || {};
+            const shifts = Array.isArray(data.shifts) ? data.shifts : [];
+            const shiftDetails = shifts
+              .map((shift) =>
+                financeItemHtml({
+                  title: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(shift.locationTitle)}`,
+                  meta: `Исполнитель${Number(shift.executorSlot || 1)}`,
+                  amount: formatMoneyUnsigned(shift.salary)
+                })
+              )
+              .join("");
+            const deductionDetails = shifts
+              .flatMap((shift) =>
+                (shift.deductionItems || []).map((item) => ({ shift, item }))
+              )
+              .map(({ shift, item }) =>
+                financeItemHtml({
+                  title: escapeHtml(item.reason || "Удержание"),
+                  meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(
+                    shift.locationTitle
+                  )}${item.description ? ` · ${escapeHtml(item.description)}` : ""}`,
+                  amount: `−${formatMoneyUnsigned(item.amount)}`,
+                  amountClass: "negative"
+                })
+              )
+              .join("");
+            const bonusDetails = shifts
+              .flatMap((shift) => (shift.bonusItems || []).map((item) => ({ shift, item })))
+              .map(({ shift, item }) =>
+                financeItemHtml({
+                  title: escapeHtml(item.reason || "Доплата"),
+                  meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(
+                    shift.locationTitle
+                  )}${item.description ? ` · ${escapeHtml(item.description)}` : ""}`,
+                  amount: `+${formatMoneyUnsigned(item.amount)}`,
+                  amountClass: "positive"
+                })
+              )
+              .join("");
+            const paymentDetails = shifts
+              .filter((shift) => shift.payment)
+              .map((shift) =>
+                financeItemHtml({
+                  title: `Оплата смены ${escapeHtml(ruDate(shift.date))}`,
+                  meta: `${renderLocationLabelHtml(shift.locationTitle)}${
+                    shift.payment.paidAt
+                      ? ` · Выплачено ${escapeHtml(displayPaidAt(shift.payment.paidAt))}`
+                      : ""
+                  }`,
+                  amount: formatMoneyUnsigned(shift.payment.amount),
+                  amountClass: "positive"
+                })
+              )
+              .join("");
+
+            const sections = [
+              {
+                key: "shifts",
+                title: "Смены",
+                caption: `${Number(summary.shiftCount || 0)} смен`,
+                amount: formatMoneyUnsigned(summary.salary),
+                details: shiftDetails
+              },
+              {
+                key: "deductions",
+                title: "Штрафы",
+                caption: "Удержания за месяц",
+                amount: `−${formatMoneyUnsigned(summary.deductions)}`,
+                amountClass: "negative",
+                details: deductionDetails
+              },
+              {
+                key: "bonuses",
+                title: "Премии",
+                caption: "Доплаты за месяц",
+                amount: `+${formatMoneyUnsigned(summary.bonuses)}`,
+                amountClass: "positive",
+                details: bonusDetails
+              },
+              {
+                key: "paid",
+                title: "Выплачено",
+                caption: "Оплаченные смены",
+                amount: formatMoneyUnsigned(summary.paid),
+                amountClass: "positive",
+                details: paymentDetails
+              }
+            ];
+
+            content.innerHTML = `
+              <div class="personal-finance-balance">
+                <div class="personal-finance-balance-label">Текущий баланс</div>
+                <div class="personal-finance-balance-value">${formatPayoutBalance(summary.balance)}</div>
+                <div class="personal-finance-balance-note">
+                  Начислено за месяц: ${formatMoneyUnsigned(summary.accrued)}
+                  <br />Зарплата + премии − штрафы − выплачено
+                </div>
+              </div>
+              <div class="personal-finance-sections">
+                ${sections.map(sectionHtml).join("")}
+              </div>
+            `;
+            status.textContent = "";
+            for (const button of content.querySelectorAll("[data-my-finance-section]")) {
+              button.addEventListener("click", () => {
+                const key = String(button.dataset.myFinanceSection || "");
+                if (expandedSections.has(key)) expandedSections.delete(key);
+                else expandedSections.add(key);
+                load(false);
+              });
+            }
+          } catch (error) {
+            status.className = "status error mt12";
+            status.textContent = `Ошибка: ${error.message}`;
+          }
+        };
+
+        document.getElementById("closeMyFinancesBtn").addEventListener("click", renderMain);
+        monthButton.addEventListener("click", () => {
+          openMonthPicker({
+            value: selectedMonth,
+            title: "Месяц выплаты",
+            onSelect: (nextMonth) => {
+              selectedMonth = nextMonth;
+              monthButton.textContent = formatMonthYear(selectedMonth);
+              expandedSections.clear();
+              cachedFinanceData = null;
+              load();
+            }
+          });
+        });
+        await load();
       }
 
       async function renderProfile() {
@@ -4740,6 +5185,7 @@
               <div style="font-size:22px;"><strong>${escapeHtml(state.user.fullName)}</strong></div>
               <div style="font-size:15px; margin-top:4px; opacity:0.95;">Должность: ${escapeHtml(positionLabel)}</div>
               <div class="profile-badge">${escapeHtml(roleLabel)}</div>
+              <div class="profile-phone">Телефон: ${escapeHtml(employeeProfile?.phone || "не указан")}</div>
             </div>
           </div>
           <div class="panel mt12">
@@ -4748,10 +5194,6 @@
               <div class="overview-card blue">
                 <h3>Смен в этом месяце</h3>
                 <div class="big">${monthShiftCount}</div>
-              </div>
-              <div class="overview-card purple">
-                <h3>Телефон</h3>
-                <div class="big">${escapeHtml(employeeProfile?.phone || "не указан")}</div>
               </div>
             </div>
           </div>
