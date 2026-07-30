@@ -1,4 +1,5 @@
 import cors from "cors";
+import compression from "compression";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +19,7 @@ const publicDir = path.resolve(__dirname, "../public");
 const iconsDir = path.join(publicDir, "icons");
 
 app.use(cors());
+app.use(compression());
 app.use(express.json());
 app.use(
   "/icons",
@@ -27,9 +29,7 @@ app.use(
   })
 );
 app.use((req, res, next) => {
-  if (!req.path.startsWith("/api")) {
-    res.setHeader("Cache-Control", "no-store");
-  }
+  res.setHeader("Cache-Control", req.path.startsWith("/api") ? "no-store" : "no-cache");
   next();
 });
 app.use(express.static(publicDir));

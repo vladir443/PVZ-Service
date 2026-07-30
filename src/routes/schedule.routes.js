@@ -202,6 +202,17 @@ const upcomingSchema = z.object({
   limit: z.coerce.number().int().min(1).max(10).optional()
 });
 
+const overviewSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  limit: z.coerce.number().int().min(1).max(10).optional()
+});
+
+function addDaysIso(dateValue, days) {
+  const date = new Date(`${dateValue}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function normalizeFinanceEmployeeName(value) {
   return String(value || "")
     .replace(/\u00a0/g, " ")
@@ -285,6 +296,74 @@ router.get("/me/upcoming", (req, res, next) => {
       fromDate,
       employee: result.employee,
       shifts: result.shifts
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/me/overview", (req, res, next) => {
+  try {
+    const parsed = overviewSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const date =
+      parsed.data.date ||
+      new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+    const allowedCodes = new Set(getEmployeeLocationCodes(req.employee.id));
+    const locations = listLocations().filter((location) => allowedCodes.has(location.code));
+    const today = getTodayAssignmentsForTelegramId({
+      telegramId: req.user.telegramId,
+      date
+    });
+    const upcoming = getUpcomingShiftDatesForTelegramId({
+      telegramId: req.user.telegramId,
+      fromDate: date,
+      limit: parsed.data.limit || 4
+    });
+
+    const freeShiftDates = [date, addDaysIso(date, 1), addDaysIso(date, 2)];
+    const months = [...new Set(freeShiftDates.map((item) => item.slice(0, 7)))];
+    const scheduleByLocationMonth = new Map();
+
+    for (const location of locations) {
+      for (const month of months) {
+        const schedule = getScheduleForMonth({
+          locationCode: location.code,
+          month
+        });
+        scheduleByLocationMonth.set(
+          `${location.code}:${month}`,
+          new Map((schedule?.shifts || []).map((shift) => [shift.date, shift]))
+        );
+      }
+    }
+
+    const freeShifts = freeShiftDates
+      .map((freeDate) => {
+        const month = freeDate.slice(0, 7);
+        const locationTitles = locations
+          .filter((location) => {
+            const shift = scheduleByLocationMonth.get(`${location.code}:${month}`)?.get(freeDate);
+            return !String(shift?.executor1 || "").trim() && !String(shift?.executor2 || "").trim();
+          })
+          .map((location) => location.title);
+        return { date: freeDate, locationTitles };
+      })
+      .filter((item) => item.locationTitles.length > 0);
+
+    return res.json({
+      date,
+      employee: today.employee || upcoming.employee,
+      assignments: today.assignments,
+      upcomingShifts: upcoming.shifts,
+      locations,
+      freeShifts
     });
   } catch (error) {
     return next(error);

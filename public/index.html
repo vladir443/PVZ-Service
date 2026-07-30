@@ -3948,7 +3948,7 @@
         <div id="screen">
           <div class="app-loader">
             <div class="app-loader-content">
-              <img class="app-loader-logo" src="/icons/pvz-group-app-icon-512.png" alt="" />
+              <img class="app-loader-logo" src="/icons/pvz-group-app-icon-192.png" alt="" />
               <div class="app-loader-brand">PVZ Group</div>
               <div class="app-loader-status">
                 <span class="app-loader-spinner" aria-hidden="true"></span>
@@ -4138,12 +4138,26 @@
         "/icons/session-mobile.png",
         "/icons/theme-night.png"
       ];
-      const preloadedInterfaceIcons = interfaceIconPaths.map((path) => {
-        const image = new Image();
-        image.decoding = "async";
-        image.src = path;
-        return image;
-      });
+      const preloadedInterfaceIcons = [];
+      let interfaceIconPreloadScheduled = false;
+
+      function scheduleInterfaceIconPreload() {
+        if (interfaceIconPreloadScheduled) return;
+        interfaceIconPreloadScheduled = true;
+        const preload = () => {
+          for (const path of interfaceIconPaths) {
+            const image = new Image();
+            image.decoding = "async";
+            image.src = path;
+            preloadedInterfaceIcons.push(image);
+          }
+        };
+        if ("requestIdleCallback" in window) {
+          window.requestIdleCallback(preload, { timeout: 2500 });
+        } else {
+          window.setTimeout(preload, 1200);
+        }
+      }
 
       function syncModalScrollLock() {
         const hasOpenModal = !!document.querySelector(".modal:not(.hidden), #securityPinFlowModal");
@@ -4581,10 +4595,13 @@
       }
 
       async function bootstrapAfterAuth() {
-        const locationsData = await api("/api/schedule/locations");
-        state.locations = locationsData.locations || [];
-        await loadEmployeesSafe();
-        renderMain();
+        const todayIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        const overviewData = await api(`/api/schedule/me/overview?date=${todayIso}&limit=4`);
+        state.locations = overviewData.locations || [];
+        state.currentEmployee = overviewData.employee || null;
+        await renderMain(overviewData);
       }
 
       function renderPhoneLogin() {
@@ -5057,7 +5074,7 @@
           screen.innerHTML = `
             <div class="app-loader">
               <div class="app-loader-content">
-                <img class="app-loader-logo" src="/icons/pvz-group-app-icon-512.png" alt="" />
+                <img class="app-loader-logo" src="/icons/pvz-group-app-icon-192.png" alt="" />
                 <div class="app-loader-brand">PVZ Group</div>
                 <div class="app-loader-status">
                   <span class="app-loader-spinner" aria-hidden="true"></span>
@@ -5112,7 +5129,7 @@
         }
       }
 
-      async function renderMain() {
+      async function renderMain(prefetchedOverview = null) {
         setAppTitle("");
         const currentEmployee = getCurrentEmployeeFromState();
         const photo = withAvatarCacheBust(currentEmployee?.avatarUrl || "");
@@ -5164,18 +5181,6 @@
           const dateObj = new Date(`${value}T00:00:00`);
           return dateObj.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
         };
-        const addDaysIso = (isoDate, days) => {
-          const match = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-          if (!match) return isoDate;
-          const year = Number(match[1]);
-          const month = Number(match[2]);
-          const day = Number(match[3]);
-          const utc = new Date(Date.UTC(year, month - 1, day + Number(days || 0)));
-          const y = String(utc.getUTCFullYear());
-          const m = String(utc.getUTCMonth() + 1).padStart(2, "0");
-          const d = String(utc.getUTCDate()).padStart(2, "0");
-          return `${y}-${m}-${d}`;
-        };
         const getCoworkerScheduleText = (assignment, withTodayPrefix = true) => {
           const coworker = String(assignment?.coworkerName || "").trim();
           if (!coworker) {
@@ -5210,10 +5215,19 @@
           return `С ${scheduleMinutesToTime(overlapStart)} до ${scheduleMinutesToTime(overlapEnd)} с ${coworker}`;
         };
         try {
-          const [todayData, upcomingData] = await Promise.all([
-            api(`/api/schedule/me/today?date=${todayIso}`),
-            api(`/api/schedule/me/upcoming?fromDate=${todayIso}&limit=4`)
-          ]);
+          const overviewData =
+            prefetchedOverview ||
+            (await api(`/api/schedule/me/overview?date=${todayIso}&limit=4`));
+          if (Array.isArray(overviewData?.locations)) {
+            state.locations = overviewData.locations;
+          }
+          const todayData = {
+            employee: overviewData?.employee || null,
+            assignments: overviewData?.assignments || []
+          };
+          const upcomingData = {
+            shifts: overviewData?.upcomingShifts || []
+          };
           if (todayData?.employee) {
             state.currentEmployee = todayData.employee;
             positionLabel = positions[todayData.employee?.position] || positionLabel;
@@ -5290,52 +5304,16 @@
             upcomingLines = labels;
           }
 
-          const nextDates = [todayIso, addDaysIso(todayIso, 1), addDaysIso(todayIso, 2)];
-          const monthsToLoad = [...new Set(nextDates.map((date) => String(date).slice(0, 7)))];
-          const scheduleResponses = await Promise.all(
-            (state.locations || []).flatMap((loc) =>
-              monthsToLoad.map((month) =>
-                api(`/api/schedule/${loc.code}?month=${month}`)
-                  .then((data) => ({
-                    locationCode: loc.code,
-                    month,
-                    shifts: Array.isArray(data?.shifts) ? data.shifts : []
-                  }))
-                  .catch(() => ({
-                    locationCode: loc.code,
-                    month,
-                    shifts: []
-                  }))
-              )
-            )
-          );
-          const scheduleMap = new Map(
-            scheduleResponses.map((item) => [`${item.locationCode}:${item.month}`, item.shifts])
-          );
-          const emptyRowsByDate = new Map();
-          const seenEmptyRows = new Set();
-          for (const date of nextDates) {
-            const monthKey = String(date).slice(0, 7);
-            for (const loc of state.locations || []) {
-              const shifts = scheduleMap.get(`${loc.code}:${monthKey}`) || [];
-              const row = shifts.find((item) => String(item?.date) === date);
-              const e1 = String(row?.executor1 || "").trim();
-              const e2 = String(row?.executor2 || "").trim();
-              if (!e1 && !e2) {
-                const dateLabel = formatUpcomingDate(date);
-                const key = `${dateLabel}::${loc.title}`;
-                if (!seenEmptyRows.has(key)) {
-                  seenEmptyRows.add(key);
-                  const current = emptyRowsByDate.get(dateLabel) || [];
-                  current.push(loc.title);
-                  emptyRowsByDate.set(dateLabel, current);
-                }
-              }
-            }
-          }
-          const groupedRows = [...emptyRowsByDate.entries()].map(
-            ([dateLabel, locations]) => `${dateLabel} — ${locations.join("||")}`
-          );
+          const groupedRows = (overviewData?.freeShifts || [])
+            .map((item) => {
+              const dateLabel = formatUpcomingDate(item?.date);
+              const locationTitles = Array.isArray(item?.locationTitles)
+                ? item.locationTitles.filter(Boolean)
+                : [];
+              if (!dateLabel || !locationTitles.length) return "";
+              return `${dateLabel} — ${locationTitles.join("||")}`;
+            })
+            .filter(Boolean);
           if (groupedRows.length) {
             emptyShiftLines = groupedRows;
           }
@@ -9776,7 +9754,7 @@
         }
       }
 
-      initApp();
+      initApp().finally(scheduleInterfaceIconPreload);
     </script>
   </body>
 </html>
