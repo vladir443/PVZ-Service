@@ -7,6 +7,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/pvz-group-icon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/pvz-group-icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preload" as="image" href="/icons/nav-home.png" />
+    <link rel="preload" as="image" href="/icons/nav-schedule.png" />
+    <link rel="preload" as="image" href="/icons/nav-employees.png" />
+    <link rel="preload" as="image" href="/icons/nav-profile.png" />
     <title>PVZ Group</title>
     <style>
       :root {
@@ -748,7 +752,7 @@
 
       .personal-finance-balance {
         margin-top: 16px;
-        border: 1px solid #cfe0f5;
+        border: 0;
         border-radius: 20px;
         padding: 20px;
         background: linear-gradient(135deg, #123f7a 0%, #2868bd 100%);
@@ -4013,6 +4017,33 @@
       const THEME_STORAGE_KEY = "pvz_theme";
       const SESSION_STORAGE_KEY = "pvz_session_id";
       const AUTH_ID_STORAGE_KEY = "pvz_auth_id";
+      const interfaceIconPaths = [
+        "/icons/back-arrow.png",
+        "/icons/chevron_double_down_icon_143818.png",
+        "/icons/chevron_double_up_icon_143815.png",
+        "/icons/copy.png",
+        "/icons/delete-bin.png",
+        "/icons/employee-add.png",
+        "/icons/employee-edit.png",
+        "/icons/nav-employees.png",
+        "/icons/nav-home.png",
+        "/icons/nav-profile.png",
+        "/icons/nav-schedule.png",
+        "/icons/pin-delete.png",
+        "/icons/pin-help.png",
+        "/icons/pin-protection.png",
+        "/icons/refresh-new.png",
+        "/icons/right-arrow.png",
+        "/icons/session-desktop.png",
+        "/icons/session-mobile.png",
+        "/icons/theme-night.png"
+      ];
+      const preloadedInterfaceIcons = interfaceIconPaths.map((path) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.src = path;
+        return image;
+      });
 
       function syncModalScrollLock() {
         const hasOpenModal = !!document.querySelector(".modal:not(.hidden), #securityPinFlowModal");

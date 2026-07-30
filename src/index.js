@@ -15,9 +15,17 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.resolve(__dirname, "../public");
+const iconsDir = path.join(publicDir, "icons");
 
 app.use(cors());
 app.use(express.json());
+app.use(
+  "/icons",
+  express.static(iconsDir, {
+    maxAge: "30d",
+    etag: true
+  })
+);
 app.use((req, res, next) => {
   if (!req.path.startsWith("/api")) {
     res.setHeader("Cache-Control", "no-store");
