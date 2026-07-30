@@ -3371,6 +3371,68 @@
         color: #8090a8;
       }
 
+      .employee-location-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 8px;
+      }
+
+      .employee-location-option {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        min-height: 42px;
+        padding: 9px 11px;
+        border: 1px solid #d4dfef;
+        border-radius: 11px;
+        background: #f9fbff;
+        color: #233954;
+        cursor: pointer;
+      }
+
+      .employee-location-option:has(input:checked) {
+        border-color: #79a9ed;
+        background: #edf5ff;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.1);
+      }
+
+      .employee-location-option input {
+        width: 17px;
+        height: 17px;
+        margin: 0;
+        accent-color: #2563eb;
+        flex: 0 0 auto;
+      }
+
+      .employee-location-option span {
+        min-width: 0;
+        font-size: 13px;
+        font-weight: 650;
+        line-height: 1.3;
+      }
+
+      .employee-locationline {
+        margin-top: 5px;
+        color: #63748e;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      body.theme-dark .employee-location-option {
+        border-color: #395171;
+        background: #15243a;
+        color: #dce8f8;
+      }
+
+      body.theme-dark .employee-location-option:has(input:checked) {
+        border-color: #69a5ff;
+        background: #1b3558;
+      }
+
+      body.theme-dark .employee-locationline {
+        color: #9fb0c9;
+      }
+
       #employeePanel input[type="text"],
       #employeePanel input[type="tel"],
       #employeePanel select {
@@ -3848,6 +3910,7 @@
         sessionId: "",
         locations: [],
         employees: [],
+        employeeLocationOptions: [],
         currentEmployee: null,
         selectedLocation: null,
         selectedMonth: "",
@@ -4284,6 +4347,7 @@
       async function loadEmployees() {
         const data = await api("/api/employees");
         state.employees = data.employees || [];
+        state.employeeLocationOptions = data.locations || state.employeeLocationOptions || [];
       }
 
       async function loadEmployeesSafe() {
@@ -7008,6 +7072,15 @@
                           ${escapeHtml(positions[emp.position] || emp.position)}
                           ${emp.accessRole ? ` · Доступ: ${escapeHtml(userRoles[emp.accessRole] || emp.accessRole)}` : ""}
                         </div>
+                        <div class="employee-locationline">
+                          ПВЗ: ${
+                            Array.isArray(emp.locations) && emp.locations.length
+                              ? emp.locations
+                                  .map((location) => renderLocationLabelHtml(location.title))
+                                  .join(", ")
+                              : "не назначены"
+                          }
+                        </div>
                         <div class="employee-contacts">
                           ${emp.phone
                             ? `<div class="employee-contact-row">
@@ -7136,6 +7209,23 @@
                 </div>
 
                 <div class="employee-form-group">
+                  <p class="employee-form-group-title">Пункты выдачи</p>
+                  <div id="employeeLocationsInput" class="employee-location-options">
+                    ${(state.employeeLocationOptions || [])
+                      .map(
+                        (location) => `
+                          <label class="employee-location-option">
+                            <input type="checkbox" value="${escapeHtml(location.code)}" />
+                            <span>${renderLocationLabelHtml(location.title)}</span>
+                          </label>
+                        `
+                      )
+                      .join("")}
+                  </div>
+                  <div class="employee-form-hint mt8">Выберите минимум один ПВЗ. Можно назначить несколько.</div>
+                </div>
+
+                <div class="employee-form-group">
                   <p class="employee-form-group-title">Доступ</p>
                   <div class="employee-form-group-grid">
                     <div class="employee-form-field">
@@ -7175,6 +7265,7 @@
         const vkInput = document.getElementById("vkInput");
         const positionInput = document.getElementById("positionInput");
         const reliabilityInput = document.getElementById("reliabilityInput");
+        const employeeLocationsInput = document.getElementById("employeeLocationsInput");
         const accessRoleInput = document.getElementById("accessRoleInput");
         const deleteEmployeeBtn = document.getElementById("deleteEmployeeBtn");
         const deleteEmployeeWrap = deleteEmployeeBtn?.closest(".save-icon-wrap");
@@ -7192,6 +7283,9 @@
           vkInput.value = "";
           positionInput.value = "manager";
           reliabilityInput.value = "checking";
+          for (const checkbox of employeeLocationsInput.querySelectorAll("input[type='checkbox']")) {
+            checkbox.checked = false;
+          }
           accessRoleInput.innerHTML = accessRoleOptionsHtml("PARTICIPANT", state.user.role, false);
           accessRoleInput.value = "PARTICIPANT";
           accessRoleInput.disabled = false;
@@ -7231,6 +7325,12 @@
           vkInput.value = normalizeVkContact(employee.vkContact || "");
           positionInput.value = employee.position || "manager";
           reliabilityInput.value = employee.reliability || "checking";
+          const employeeLocationCodes = new Set(
+            Array.isArray(employee.locationCodes) ? employee.locationCodes : []
+          );
+          for (const checkbox of employeeLocationsInput.querySelectorAll("input[type='checkbox']")) {
+            checkbox.checked = employeeLocationCodes.has(checkbox.value);
+          }
           accessRoleInput.innerHTML = accessRoleOptionsHtml(
             employee.accessRole || "PARTICIPANT",
             state.user.role,
@@ -7290,6 +7390,9 @@
           const vkContact = normalizeVkContact(vkInput.value);
           const position = positionInput.value;
           const reliability = reliabilityInput.value;
+          const locationCodes = [
+            ...employeeLocationsInput.querySelectorAll("input[type='checkbox']:checked")
+          ].map((checkbox) => checkbox.value);
           const accessRole = accessRoleInput.value || "PARTICIPANT";
 
           if (firstName.length < 3 || lastName.length < 3) {
@@ -7301,6 +7404,11 @@
           if (normalizedPhone === null) {
             formStatus.className = "employee-panel-status error";
             formStatus.textContent = "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
+            return;
+          }
+          if (!locationCodes.length) {
+            formStatus.className = "employee-panel-status error";
+            formStatus.textContent = "Выберите минимум один ПВЗ";
             return;
           }
 
@@ -7322,6 +7430,7 @@
                 vkContact,
                 position,
                 reliability,
+                locationCodes,
                 accessRole
               })
             });
@@ -7470,7 +7579,16 @@
 
       function employeeSelectOptionsHtml(selectedValue = "", disabledNames = new Set()) {
         const current = String(selectedValue || "").trim();
-        const names = state.employees.map((emp) => String(emp.fullName || "").trim()).filter(Boolean);
+        const selectedLocationCode = String(state.selectedLocation?.code || "");
+        const names = state.employees
+          .filter(
+            (employee) =>
+              !selectedLocationCode ||
+              (Array.isArray(employee.locationCodes) &&
+                employee.locationCodes.includes(selectedLocationCode))
+          )
+          .map((emp) => String(emp.fullName || "").trim())
+          .filter(Boolean);
         if (current && !names.includes(current)) {
           names.unshift(current);
         }

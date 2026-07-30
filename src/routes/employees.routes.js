@@ -5,7 +5,9 @@ import {
   deleteEmployeeById,
   getUserByTelegramId,
   listEmployees,
+  listLocations,
   logAuditEvent,
+  replaceEmployeeLocations,
   updateUserRole,
   updateEmployeeById
 } from "../db.js";
@@ -38,7 +40,7 @@ function isActorSelfTarget({ targetEmployee, actorUser }) {
 router.get("/", (_req, res, next) => {
   try {
     const employees = listEmployees();
-    return res.json({ employees });
+    return res.json({ employees, locations: listLocations() });
   } catch (error) {
     return next(error);
   }
@@ -54,8 +56,22 @@ const contactSchema = z.object({
   vkContact: z.string().trim().max(200).optional().default(""),
   position: z.enum(["owner", "owner_manager", "senior_manager", "manager", "intern"]),
   reliability: z.enum(["reliable", "checking", "borderline"]),
+  locationCodes: z.array(z.string().trim().min(1).max(120)).min(1).max(20),
   accessRole: z.enum([Role.ADMIN, Role.PARTICIPANT]).optional().default(Role.PARTICIPANT)
 });
+
+function validateLocationCodes(locationCodes) {
+  const allowedCodes = new Set(listLocations().map((location) => location.code));
+  const normalizedCodes = [...new Set(locationCodes.map((code) => String(code).trim()))];
+  if (!normalizedCodes.length) {
+    return { ok: false, message: "Выберите минимум один ПВЗ", locationCodes: [] };
+  }
+  const unknownCode = normalizedCodes.find((code) => !allowedCodes.has(code));
+  if (unknownCode) {
+    return { ok: false, message: "Выбран неизвестный ПВЗ", locationCodes: [] };
+  }
+  return { ok: true, locationCodes: normalizedCodes };
+}
 
 function validateContacts(data) {
   if (data.phone) {
@@ -105,6 +121,13 @@ router.post("/", (req, res, next) => {
         message: validationMessage
       });
     }
+    const locationsValidation = validateLocationCodes(parsed.data.locationCodes);
+    if (!locationsValidation.ok) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: locationsValidation.message
+      });
+    }
 
     const employee = createEmployee({
       firstName: parsed.data.firstName,
@@ -118,6 +141,8 @@ router.post("/", (req, res, next) => {
       reliability: parsed.data.reliability,
       accessRole: parsed.data.accessRole
     });
+    employee.locations = replaceEmployeeLocations(employee.id, locationsValidation.locationCodes);
+    employee.locationCodes = employee.locations.map((location) => location.code);
 
     logAuditEvent({
       scope: "SYSTEM",
@@ -132,7 +157,8 @@ router.post("/", (req, res, next) => {
       meta: {
         employeeId: employee.id,
         fullName: employee.fullName,
-        accessRole: employee.accessRole
+        accessRole: employee.accessRole,
+        locationCodes: employee.locationCodes
       },
       systemView: "ALL_ADMINS"
     });
@@ -172,6 +198,13 @@ router.put("/:id", (req, res, next) => {
       return res.status(400).json({
         error: "ValidationError",
         message: validationMessage
+      });
+    }
+    const locationsValidation = validateLocationCodes(parsed.data.locationCodes);
+    if (!locationsValidation.ok) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: locationsValidation.message
       });
     }
 
@@ -238,6 +271,11 @@ router.put("/:id", (req, res, next) => {
         message: "Сотрудник не найден"
       });
     }
+    result.employee.locations = replaceEmployeeLocations(
+      result.employee.id,
+      locationsValidation.locationCodes
+    );
+    result.employee.locationCodes = result.employee.locations.map((location) => location.code);
 
     if (result.employee.telegramId) {
       const targetUser = getUserByTelegramId(result.employee.telegramId);
@@ -263,7 +301,8 @@ router.put("/:id", (req, res, next) => {
       meta: {
         employeeId: result.employee.id,
         fullName: result.employee.fullName,
-        accessRole: result.employee.accessRole
+        accessRole: result.employee.accessRole,
+        locationCodes: result.employee.locationCodes
       },
       systemView: "ALL_ADMINS"
     });

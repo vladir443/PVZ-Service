@@ -5,10 +5,12 @@ import { Role } from "../lib/roles.js";
 import {
   createFinancePayment,
   deleteFinancePayment,
+  getEmployeeLocationCodes,
   getUpcomingShiftDatesForTelegramId,
   getTodayAssignmentsForTelegramId,
   getScheduleForMonth,
   listFinancePaymentsForMonth,
+  listEmployees,
   listShiftPaymentsForMonth,
   listLocations,
   logAuditEvent,
@@ -24,14 +26,27 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-router.get("/locations", (_req, res, next) => {
+router.get("/locations", (req, res, next) => {
   try {
-    const locations = listLocations();
+    const allowedCodes = new Set(getEmployeeLocationCodes(req.employee.id));
+    const locations = listLocations().filter((location) => allowedCodes.has(location.code));
     return res.json({ locations });
   } catch (error) {
     return next(error);
   }
 });
+
+function requireEmployeeLocationAccess(req, res, next) {
+  const locationCode = String(req.params.locationCode || "").trim();
+  const allowedCodes = new Set(getEmployeeLocationCodes(req.employee.id));
+  if (!allowedCodes.has(locationCode)) {
+    return res.status(403).json({
+      error: "Forbidden",
+      message: "Этот ПВЗ не назначен сотруднику"
+    });
+  }
+  return next();
+}
 
 const locationHoursSchema = z.object({
   workStart: z.string().regex(/^\d{2}:\d{2}$/),
@@ -412,6 +427,8 @@ router.get("/me/finances", (req, res, next) => {
   }
 });
 
+router.use("/:locationCode", requireEmployeeLocationAccess);
+
 router.get("/:locationCode", (req, res, next) => {
   try {
     const parsed = monthSchema.safeParse(req.query);
@@ -592,6 +609,24 @@ router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (re
         error: "ValidationError",
         message: "Сначала заполните Исполнитель1, потом Исполнитель2"
       });
+    }
+    const employeesByName = new Map(
+      listEmployees().map((employee) => [
+        String(employee.fullName || "").trim().toLowerCase(),
+        employee
+      ])
+    );
+    for (const employeeName of [normalizedExecutor1, normalizedExecutor2].filter(Boolean)) {
+      const employee = employeesByName.get(employeeName.toLowerCase());
+      if (
+        employee &&
+        !employee.locationCodes.includes(String(req.params.locationCode))
+      ) {
+        return res.status(409).json({
+          error: "ValidationError",
+          message: `${employee.fullName} не назначен(а) на этот ПВЗ`
+        });
+      }
     }
     const executorsCheck = validateShiftExecutors({
       locationCode: req.params.locationCode,

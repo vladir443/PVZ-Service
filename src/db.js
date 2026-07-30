@@ -31,6 +31,7 @@ function prepareDatabasePath(databasePath) {
 const resolvedDatabasePath = prepareDatabasePath(env.DATABASE_PATH);
 const db = new Database(resolvedDatabasePath);
 db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -104,6 +105,17 @@ db.exec(`
     access_role TEXT NOT NULL DEFAULT 'EMPLOYEE',
     is_protected INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS employee_locations (
+    employee_id INTEGER NOT NULL,
+    location_code TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY(employee_id, location_code),
+    FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+    FOREIGN KEY(location_code) REFERENCES locations(code) ON DELETE CASCADE
   );
 `);
 
@@ -489,6 +501,19 @@ const seedLocationsTx = db.transaction(() => {
 });
 
 seedLocationsTx();
+
+// Existing employees keep access to every PVZ until their assignments are explicitly edited.
+db.exec(`
+  INSERT OR IGNORE INTO employee_locations (employee_id, location_code)
+  SELECT e.id, l.code
+  FROM employees e
+  CROSS JOIN locations l
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM employee_locations el
+    WHERE el.employee_id = e.id
+  )
+`);
 
 function mapUserRow(row) {
   if (!row) {
@@ -1646,8 +1671,57 @@ export function listEmployees() {
       reliability: row.reliability,
       accessRole: fromDbRole(row.access_role, row.is_protected === 1),
       isProtected: row.is_protected === 1,
+      locationCodes: getEmployeeLocationCodes(row.id),
+      locations: getEmployeeLocations(row.id),
       createdAt: row.created_at
     }));
+}
+
+export function getEmployeeLocations(employeeId) {
+  return db
+    .prepare(
+      `
+      SELECT l.code, l.title
+      FROM employee_locations el
+      JOIN locations l ON l.code = el.location_code
+      WHERE el.employee_id = ?
+      ORDER BY l.title COLLATE NOCASE ASC
+      `
+    )
+    .all(employeeId)
+    .map((row) => ({
+      code: row.code,
+      title: row.title
+    }));
+}
+
+export function getEmployeeLocationCodes(employeeId) {
+  return getEmployeeLocations(employeeId).map((location) => location.code);
+}
+
+export function replaceEmployeeLocations(employeeId, locationCodes) {
+  const normalizedCodes = [
+    ...new Set(
+      (Array.isArray(locationCodes) ? locationCodes : [])
+        .map((code) => String(code || "").trim())
+        .filter(Boolean)
+    )
+  ];
+  if (!normalizedCodes.length) {
+    throw new Error("Employee must have at least one location");
+  }
+
+  const replace = db.transaction(() => {
+    db.prepare("DELETE FROM employee_locations WHERE employee_id = ?").run(employeeId);
+    const insert = db.prepare(
+      "INSERT INTO employee_locations (employee_id, location_code) VALUES (?, ?)"
+    );
+    for (const code of normalizedCodes) {
+      insert.run(employeeId, code);
+    }
+  });
+  replace();
+  return getEmployeeLocations(employeeId);
 }
 
 export function createEmployee({
@@ -1709,6 +1783,8 @@ export function createEmployee({
     reliability: row.reliability,
     accessRole: fromDbRole(row.access_role, row.is_protected === 1),
     isProtected: row.is_protected === 1,
+    locationCodes: getEmployeeLocationCodes(row.id),
+    locations: getEmployeeLocations(row.id),
     createdAt: row.created_at
   };
 }
@@ -1826,6 +1902,8 @@ export function updateEmployeeById({
       reliability: row.reliability,
       accessRole: fromDbRole(row.access_role, row.is_protected === 1),
       isProtected: row.is_protected === 1,
+      locationCodes: getEmployeeLocationCodes(row.id),
+      locations: getEmployeeLocations(row.id),
       createdAt: row.created_at
     }
   };
@@ -2067,6 +2145,8 @@ export function getEmployeeByTelegramId(telegramId) {
     reliability: row.reliability,
     accessRole: fromDbRole(row.access_role, row.is_protected === 1),
     isProtected: row.is_protected === 1,
+    locationCodes: getEmployeeLocationCodes(row.id),
+    locations: getEmployeeLocations(row.id),
     createdAt: row.created_at
   };
 }
@@ -2100,6 +2180,8 @@ export function getEmployeeByPhone(phone) {
     reliability: row.reliability,
     accessRole: fromDbRole(row.access_role, row.is_protected === 1),
     isProtected: row.is_protected === 1,
+    locationCodes: getEmployeeLocationCodes(row.id),
+    locations: getEmployeeLocations(row.id),
     createdAt: row.created_at
   };
 }
@@ -2148,6 +2230,8 @@ export function getEmployeeByAuth({ telegramId, username, phone = "" }) {
     reliability: row.reliability,
     accessRole: fromDbRole(row.access_role, row.is_protected === 1),
     isProtected: row.is_protected === 1,
+    locationCodes: getEmployeeLocationCodes(row.id),
+    locations: getEmployeeLocations(row.id),
     createdAt: row.created_at
   };
 }
