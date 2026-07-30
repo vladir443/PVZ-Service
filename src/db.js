@@ -1092,6 +1092,12 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         executor2: normalizedExecutor2,
         workStart: row.executor1_start || row.work_start || "14:00",
         workEnd: row.executor1_end || row.work_end || "22:00",
+        coworkerWorkStart: normalizedExecutor2
+          ? row.executor2_start || row.work_start || "14:00"
+          : "",
+        coworkerWorkEnd: normalizedExecutor2
+          ? row.executor2_end || row.work_end || "22:00"
+          : "",
         locationWorkStart: row.work_start || "14:00",
         locationWorkEnd: row.work_end || "22:00"
       });
@@ -1106,6 +1112,12 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         executor2: normalizedExecutor2,
         workStart: row.executor2_start || row.work_start || "14:00",
         workEnd: row.executor2_end || row.work_end || "22:00",
+        coworkerWorkStart: normalizedExecutor1
+          ? row.executor1_start || row.work_start || "14:00"
+          : "",
+        coworkerWorkEnd: normalizedExecutor1
+          ? row.executor1_end || row.work_end || "22:00"
+          : "",
         locationWorkStart: row.work_start || "14:00",
         locationWorkEnd: row.work_end || "22:00"
       });
