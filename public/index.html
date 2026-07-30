@@ -1669,23 +1669,9 @@
         }
 
         body.schedule-table-view .table-wrap {
-          max-height: calc(100dvh - 390px);
-          overflow: auto;
-          overscroll-behavior: contain;
-          scrollbar-gutter: stable;
-        }
-
-        body.schedule-table-view .table-wrap thead th {
-          position: sticky;
-          top: 0;
-          z-index: 4;
-          background: #f7f9fc;
-          box-shadow: 0 1px 0 var(--line), 0 5px 12px rgba(25, 42, 70, 0.07);
-        }
-
-        body.theme-dark.schedule-table-view .table-wrap thead th {
-          background: #182843;
-          color: #f4f8ff;
+          max-height: none;
+          overflow-x: auto;
+          overflow-y: hidden;
         }
 
         body.schedule-table-view table {
@@ -1696,6 +1682,38 @@
           min-width: 720px;
         }
 
+      }
+
+      .schedule-floating-head {
+        position: fixed;
+        top: 0;
+        z-index: 58;
+        display: none;
+        overflow: hidden;
+        pointer-events: none;
+        background: #f7f9fc;
+        box-shadow: 0 5px 14px rgba(25, 42, 70, 0.12);
+      }
+
+      .schedule-floating-head.visible {
+        display: block;
+      }
+
+      .schedule-floating-head table {
+        width: auto;
+        min-width: 0;
+        table-layout: fixed;
+        margin: 0;
+      }
+
+      .schedule-floating-head th {
+        background: #f7f9fc;
+      }
+
+      body.theme-dark .schedule-floating-head,
+      body.theme-dark .schedule-floating-head th {
+        background: #182843;
+        color: #f4f8ff;
       }
 
       .schedule-mobile {
@@ -3414,6 +3432,25 @@
         overflow: visible;
       }
 
+      #securityModal {
+        background: #f8fbff;
+      }
+
+      #securityModal > .panel {
+        height: max-content;
+        min-height: 100dvh;
+      }
+
+      #securityModal .security-section {
+        width: min(1100px, 100%);
+        margin-right: auto;
+        margin-left: auto;
+      }
+
+      body.theme-dark #securityModal {
+        background: #111b2d;
+      }
+
       .panel.hidden {
         display: none;
       }
@@ -3670,8 +3707,6 @@
             scrollTarget = openModal;
           } else if (openModal) {
             scrollTarget = openModal.querySelector(":scope > .panel") || openModal;
-          } else if (document.body.classList.contains("schedule-table-view")) {
-            scrollTarget = document.querySelector(".table-wrap");
           } else {
             scrollTarget = document.scrollingElement;
           }
@@ -3767,6 +3802,7 @@
         selectedMonth: "",
         avatarNonce: String(Date.now()),
         scheduleViewMode: null,
+        scheduleHeaderCleanup: null,
         activeTab: "home",
         theme: "light",
         participantPreview: false,
@@ -3933,6 +3969,8 @@
 
       function renderBottomNav(active = state.activeTab) {
         state.activeTab = active;
+        state.scheduleHeaderCleanup?.();
+        state.scheduleHeaderCleanup = null;
         document.body.classList.remove("schedule-table-view");
         const employeesLocked = !canManageEmployees();
         bottomNav.innerHTML = `
@@ -7493,6 +7531,78 @@
         };
       }
 
+      function setupScheduleFloatingHeader(tableWrap) {
+        const sourceTable = tableWrap?.querySelector("table");
+        const sourceHead = sourceTable?.querySelector("thead");
+        if (!tableWrap || !sourceTable || !sourceHead) return () => {};
+
+        const floating = document.createElement("div");
+        floating.className = "schedule-floating-head";
+        const floatingTable = document.createElement("table");
+        const clonedHead = sourceHead.cloneNode(true);
+        floatingTable.appendChild(clonedHead);
+        floating.appendChild(floatingTable);
+        document.body.appendChild(floating);
+
+        const syncWidths = () => {
+          const sourceCells = [...sourceHead.querySelectorAll("th")];
+          const clonedCells = [...clonedHead.querySelectorAll("th")];
+          sourceCells.forEach((cell, index) => {
+            const width = cell.getBoundingClientRect().width;
+            const clonedCell = clonedCells[index];
+            if (!clonedCell) return;
+            clonedCell.style.width = `${width}px`;
+            clonedCell.style.minWidth = `${width}px`;
+            clonedCell.style.maxWidth = `${width}px`;
+          });
+          floatingTable.style.width = `${sourceTable.scrollWidth}px`;
+        };
+
+        let frameId = 0;
+        const update = () => {
+          frameId = 0;
+          if (!document.body.classList.contains("schedule-table-view")) {
+            floating.classList.remove("visible");
+            return;
+          }
+          const wrapRect = tableWrap.getBoundingClientRect();
+          const headRect = sourceHead.getBoundingClientRect();
+          const visibleLeft = Math.max(0, wrapRect.left);
+          const visibleRight = Math.min(window.innerWidth, wrapRect.right);
+          const shouldShow = headRect.top < 0 && wrapRect.bottom > headRect.height;
+          floating.classList.toggle("visible", shouldShow);
+          if (!shouldShow) return;
+          floating.style.left = `${visibleLeft}px`;
+          floating.style.width = `${Math.max(0, visibleRight - visibleLeft)}px`;
+          floatingTable.style.transform = `translateX(${
+            wrapRect.left - visibleLeft - tableWrap.scrollLeft
+          }px)`;
+        };
+
+        const requestUpdate = () => {
+          if (frameId) return;
+          frameId = window.requestAnimationFrame(update);
+        };
+        const handleResize = () => {
+          syncWidths();
+          requestUpdate();
+        };
+
+        syncWidths();
+        update();
+        window.addEventListener("scroll", requestUpdate, { passive: true });
+        window.addEventListener("resize", handleResize);
+        tableWrap.addEventListener("scroll", requestUpdate, { passive: true });
+
+        return () => {
+          if (frameId) window.cancelAnimationFrame(frameId);
+          window.removeEventListener("scroll", requestUpdate);
+          window.removeEventListener("resize", handleResize);
+          tableWrap.removeEventListener("scroll", requestUpdate);
+          floating.remove();
+        };
+      }
+
       async function renderSchedule() {
         setAppTitle("");
         await ensureDesktopFullscreenForSchedule();
@@ -7925,6 +8035,11 @@
             "schedule-table-view",
             viewMode === "table" && !isPhoneClient()
           );
+          if (document.body.classList.contains("schedule-table-view")) {
+            state.scheduleHeaderCleanup = setupScheduleFloatingHeader(
+              screen.querySelector(".table-wrap")
+            );
+          }
 
           document.getElementById("backLocationsBtn").addEventListener("click", renderLocations);
           document.getElementById("toggleViewBtn").addEventListener("click", () => {
