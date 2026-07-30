@@ -4906,6 +4906,12 @@
           const overlapStart = Math.max(ownStart, coworkerStart);
           const overlapEnd = Math.min(ownEnd, coworkerEnd);
           if (overlapStart >= overlapEnd) {
+            if (ownEnd <= coworkerStart) {
+              return `Вас сменит ${coworker} в ${scheduleMinutesToTime(coworkerStart)}`;
+            }
+            if (coworkerEnd <= ownStart) {
+              return `Вы смените ${coworker} в ${scheduleMinutesToTime(ownStart)}`;
+            }
             return withTodayPrefix ? "Сегодня вы работаете одни" : "В это время вы работаете одни";
           }
           if (overlapStart === ownStart && overlapEnd === ownEnd) {
