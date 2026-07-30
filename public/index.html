@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#111d31" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/pvz-group-icon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/pvz-group-icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>PVZ Group</title>
     <style>
       :root {
@@ -98,6 +102,17 @@
         justify-items: center;
         gap: 18px;
         animation: app-loader-enter 0.35s ease-out both;
+      }
+
+      .app-loader-logo {
+        width: clamp(122px, 13vw, 172px);
+        aspect-ratio: 1;
+        display: block;
+        object-fit: cover;
+        border-radius: 28%;
+        box-shadow:
+          0 22px 48px rgba(15, 29, 51, 0.18),
+          0 3px 12px rgba(15, 29, 51, 0.12);
       }
 
       .app-loader-brand {
@@ -3834,6 +3849,7 @@
         <div id="screen">
           <div class="app-loader">
             <div class="app-loader-content">
+              <img class="app-loader-logo" src="/icons/pvz-group-app-icon-512.png" alt="" />
               <div class="app-loader-brand">PVZ Group</div>
               <div class="app-loader-status">
                 <span class="app-loader-spinner" aria-hidden="true"></span>
@@ -4910,6 +4926,7 @@
           screen.innerHTML = `
             <div class="app-loader">
               <div class="app-loader-content">
+                <img class="app-loader-logo" src="/icons/pvz-group-app-icon-512.png" alt="" />
                 <div class="app-loader-brand">PVZ Group</div>
                 <div class="app-loader-status">
                   <span class="app-loader-spinner" aria-hidden="true"></span>
