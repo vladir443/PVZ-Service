@@ -4544,6 +4544,7 @@
       const THEME_STORAGE_KEY = "pvz_theme";
       const SESSION_STORAGE_KEY = "pvz_session_id";
       const AUTH_ID_STORAGE_KEY = "pvz_auth_id";
+      const ACTIVE_TAB_STORAGE_KEY = "pvz_active_tab";
       const PERSONAL_DATA_CONSENT_VERSION = "2026-07-31-v1";
       const interfaceIconPaths = [
         "/icons/back-arrow.png",
@@ -4806,6 +4807,11 @@
 
       function renderBottomNav(active = state.activeTab) {
         state.activeTab = active;
+        if (["home", "schedule", "employees", "profile"].includes(active)) {
+          try {
+            localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, active);
+          } catch {}
+        }
         state.scheduleHeaderCleanup?.();
         state.scheduleHeaderCleanup = null;
         document.body.classList.remove("schedule-table-view");
@@ -5098,6 +5104,25 @@
         const overviewData = await api(`/api/schedule/me/overview?date=${todayIso}&limit=4`);
         state.locations = overviewData.locations || [];
         state.currentEmployee = overviewData.employee || null;
+        let savedTab = "home";
+        try {
+          const storedTab = String(localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) || "");
+          if (["home", "schedule", "employees", "profile"].includes(storedTab)) {
+            savedTab = storedTab;
+          }
+        } catch {}
+        if (savedTab === "schedule") {
+          renderLocations();
+          return;
+        }
+        if (savedTab === "employees" && canManageEmployees()) {
+          await renderEmployeesBase();
+          return;
+        }
+        if (savedTab === "profile") {
+          await renderProfile();
+          return;
+        }
         await renderMain(overviewData);
       }
 
@@ -5586,6 +5611,7 @@
           try {
             localStorage.removeItem(SESSION_STORAGE_KEY);
             localStorage.removeItem(AUTH_ID_STORAGE_KEY);
+            localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
           } catch {}
           renderPhoneLogin();
         });
@@ -7631,6 +7657,7 @@
           try {
             localStorage.removeItem(SESSION_STORAGE_KEY);
             localStorage.removeItem(AUTH_ID_STORAGE_KEY);
+            localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
           } catch {}
           renderPhoneLogin();
         });
