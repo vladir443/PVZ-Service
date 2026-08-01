@@ -856,11 +856,11 @@
       }
 
       .profile-dashboard-grid {
-        width: min(1100px, 100%);
+        width: 100%;
         display: grid;
-        grid-template-columns: minmax(280px, 0.78fr) minmax(420px, 1.22fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 16px;
-        align-items: start;
+        align-items: stretch;
       }
 
       .profile-dashboard-grid > * {
@@ -868,9 +868,21 @@
       }
 
       .profile-stats-grid {
+        flex: 1 1 auto;
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
+      }
+
+      .profile-stats-panel,
+      .profile-settings-block {
+        display: flex;
+        min-height: 100%;
+        flex-direction: column;
+      }
+
+      .profile-settings-block .settings-list {
+        flex: 1 1 auto;
       }
 
       .profile-stat-card {
@@ -925,7 +937,7 @@
       }
 
       .profile-logout-btn {
-        align-self: start;
+        align-self: center;
         min-height: 40px;
         border: 1px solid rgba(255, 255, 255, 0.5);
         border-radius: 12px;
@@ -6302,8 +6314,8 @@
                 </div>
               </div>
             </div>
-            <div class="profile-settings-block">
-              <h2>Настройки</h2>
+            <div class="panel profile-settings-block">
+              <h3 class="panel-title">Настройки</h3>
               <div class="settings-list mt12">
                 <div class="settings-row">
                   <span>Тема</span>
