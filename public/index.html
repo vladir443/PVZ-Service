@@ -511,17 +511,49 @@
         gap: 8px;
       }
 
+      .home-shell {
+        width: min(100%, 1180px);
+        margin: 0 auto;
+      }
+
+      .home-top-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.5fr);
+        gap: 14px;
+        align-items: stretch;
+      }
+
       .dash-user {
+        position: relative;
+        overflow: hidden;
         display: grid;
         grid-template-columns: auto 1fr auto;
-        gap: 14px;
+        gap: 16px;
         align-items: center;
-        border: 1px solid #dbe4f1;
-        border-radius: 16px;
-        padding: 14px;
-        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-        box-shadow: 0 4px 14px rgba(24, 44, 78, 0.06);
+        min-width: 0;
+        border: 1px solid #d5e1f2;
+        border-radius: 20px;
+        padding: 18px;
+        background: linear-gradient(135deg, #ffffff 0%, #f2f7ff 100%);
+        box-shadow: 0 10px 28px rgba(24, 59, 112, 0.08);
         cursor: pointer;
+      }
+
+      .dash-user::after {
+        content: "";
+        position: absolute;
+        top: -72px;
+        right: -58px;
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        background: rgba(46, 112, 211, 0.06);
+        pointer-events: none;
+      }
+
+      .dash-user > * {
+        position: relative;
+        z-index: 1;
       }
 
       .main-position-row {
@@ -551,12 +583,12 @@
 
       .my-finances-home-btn {
         width: 100%;
-        min-height: 68px;
-        margin-top: 14px;
-        border: 1px solid #1d5eaf;
-        border-radius: 18px;
-        padding: 16px 20px;
-        background: linear-gradient(135deg, #123f7a 0%, #2670cd 100%);
+        min-height: 100%;
+        margin: 0;
+        border: 0;
+        border-radius: 20px;
+        padding: 20px;
+        background: linear-gradient(145deg, #123f7a 0%, #2670cd 74%, #3e82dc 100%);
         color: #ffffff;
         display: flex;
         align-items: center;
@@ -567,7 +599,7 @@
         font-weight: 850;
         text-align: left;
         cursor: pointer;
-        box-shadow: 0 10px 24px rgba(25, 83, 155, 0.22);
+        box-shadow: 0 12px 28px rgba(25, 83, 155, 0.22);
         transition: transform 0.16s ease, box-shadow 0.16s ease;
       }
 
@@ -642,28 +674,29 @@
       .overview-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        gap: 14px;
       }
 
       .overview-card {
-        border: 1px solid #e2e9f4;
-        border-radius: 16px;
-        padding: 14px;
-        background: #f8fbff;
-        box-shadow: 0 3px 10px rgba(20, 37, 69, 0.04);
+        min-width: 0;
+        border: 1px solid #dce6f4;
+        border-radius: 20px;
+        padding: 18px;
+        background: #ffffff;
+        box-shadow: 0 8px 24px rgba(20, 47, 91, 0.06);
       }
 
       .overview-card h3 {
         margin: 0;
-        font-size: 15px;
-        font-weight: 700;
+        font-size: 17px;
+        font-weight: 800;
         line-height: 1.25;
       }
 
       .overview-card .big {
-        margin-top: 10px;
-        font-size: 28px;
-        font-weight: 800;
+        margin-top: 12px;
+        font-size: 32px;
+        font-weight: 850;
         line-height: 1.1;
         letter-spacing: -0.02em;
       }
@@ -676,9 +709,9 @@
       }
 
       .home-list {
-        margin-top: 10px;
+        margin-top: 12px;
         display: grid;
-        gap: 7px;
+        gap: 0;
       }
 
       .home-list-item {
@@ -686,6 +719,13 @@
         grid-template-columns: 76px 12px 1fr;
         gap: 6px;
         align-items: start;
+        padding: 9px 0;
+        border-top: 1px solid #e5ebf4;
+      }
+
+      .home-list-item:first-child {
+        padding-top: 0;
+        border-top: 0;
       }
 
       .home-list-date {
@@ -784,8 +824,14 @@
         line-height: 1.35;
       }
 
-      .overview-card.blue { background: #f1f6ff; }
-      .overview-card.green { background: #f4f8ff; }
+      .overview-card.blue {
+        border-top: 4px solid #3b82f6;
+        background: linear-gradient(180deg, #f7faff 0%, #ffffff 100%);
+      }
+      .overview-card.green {
+        border-top: 4px solid #2fa778;
+        background: linear-gradient(180deg, #f6fbf9 0%, #ffffff 100%);
+      }
       .overview-card.purple { background: #f3f8ff; }
 
       .quick-grid {
@@ -806,15 +852,26 @@
       }
 
       .warn-banner {
-        border: 1px solid #e0e8f5;
-        border-radius: 16px;
-        background: #f7faff;
-        padding: 14px;
+        border: 1px solid #e1e8f2;
+        border-left: 4px solid #f0a23a;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #fffaf2 0%, #ffffff 72%);
+        padding: 18px;
+        box-shadow: 0 8px 24px rgba(83, 58, 19, 0.05);
       }
 
       .warn-banner > div:first-child {
-        font-size: 15px;
+        font-size: 17px;
+        font-weight: 800;
         color: #243754;
+      }
+
+      .home-section-title {
+        margin: 22px 0 0;
+        color: #15233a;
+        font-size: 22px;
+        font-weight: 850;
+        letter-spacing: -0.02em;
       }
 
       body.theme-dark .warn-banner > div:first-child {
@@ -1461,6 +1518,37 @@
       body.theme-dark .dash-user {
         background: linear-gradient(180deg, #152238 0%, #122034 100%);
         border-color: #2a3d59;
+      }
+
+      body.theme-dark .dash-user::after {
+        background: rgba(96, 165, 250, 0.08);
+      }
+
+      body.theme-dark .overview-card.blue {
+        border-color: #2a3d59;
+        border-top-color: #4f95f7;
+        background: linear-gradient(180deg, #172740 0%, #152238 100%);
+      }
+
+      body.theme-dark .overview-card.green {
+        border-color: #2a3d59;
+        border-top-color: #3db287;
+        background: linear-gradient(180deg, #17283a 0%, #152238 100%);
+      }
+
+      body.theme-dark .warn-banner {
+        border-color: #2a3d59;
+        border-left-color: #d5953d;
+        background: linear-gradient(135deg, #282418 0%, #152238 72%);
+      }
+
+      body.theme-dark .home-list-item,
+      body.theme-dark .today-schedule-row {
+        border-color: #2a3d59;
+      }
+
+      body.theme-dark .home-section-title {
+        color: var(--text);
       }
 
       body.theme-dark .participant-preview-btn {
@@ -4225,6 +4313,25 @@
           grid-template-columns: minmax(0, 1fr);
           gap: 16px;
         }
+        .home-top-grid {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 10px;
+        }
+        .my-finances-home-btn {
+          min-height: 62px;
+          padding: 15px 17px;
+          border-radius: 16px;
+          font-size: 17px;
+        }
+        .home-section-title {
+          margin-top: 18px;
+          font-size: 20px;
+        }
+        .overview-card,
+        .warn-banner {
+          border-radius: 17px;
+          padding: 15px;
+        }
         .profile-hero {
           grid-template-columns: auto minmax(0, 1fr);
           align-items: start;
@@ -5952,48 +6059,52 @@
             : "";
         const canUseParticipantPreview = currentEmployeePosition() === "owner";
         screen.innerHTML = `
-          <div class="dash-user mt12" id="openProfileFromMain">
-            ${
-              photo
-                ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
-                : `<div class="dash-avatar">${escapeHtml(initials || "?")}</div>`
-            }
-            <div>
-              <div style="font-size:20px;"><strong>${escapeHtml((state.user.fullName || "").split(" ")[0] || state.user.fullName)}</strong></div>
-              <div class="main-position-row">
-                <div class="muted">Должность: <strong>${escapeHtml(positionLabel)}</strong></div>
+          <div class="home-shell">
+            <div class="home-top-grid">
+              <div class="dash-user" id="openProfileFromMain">
                 ${
-                  canUseParticipantPreview
-                    ? `<button id="participantPreviewBtn" class="participant-preview-btn ${state.participantPreview ? "active" : ""}" type="button">${
-                        state.participantPreview ? "Вернуться к владельцу" : "Просмотр участника"
-                      }</button>`
-                    : ""
+                  photo
+                    ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
+                    : `<div class="dash-avatar">${escapeHtml(initials || "?")}</div>`
                 }
+                <div>
+                  <div style="font-size:20px;"><strong>${escapeHtml((state.user.fullName || "").split(" ")[0] || state.user.fullName)}</strong></div>
+                  <div class="main-position-row">
+                    <div class="muted">Должность: <strong>${escapeHtml(positionLabel)}</strong></div>
+                    ${
+                      canUseParticipantPreview
+                        ? `<button id="participantPreviewBtn" class="participant-preview-btn ${state.participantPreview ? "active" : ""}" type="button">${
+                            state.participantPreview ? "Вернуться к владельцу" : "Просмотр участника"
+                          }</button>`
+                        : ""
+                    }
+                  </div>
+                  <div class="muted mt8"><span class="dash-dot ${escapeHtml(shiftDotClass)}"></span> ${escapeHtml(shiftText)}</div>
+                </div>
+                <img class="dash-arrow" src="/icons/right-arrow.png" alt="Открыть" />
               </div>
-              <div class="muted mt8"><span class="dash-dot ${escapeHtml(shiftDotClass)}"></span> ${escapeHtml(shiftText)}</div>
+              <button class="my-finances-home-btn" id="openMyFinancesBtn" type="button">
+                <span>Мои финансы</span>
+              </button>
             </div>
-            <img class="dash-arrow" src="/icons/right-arrow.png" alt="Открыть" />
-          </div>
-          <button class="my-finances-home-btn" id="openMyFinancesBtn" type="button">
-            <span>Мои финансы</span>
-          </button>
-          <h2 class="mt16">Обзор</h2>
-          <div class="overview-grid mt12">
-            <div class="overview-card blue">
-              <h3>${escapeHtml(todayCardTitle)}</h3>
-              ${overviewShift ? `<div class="big">${escapeHtml(overviewShift)}</div>` : ""}
-              ${todayTeamTitle ? `<div class="home-main-note">${escapeHtml(todayTeamTitle)}</div>` : ""}
-              ${todayTeamSub ? `<div class="home-sub-note">${escapeHtml(todayTeamSub)}</div>` : ""}
-              ${todayScheduleHtml}
+            <h2 class="home-section-title">Обзор</h2>
+            <div class="overview-grid mt12">
+              <div class="overview-card blue">
+                <h3>${escapeHtml(todayCardTitle)}</h3>
+                ${overviewShift ? `<div class="big">${escapeHtml(overviewShift)}</div>` : ""}
+                ${todayTeamTitle ? `<div class="home-main-note">${escapeHtml(todayTeamTitle)}</div>` : ""}
+                ${todayTeamSub ? `<div class="home-sub-note">${escapeHtml(todayTeamSub)}</div>` : ""}
+                ${todayScheduleHtml}
+              </div>
+              <div class="overview-card green">
+                <h3>Ваши ближайшие смены</h3>
+                <div class="home-list">${upcomingLinesHtml}</div>
+              </div>
             </div>
-            <div class="overview-card green">
-              <h3>Ваши ближайшие смены</h3>
-              <div class="home-list">${upcomingLinesHtml}</div>
+            <div class="warn-banner mt12">
+              <div><strong>Свободные смены</strong></div>
+              <div class="home-list">${emptyShiftLinesHtml}</div>
             </div>
-          </div>
-          <div class="warn-banner mt12">
-            <div><strong>Свободные смены</strong></div>
-            <div class="home-list">${emptyShiftLinesHtml}</div>
           </div>
         `;
         renderBottomNav("home");
