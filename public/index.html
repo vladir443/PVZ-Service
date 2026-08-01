@@ -870,7 +870,7 @@
       .profile-stats-grid {
         flex: 1 1 auto;
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
       }
 
@@ -891,6 +891,9 @@
         border-radius: 16px;
         padding: 14px;
         background: linear-gradient(145deg, #f8fbff, #eef5ff);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
       }
 
       .profile-stat-label {
@@ -912,6 +915,7 @@
       .profile-stat-trend {
         display: inline-flex;
         align-items: center;
+        align-self: flex-start;
         margin-top: 10px;
         border-radius: 999px;
         padding: 4px 8px;
@@ -4218,7 +4222,7 @@
           margin-top: 2px;
         }
         .profile-stats-grid {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 7px;
         }
         .profile-stat-card {
@@ -4234,6 +4238,7 @@
         }
         .profile-stat-trend {
           width: 100%;
+          align-self: stretch;
           min-height: 30px;
           justify-content: center;
           margin-top: 8px;
@@ -6209,8 +6214,8 @@
           : userRoles[state.user.role] || state.user.role;
         const positionLabel = positions[employeeProfile?.position] || "Сотрудник";
         let profileStats = {
-          current: { shifts: 0, violations: 0, bonuses: 0 },
-          previous: { shifts: 0, violations: 0, bonuses: 0 }
+          current: { shifts: 0, violations: 0, bonuses: 0, income: 0 },
+          previous: { shifts: 0, violations: 0, bonuses: 0, income: 0 }
         };
         try {
           const currentMonth = monthNow();
@@ -6227,6 +6232,7 @@
             const shifts = Array.isArray(finance?.shifts) ? finance.shifts : [];
             return {
               shifts: Number(finance?.summary?.shiftCount || 0),
+              income: Number(finance?.summary?.accrued || 0),
               violations: shifts.reduce(
                 (sum, shift) => sum + (Array.isArray(shift.deductionItems) ? shift.deductionItems.length : 0),
                 0
@@ -6269,6 +6275,7 @@
           true
         );
         const bonusesTrend = statTrend(profileStats.current.bonuses, profileStats.previous.bonuses);
+        const incomeTrend = statTrend(profileStats.current.income, profileStats.previous.income);
         const photo = withAvatarCacheBust(employeeProfile?.avatarUrl || "");
         const initials = (state.user?.fullName || "?")
           .split(" ")
@@ -6311,6 +6318,11 @@
                   <div class="profile-stat-label">Доплаты</div>
                   <div class="profile-stat-value">${profileStats.current.bonuses}</div>
                   <div class="profile-stat-trend ${bonusesTrend.className}">${bonusesTrend.text}</div>
+                </div>
+                <div class="profile-stat-card">
+                  <div class="profile-stat-label">Ваш доход</div>
+                  <div class="profile-stat-value">${formatMoneyUnsigned(profileStats.current.income)}</div>
+                  <div class="profile-stat-trend ${incomeTrend.className}">${incomeTrend.text}</div>
                 </div>
               </div>
             </div>
