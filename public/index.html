@@ -881,12 +881,15 @@
         flex-direction: column;
       }
 
-      .profile-stats-panel > .panel-title,
-      .profile-settings-block > .panel-title {
-        min-height: 22px;
+      .profile-section-title {
+        display: flex;
+        width: 100%;
+        min-height: 32px;
         margin: 0;
+        align-items: center;
+        justify-content: center;
         text-align: center;
-        line-height: 22px;
+        line-height: 1.2;
       }
 
       .profile-settings-block .settings-list {
@@ -6335,7 +6338,7 @@
           </div>
           <div class="profile-dashboard-grid mt12">
             <div class="panel profile-stats-panel">
-              <h3 class="panel-title">Моя статистика</h3>
+              <h3 class="panel-title profile-section-title">Моя статистика</h3>
               <div class="profile-stats-grid mt12">
                 <div class="profile-stat-card">
                   <div class="profile-stat-label">Смены</div>
@@ -6360,7 +6363,7 @@
               </div>
             </div>
             <div class="panel profile-settings-block">
-              <h3 class="panel-title">Настройки</h3>
+              <h3 class="panel-title profile-section-title">Настройки</h3>
               <div class="settings-list mt12">
                 <div class="settings-row">
                   <span>Тема</span>
