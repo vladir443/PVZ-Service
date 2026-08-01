@@ -827,7 +827,7 @@
         background: linear-gradient(120deg, #2563eb, #7c3aed);
         color: #fff;
         display: grid;
-        grid-template-columns: auto 1fr;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         gap: 12px;
         align-items: center;
       }
@@ -867,32 +867,80 @@
         min-width: 0;
       }
 
+      .profile-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .profile-stat-card {
+        min-width: 0;
+        border: 1px solid #dbe5f3;
+        border-radius: 16px;
+        padding: 14px;
+        background: linear-gradient(145deg, #f8fbff, #eef5ff);
+      }
+
+      .profile-stat-label {
+        color: #52647e;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+
+      .profile-stat-value {
+        margin-top: 8px;
+        color: #13213a;
+        font-size: 28px;
+        font-weight: 850;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+
+      .profile-stat-trend {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 10px;
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: #e9eff8;
+        color: #53647d;
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 1.2;
+      }
+
+      .profile-stat-trend.positive {
+        background: #e5f8ed;
+        color: #087443;
+      }
+
+      .profile-stat-trend.negative {
+        background: #fff0ef;
+        color: #b42318;
+      }
+
       .profile-settings-block > h2 {
         margin-top: 0;
       }
 
-      .profile-logout-wrap {
-        display: flex;
-        justify-content: center;
-        padding: 24px 0 8px;
-      }
-
       .profile-logout-btn {
-        width: min(100%, 420px);
-        min-height: 48px;
-        border: 1px solid #fecaca;
-        border-radius: 14px;
-        background: #fff7f7;
-        color: #b42318;
-        font-size: 15px;
+        align-self: start;
+        min-height: 40px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 12px;
+        padding: 0 14px;
+        background: rgba(13, 31, 71, 0.2);
+        color: #fff;
+        font-size: 13px;
         font-weight: 750;
         cursor: pointer;
         transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
       }
 
       .profile-logout-btn:hover {
-        border-color: #fca5a5;
-        background: #fff0f0;
+        border-color: rgba(255, 255, 255, 0.8);
+        background: rgba(13, 31, 71, 0.32);
       }
 
       .profile-logout-btn:active {
@@ -900,14 +948,27 @@
       }
 
       body.theme-dark .profile-logout-btn {
-        border-color: #7f3035;
-        background: #2b1920;
-        color: #fda4af;
+        border-color: rgba(255, 255, 255, 0.48);
+        background: rgba(5, 15, 35, 0.28);
+        color: #fff;
       }
 
       body.theme-dark .profile-logout-btn:hover {
-        border-color: #a83f48;
-        background: #351b23;
+        border-color: rgba(255, 255, 255, 0.8);
+        background: rgba(5, 15, 35, 0.42);
+      }
+
+      body.theme-dark .profile-stat-card {
+        border-color: #2a3d59;
+        background: linear-gradient(145deg, #182842, #142238);
+      }
+
+      body.theme-dark .profile-stat-label {
+        color: #a7b8d2;
+      }
+
+      body.theme-dark .profile-stat-value {
+        color: #f4f7fb;
       }
 
       .personal-finance-head {
@@ -4133,6 +4194,42 @@
           grid-template-columns: minmax(0, 1fr);
           gap: 16px;
         }
+        .profile-hero {
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: start;
+        }
+        .profile-logout-btn {
+          grid-column: 1 / -1;
+          justify-self: stretch;
+          width: 100%;
+          min-height: 42px;
+          margin-top: 2px;
+        }
+        .profile-stats-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 7px;
+        }
+        .profile-stat-card {
+          padding: 11px 9px;
+          border-radius: 14px;
+        }
+        .profile-stat-label {
+          font-size: 11px;
+        }
+        .profile-stat-value {
+          margin-top: 7px;
+          font-size: 23px;
+        }
+        .profile-stat-trend {
+          width: 100%;
+          min-height: 30px;
+          justify-content: center;
+          margin-top: 8px;
+          padding: 4px 5px;
+          border-radius: 9px;
+          font-size: 9.5px;
+          text-align: center;
+        }
         .profile-settings-block > h2 {
           margin-top: 0;
         }
@@ -6013,7 +6110,7 @@
               },
               {
                 key: "deductions",
-                title: "Штрафы",
+                title: "Нарушения",
                 caption: "Удержания за месяц",
                 amount: `−${formatMoneyUnsigned(summary.deductions)}`,
                 amountClass: "negative",
@@ -6043,7 +6140,7 @@
                 <div class="personal-finance-balance-value">${formatPayoutBalance(summary.balance)}</div>
                 <div class="personal-finance-balance-note">
                   Начислено за месяц: ${formatMoneyUnsigned(summary.accrued)}
-                  <br />Зарплата + премии − штрафы − выплачено
+                  <br />Зарплата + премии − нарушения − выплачено
                 </div>
               </div>
               <div class="personal-finance-sections">
@@ -6099,23 +6196,67 @@
           ? userRoles.PARTICIPANT
           : userRoles[state.user.role] || state.user.role;
         const positionLabel = positions[employeeProfile?.position] || "Сотрудник";
-        let monthShiftCount = 0;
+        let profileStats = {
+          current: { shifts: 0, violations: 0, bonuses: 0 },
+          previous: { shifts: 0, violations: 0, bonuses: 0 }
+        };
         try {
-          const month = monthNow();
-          const aliases = buildEmployeeAliases(employeeProfile || state.user || {});
-          if (aliases.size) {
-            const schedules = await Promise.all(
-              (state.locations || []).map((loc) =>
-                api(`/api/schedule/${loc.code}?month=${month}`).catch(() => ({ shifts: [] }))
+          const currentMonth = monthNow();
+          const [year, month] = currentMonth.split("-").map(Number);
+          const previousDate = new Date(year, month - 2, 1);
+          const previousMonth = `${previousDate.getFullYear()}-${String(
+            previousDate.getMonth() + 1
+          ).padStart(2, "0")}`;
+          const [currentFinance, previousFinance] = await Promise.all([
+            api(`/api/schedule/me/finances?month=${currentMonth}`),
+            api(`/api/schedule/me/finances?month=${previousMonth}`)
+          ]);
+          const getStats = (finance) => {
+            const shifts = Array.isArray(finance?.shifts) ? finance.shifts : [];
+            return {
+              shifts: Number(finance?.summary?.shiftCount || 0),
+              violations: shifts.reduce(
+                (sum, shift) => sum + (Array.isArray(shift.deductionItems) ? shift.deductionItems.length : 0),
+                0
+              ),
+              bonuses: shifts.reduce(
+                (sum, shift) => sum + (Array.isArray(shift.bonusItems) ? shift.bonusItems.length : 0),
+                0
               )
-            );
-            monthShiftCount = schedules.reduce((acc, scheduleData) => {
-              const shifts = Array.isArray(scheduleData?.shifts) ? scheduleData.shifts : [];
-              const ownCount = shifts.filter((row) => employeeAssignedToShift(aliases, row)).length;
-              return acc + ownCount;
-            }, 0);
-          }
+            };
+          };
+          profileStats = {
+            current: getStats(currentFinance),
+            previous: getStats(previousFinance)
+          };
         } catch {}
+        const statTrend = (current, previous, lowerIsBetter = false) => {
+          const currentValue = Number(current || 0);
+          const previousValue = Number(previous || 0);
+          if (currentValue === previousValue) {
+            return { text: "Без изменений", className: "" };
+          }
+          if (previousValue === 0) {
+            return {
+              text: "Новый результат",
+              className: lowerIsBetter ? "negative" : "positive"
+            };
+          }
+          const percent = Math.round((Math.abs(currentValue - previousValue) / previousValue) * 100);
+          const increased = currentValue > previousValue;
+          const isPositive = lowerIsBetter ? !increased : increased;
+          return {
+            text: `На ${percent}% ${increased ? "больше" : "меньше"}`,
+            className: isPositive ? "positive" : "negative"
+          };
+        };
+        const shiftsTrend = statTrend(profileStats.current.shifts, profileStats.previous.shifts);
+        const violationsTrend = statTrend(
+          profileStats.current.violations,
+          profileStats.previous.violations,
+          true
+        );
+        const bonusesTrend = statTrend(profileStats.current.bonuses, profileStats.previous.bonuses);
         const photo = withAvatarCacheBust(employeeProfile?.avatarUrl || "");
         const initials = (state.user?.fullName || "?")
           .split(" ")
@@ -6138,14 +6279,26 @@
               <div class="profile-badge">${escapeHtml(roleLabel)}</div>
               <div class="profile-phone">Телефон: ${escapeHtml(employeeProfile?.phone || "не указан")}</div>
             </div>
+            <button id="logoutAccountBtn" class="profile-logout-btn" type="button">Выйти из аккаунта</button>
           </div>
           <div class="profile-dashboard-grid mt12">
             <div class="panel profile-stats-panel">
               <h3 class="panel-title">Моя статистика</h3>
-              <div class="overview-grid mt12">
-                <div class="overview-card blue">
-                  <h3>Смен в этом месяце</h3>
-                  <div class="big">${monthShiftCount}</div>
+              <div class="profile-stats-grid mt12">
+                <div class="profile-stat-card">
+                  <div class="profile-stat-label">Смены</div>
+                  <div class="profile-stat-value">${profileStats.current.shifts}</div>
+                  <div class="profile-stat-trend ${shiftsTrend.className}">${shiftsTrend.text}</div>
+                </div>
+                <div class="profile-stat-card">
+                  <div class="profile-stat-label">Нарушения</div>
+                  <div class="profile-stat-value">${profileStats.current.violations}</div>
+                  <div class="profile-stat-trend ${violationsTrend.className}">${violationsTrend.text}</div>
+                </div>
+                <div class="profile-stat-card">
+                  <div class="profile-stat-label">Доплаты</div>
+                  <div class="profile-stat-value">${profileStats.current.bonuses}</div>
+                  <div class="profile-stat-trend ${bonusesTrend.className}">${bonusesTrend.text}</div>
                 </div>
               </div>
             </div>
@@ -6186,9 +6339,6 @@
                 </div>
               </div>
             </div>
-          </div>
-          <div class="profile-logout-wrap">
-            <button id="logoutAccountBtn" class="profile-logout-btn" type="button">Выйти из аккаунта</button>
           </div>
           <div id="securityModal" class="modal fullscreen-modal hidden">
             <div class="panel">
