@@ -651,20 +651,38 @@
       .custom-avatar {
         display: grid;
         place-items: center;
+        padding: 0;
+        overflow: hidden;
         color: #ffffff;
-        font-size: 34px;
         line-height: 1;
-        text-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
       }
 
-      .avatar-bg-ocean { background: linear-gradient(145deg, #22b8e6, #2563eb); }
-      .avatar-bg-sunset { background: linear-gradient(145deg, #fb7185, #f97316); }
-      .avatar-bg-forest { background: linear-gradient(145deg, #34d399, #047857); }
-      .avatar-bg-violet { background: linear-gradient(145deg, #8b5cf6, #db2777); }
-      .avatar-bg-graphite { background: linear-gradient(145deg, #64748b, #172033); }
-      .avatar-bg-gold { background: linear-gradient(145deg, #facc15, #ea580c); }
-      .avatar-bg-ice { background: linear-gradient(145deg, #67e8f9, #6366f1); }
-      .avatar-bg-berry { background: linear-gradient(145deg, #f43f5e, #6d28d9); }
+      .custom-avatar-emoji {
+        display: block;
+        width: 70%;
+        height: 70%;
+        margin: auto;
+        object-fit: contain;
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .custom-avatar.avatar-bg-ocean,
+      .avatar-background-option.avatar-bg-ocean { background: linear-gradient(145deg, #22b8e6, #2563eb); }
+      .custom-avatar.avatar-bg-sunset,
+      .avatar-background-option.avatar-bg-sunset { background: linear-gradient(145deg, #fb7185, #f97316); }
+      .custom-avatar.avatar-bg-forest,
+      .avatar-background-option.avatar-bg-forest { background: linear-gradient(145deg, #34d399, #047857); }
+      .custom-avatar.avatar-bg-violet,
+      .avatar-background-option.avatar-bg-violet { background: linear-gradient(145deg, #8b5cf6, #db2777); }
+      .custom-avatar.avatar-bg-graphite,
+      .avatar-background-option.avatar-bg-graphite { background: linear-gradient(145deg, #64748b, #172033); }
+      .custom-avatar.avatar-bg-gold,
+      .avatar-background-option.avatar-bg-gold { background: linear-gradient(145deg, #facc15, #ea580c); }
+      .custom-avatar.avatar-bg-ice,
+      .avatar-background-option.avatar-bg-ice { background: linear-gradient(145deg, #67e8f9, #6366f1); }
+      .custom-avatar.avatar-bg-berry,
+      .avatar-background-option.avatar-bg-berry { background: linear-gradient(145deg, #f43f5e, #6d28d9); }
 
       .dash-arrow {
         width: 18px;
@@ -947,6 +965,21 @@
         padding: 22px;
       }
 
+      #avatarEditorModal {
+        background: rgba(12, 23, 42, 0.46);
+        -webkit-backdrop-filter: blur(16px) saturate(0.9);
+        backdrop-filter: blur(16px) saturate(0.9);
+      }
+
+      #avatarEditorModal > .avatar-editor-panel {
+        width: min(430px, calc(100vw - 28px));
+        max-width: 430px;
+        min-height: 0;
+        border: 1px solid rgba(213, 225, 242, 0.9);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 26px 70px rgba(11, 25, 48, 0.3);
+      }
+
       .avatar-editor-head {
         display: flex;
         align-items: center;
@@ -955,13 +988,17 @@
       }
 
       .avatar-editor-preview {
-        width: 112px;
-        height: 112px;
-        margin: 18px auto 22px;
+        width: 96px;
+        height: 96px;
+        margin: 16px auto 20px;
         border: 4px solid #ffffff;
         border-radius: 50%;
         box-shadow: 0 14px 32px rgba(25, 55, 102, 0.2);
-        font-size: 50px;
+      }
+
+      .avatar-editor-preview .custom-avatar-emoji {
+        width: 74%;
+        height: 74%;
       }
 
       .avatar-editor-label {
@@ -985,8 +1022,26 @@
       }
 
       .avatar-background-option {
-        height: 48px;
-        border-radius: 14px;
+        position: relative;
+        height: 42px;
+        border-radius: 13px;
+      }
+
+      .avatar-background-option.selected::after {
+        content: "✓";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: rgba(15, 23, 42, 0.72);
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 900;
+        transform: translate(-50%, -50%);
       }
 
       .avatar-emoji-grid {
@@ -999,7 +1054,17 @@
         aspect-ratio: 1;
         border-radius: 13px;
         background: #f4f7fb;
-        font-size: 24px;
+        display: grid;
+        place-items: center;
+        padding: 7px;
+      }
+
+      .avatar-emoji-option img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        pointer-events: none;
       }
 
       .avatar-background-option.selected,
@@ -1011,8 +1076,14 @@
 
       .avatar-editor-actions {
         display: flex;
-        justify-content: flex-end;
         margin-top: 20px;
+      }
+
+      .avatar-editor-actions .button {
+        width: 100%;
+        min-height: 46px;
+        border-radius: 13px;
+        font-weight: 800;
       }
 
       body.theme-dark .avatar-editor-label {
@@ -1028,8 +1099,22 @@
         border-color: #263b5a;
       }
 
+      body.theme-dark #avatarEditorModal > .avatar-editor-panel {
+        border-color: #314865;
+        background: rgba(17, 27, 45, 0.96);
+      }
+
       .employee-avatar.custom-avatar {
-        font-size: 24px;
+        display: grid !important;
+        place-items: center !important;
+        padding: 0 !important;
+        overflow: hidden;
+      }
+
+      .employee-avatar.custom-avatar .custom-avatar-emoji {
+        width: 72%;
+        height: 72%;
+        margin: auto;
       }
 
       .profile-badge {
@@ -4816,7 +4901,19 @@
         "/icons/right-arrow.png",
         "/icons/session-desktop.png",
         "/icons/session-mobile.png",
-        "/icons/theme-night.png"
+        "/icons/theme-night.png",
+        "/icons/avatar-emojis/package.png",
+        "/icons/avatar-emojis/store.png",
+        "/icons/avatar-emojis/star.png",
+        "/icons/avatar-emojis/rocket.png",
+        "/icons/avatar-emojis/sunglasses.png",
+        "/icons/avatar-emojis/bear.png",
+        "/icons/avatar-emojis/fox.png",
+        "/icons/avatar-emojis/panda.png",
+        "/icons/avatar-emojis/briefcase.png",
+        "/icons/avatar-emojis/crown.png",
+        "/icons/avatar-emojis/coffee.png",
+        "/icons/avatar-emojis/lightning.png"
       ];
       const preloadedInterfaceIcons = [];
       let interfaceIconPreloadScheduled = false;
@@ -5217,6 +5314,25 @@
       const CUSTOM_AVATAR_PREFIX = "pvz-avatar:";
       const avatarBackgrounds = ["ocean", "sunset", "forest", "violet", "graphite", "gold", "ice", "berry"];
       const avatarEmojis = ["📦", "🏪", "⭐", "🚀", "😎", "🐻", "🦊", "🐼", "💼", "👑", "☕", "⚡"];
+      const avatarEmojiAssets = {
+        "📦": "/icons/avatar-emojis/package.png",
+        "🏪": "/icons/avatar-emojis/store.png",
+        "⭐": "/icons/avatar-emojis/star.png",
+        "🚀": "/icons/avatar-emojis/rocket.png",
+        "😎": "/icons/avatar-emojis/sunglasses.png",
+        "🐻": "/icons/avatar-emojis/bear.png",
+        "🦊": "/icons/avatar-emojis/fox.png",
+        "🐼": "/icons/avatar-emojis/panda.png",
+        "💼": "/icons/avatar-emojis/briefcase.png",
+        "👑": "/icons/avatar-emojis/crown.png",
+        "☕": "/icons/avatar-emojis/coffee.png",
+        "⚡": "/icons/avatar-emojis/lightning.png"
+      };
+
+      function renderAvatarEmojiImage(emoji) {
+        const assetPath = avatarEmojiAssets[emoji] || avatarEmojiAssets["📦"];
+        return `<img class="custom-avatar-emoji" src="${escapeHtml(assetPath)}" alt="${escapeHtml(emoji)}" draggable="false" />`;
+      }
 
       function parseCustomAvatar(value) {
         const raw = String(value || "").trim();
@@ -5235,7 +5351,7 @@
       function renderUserAvatar({ avatarUrl, initials = "?", className, alt = "avatar", nonce = state.avatarNonce }) {
         const customAvatar = parseCustomAvatar(avatarUrl);
         if (customAvatar) {
-          return `<div class="${escapeHtml(className)} custom-avatar avatar-bg-${escapeHtml(customAvatar.background)}" role="img" aria-label="${escapeHtml(alt)}"><span>${escapeHtml(customAvatar.emoji)}</span></div>`;
+          return `<div class="${escapeHtml(className)} custom-avatar avatar-bg-${escapeHtml(customAvatar.background)}" role="img" aria-label="${escapeHtml(alt)}">${renderAvatarEmojiImage(customAvatar.emoji)}</div>`;
         }
         const photo = withAvatarCacheBust(avatarUrl, nonce);
         if (photo) {
@@ -6676,7 +6792,7 @@
                 <button id="closeAvatarEditorBtn" class="month-picker-close" type="button" aria-label="Закрыть">×</button>
               </div>
               <div id="avatarEditorPreview" class="avatar-editor-preview custom-avatar avatar-bg-${escapeHtml(customAvatar.background)}">
-                <span>${escapeHtml(customAvatar.emoji)}</span>
+                ${renderAvatarEmojiImage(customAvatar.emoji)}
               </div>
               <div class="avatar-editor-label">Выберите фон</div>
               <div class="avatar-background-grid">
@@ -6703,7 +6819,7 @@
                         type="button"
                         data-avatar-emoji="${escapeHtml(emoji)}"
                         aria-label="Выбрать ${escapeHtml(emoji)}"
-                      >${escapeHtml(emoji)}</button>
+                      >${renderAvatarEmojiImage(emoji)}</button>
                     `
                   )
                   .join("")}
@@ -6894,7 +7010,7 @@
         const updateAvatarEditor = () => {
           if (avatarEditorPreview) {
             avatarEditorPreview.className = `avatar-editor-preview custom-avatar avatar-bg-${selectedAvatarBackground}`;
-            avatarEditorPreview.innerHTML = `<span>${escapeHtml(selectedAvatarEmoji)}</span>`;
+            avatarEditorPreview.innerHTML = renderAvatarEmojiImage(selectedAvatarEmoji);
           }
           for (const button of avatarEditorModal?.querySelectorAll("[data-avatar-background]") || []) {
             button.classList.toggle("selected", button.dataset.avatarBackground === selectedAvatarBackground);
