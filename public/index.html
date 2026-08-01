@@ -827,6 +827,45 @@
         line-height: 1.3;
       }
 
+      .profile-logout-wrap {
+        display: flex;
+        justify-content: center;
+        padding: 24px 0 8px;
+      }
+
+      .profile-logout-btn {
+        width: min(100%, 420px);
+        min-height: 48px;
+        border: 1px solid #fecaca;
+        border-radius: 14px;
+        background: #fff7f7;
+        color: #b42318;
+        font-size: 15px;
+        font-weight: 750;
+        cursor: pointer;
+        transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+      }
+
+      .profile-logout-btn:hover {
+        border-color: #fca5a5;
+        background: #fff0f0;
+      }
+
+      .profile-logout-btn:active {
+        transform: scale(0.99);
+      }
+
+      body.theme-dark .profile-logout-btn {
+        border-color: #7f3035;
+        background: #2b1920;
+        color: #fda4af;
+      }
+
+      body.theme-dark .profile-logout-btn:hover {
+        border-color: #a83f48;
+        background: #351b23;
+      }
+
       .personal-finance-head {
         display: flex;
         align-items: center;
@@ -5905,6 +5944,9 @@
               </button>
             </div>
           </div>
+          <div class="profile-logout-wrap">
+            <button id="logoutAccountBtn" class="profile-logout-btn" type="button">Выйти из аккаунта</button>
+          </div>
           <div id="securityModal" class="modal fullscreen-modal hidden">
             <div class="panel">
               <div class="fullscreen-modal-header">
@@ -6047,6 +6089,7 @@
           </div>
         `;
         const themeToggleBtn = document.getElementById("themeToggleBtn");
+        const logoutAccountBtn = document.getElementById("logoutAccountBtn");
         const openNotificationsBtn = document.getElementById("openNotificationsBtn");
         const notificationsModal = document.getElementById("notificationsModal");
         const reminder24EnabledInput = document.getElementById("reminder24EnabledInput");
@@ -7152,6 +7195,21 @@
         themeToggleBtn?.addEventListener("click", () => {
           toggleTheme();
           themeToggleBtn.classList.toggle("dark", state.theme === "dark");
+        });
+        logoutAccountBtn?.addEventListener("click", async () => {
+          const confirmed = await confirmAction("Выйти из аккаунта на этом устройстве?");
+          if (!confirmed) return;
+          logoutAccountBtn.disabled = true;
+          await api("/api/auth/logout", { method: "POST" }).catch(() => {});
+          state.sessionId = "";
+          state.telegramId = "";
+          state.user = null;
+          state.currentEmployee = null;
+          try {
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            localStorage.removeItem(AUTH_ID_STORAGE_KEY);
+          } catch {}
+          renderPhoneLogin();
         });
         openSecurityBtn?.addEventListener("click", async () => {
           securitySessionsStatus.className = "status";
