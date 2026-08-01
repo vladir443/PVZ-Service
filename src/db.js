@@ -1927,6 +1927,24 @@ export function updateEmployeeById({
   };
 }
 
+export function updateEmployeeAvatarById({ id, avatarUrl }) {
+  const employeeId = Number(id);
+  if (!Number.isInteger(employeeId) || employeeId <= 0) return null;
+
+  const result = db
+    .prepare(
+      `
+      UPDATE employees
+      SET avatar_url = ?
+      WHERE id = ?
+      `
+    )
+    .run(String(avatarUrl || "").trim(), employeeId);
+
+  if (result.changes === 0) return null;
+  return listEmployees().find((employee) => employee.id === employeeId) || null;
+}
+
 export function canLoginByEmployeeAccess({ telegramId, username }) {
   const normalizedUsername = normalizeUsername(username);
   const rows = db

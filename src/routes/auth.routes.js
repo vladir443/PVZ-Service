@@ -19,6 +19,7 @@ import {
   revokeSession,
   syncEmployeeTelegramProfile,
   updateUserReminderSettings,
+  updateEmployeeAvatarById,
   updateUserProfile,
   updateUserRole,
   verifyPhoneLoginCode
@@ -409,6 +410,53 @@ router.post("/logout", requireAuthAllowUnverifiedPin, (req, res) => {
   });
   clearAuthCookies(req, res);
   return res.json({ ok: true });
+});
+
+const avatarSettingsSchema = z.object({
+  emoji: z.enum(["📦", "🏪", "⭐", "🚀", "😎", "🐻", "🦊", "🐼", "💼", "👑", "☕", "⚡"]),
+  background: z.enum(["ocean", "sunset", "forest", "violet", "graphite", "gold", "ice", "berry"])
+});
+
+router.put("/me/avatar", requireAuth, (req, res, next) => {
+  try {
+    const parsed = avatarSettingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: "Выберите доступный фон и эмодзи"
+      });
+    }
+
+    const avatarUrl = `pvz-avatar:${JSON.stringify(parsed.data)}`;
+    const employee = updateEmployeeAvatarById({
+      id: req.employee?.id,
+      avatarUrl
+    });
+    if (!employee) {
+      return res.status(404).json({
+        error: "NotFound",
+        message: "Сотрудник не найден"
+      });
+    }
+
+    logAuditEvent({
+      scope: "PERSONAL",
+      eventType: "PROFILE_AVATAR_UPDATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetTelegramId: req.user.telegramId,
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: parsed.data,
+      systemView: "SUPERADMIN_ONLY"
+    });
+
+    return res.json({ employee });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 const reminderSettingsSchema = z.object({

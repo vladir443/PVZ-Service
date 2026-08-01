@@ -648,6 +648,24 @@
         color: #fff;
       }
 
+      .custom-avatar {
+        display: grid;
+        place-items: center;
+        color: #ffffff;
+        font-size: 34px;
+        line-height: 1;
+        text-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+      }
+
+      .avatar-bg-ocean { background: linear-gradient(145deg, #22b8e6, #2563eb); }
+      .avatar-bg-sunset { background: linear-gradient(145deg, #fb7185, #f97316); }
+      .avatar-bg-forest { background: linear-gradient(145deg, #34d399, #047857); }
+      .avatar-bg-violet { background: linear-gradient(145deg, #8b5cf6, #db2777); }
+      .avatar-bg-graphite { background: linear-gradient(145deg, #64748b, #172033); }
+      .avatar-bg-gold { background: linear-gradient(145deg, #facc15, #ea580c); }
+      .avatar-bg-ice { background: linear-gradient(145deg, #67e8f9, #6366f1); }
+      .avatar-bg-berry { background: linear-gradient(145deg, #f43f5e, #6d28d9); }
+
       .dash-arrow {
         width: 18px;
         height: 18px;
@@ -885,6 +903,133 @@
         width: 84px;
         height: 84px;
         border: 2px solid #fff;
+      }
+
+      .profile-avatar-button {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        border: 0;
+        border-radius: 50%;
+        padding: 0;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .profile-avatar-button:focus-visible {
+        outline: 3px solid rgba(255, 255, 255, 0.85);
+        outline-offset: 3px;
+      }
+
+      .profile-avatar-edit-badge {
+        position: absolute;
+        right: -2px;
+        bottom: -2px;
+        z-index: 2;
+        width: 28px;
+        height: 28px;
+        border: 2px solid #ffffff;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: #17375f;
+        color: #ffffff;
+        font-size: 17px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .avatar-editor-panel {
+        width: min(440px, calc(100vw - 28px));
+        max-height: min(760px, calc(100dvh - 28px));
+        overflow: auto;
+        border-radius: 24px;
+        padding: 22px;
+      }
+
+      .avatar-editor-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .avatar-editor-preview {
+        width: 112px;
+        height: 112px;
+        margin: 18px auto 22px;
+        border: 4px solid #ffffff;
+        border-radius: 50%;
+        box-shadow: 0 14px 32px rgba(25, 55, 102, 0.2);
+        font-size: 50px;
+      }
+
+      .avatar-editor-label {
+        margin: 16px 0 9px;
+        color: #243754;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .avatar-background-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 9px;
+      }
+
+      .avatar-background-option,
+      .avatar-emoji-option {
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+      }
+
+      .avatar-background-option {
+        height: 48px;
+        border-radius: 14px;
+      }
+
+      .avatar-emoji-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .avatar-emoji-option {
+        aspect-ratio: 1;
+        border-radius: 13px;
+        background: #f4f7fb;
+        font-size: 24px;
+      }
+
+      .avatar-background-option.selected,
+      .avatar-emoji-option.selected {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.13);
+        transform: translateY(-1px);
+      }
+
+      .avatar-editor-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 20px;
+      }
+
+      body.theme-dark .avatar-editor-label {
+        color: var(--text);
+      }
+
+      body.theme-dark .avatar-emoji-option {
+        background: #1b2b45;
+        color: var(--text);
+      }
+
+      body.theme-dark .avatar-editor-preview {
+        border-color: #263b5a;
+      }
+
+      .employee-avatar.custom-avatar {
+        font-size: 24px;
       }
 
       .profile-badge {
@@ -5069,6 +5214,36 @@
         return `${raw}${sep}v=${encodeURIComponent(nonce)}`;
       }
 
+      const CUSTOM_AVATAR_PREFIX = "pvz-avatar:";
+      const avatarBackgrounds = ["ocean", "sunset", "forest", "violet", "graphite", "gold", "ice", "berry"];
+      const avatarEmojis = ["📦", "🏪", "⭐", "🚀", "😎", "🐻", "🦊", "🐼", "💼", "👑", "☕", "⚡"];
+
+      function parseCustomAvatar(value) {
+        const raw = String(value || "").trim();
+        if (!raw.startsWith(CUSTOM_AVATAR_PREFIX)) return null;
+        try {
+          const parsed = JSON.parse(raw.slice(CUSTOM_AVATAR_PREFIX.length));
+          if (!avatarBackgrounds.includes(parsed?.background) || !avatarEmojis.includes(parsed?.emoji)) {
+            return null;
+          }
+          return { background: parsed.background, emoji: parsed.emoji };
+        } catch {
+          return null;
+        }
+      }
+
+      function renderUserAvatar({ avatarUrl, initials = "?", className, alt = "avatar", nonce = state.avatarNonce }) {
+        const customAvatar = parseCustomAvatar(avatarUrl);
+        if (customAvatar) {
+          return `<div class="${escapeHtml(className)} custom-avatar avatar-bg-${escapeHtml(customAvatar.background)}" role="img" aria-label="${escapeHtml(alt)}"><span>${escapeHtml(customAvatar.emoji)}</span></div>`;
+        }
+        const photo = withAvatarCacheBust(avatarUrl, nonce);
+        if (photo) {
+          return `<img class="${escapeHtml(className)}" src="${escapeHtml(photo)}" alt="${escapeHtml(alt)}" />`;
+        }
+        return `<div class="${escapeHtml(className)} placeholder">${escapeHtml(initials || "?")}</div>`;
+      }
+
       function monthNow() {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -5796,7 +5971,7 @@
       async function renderMain(prefetchedOverview = null) {
         setAppTitle("");
         const currentEmployee = getCurrentEmployeeFromState();
-        const photo = withAvatarCacheBust(currentEmployee?.avatarUrl || "");
+        const avatarUrl = currentEmployee?.avatarUrl || "";
         const initials = (state.user?.fullName || "?")
           .split(" ")
           .filter(Boolean)
@@ -6046,11 +6221,7 @@
           <div class="home-shell">
             <div class="home-top-grid">
               <div class="dash-user" id="openProfileFromMain">
-                ${
-                  photo
-                    ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
-                    : `<div class="dash-avatar">${escapeHtml(initials || "?")}</div>`
-                }
+                ${renderUserAvatar({ avatarUrl, initials, className: "dash-avatar", alt: "Аватар сотрудника" })}
                 <div>
                   <div style="font-size:20px;"><strong>${escapeHtml((state.user.fullName || "").split(" ")[0] || state.user.fullName)}</strong></div>
                   <div class="main-position-row">
@@ -6411,7 +6582,8 @@
         );
         const bonusesTrend = statTrend(profileStats.current.bonuses, profileStats.previous.bonuses);
         const incomeTrend = statTrend(profileStats.current.income, profileStats.previous.income);
-        const photo = withAvatarCacheBust(employeeProfile?.avatarUrl || "");
+        const avatarUrl = employeeProfile?.avatarUrl || "";
+        const customAvatar = parseCustomAvatar(avatarUrl) || { background: "ocean", emoji: "📦" };
         const initials = (state.user?.fullName || "?")
           .split(" ")
           .filter(Boolean)
@@ -6421,11 +6593,10 @@
         const canOpenAdminPanel = canManageEmployees();
         screen.innerHTML = `
           <div class="profile-hero">
-            ${
-              photo
-                ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
-                : `<div class="dash-avatar">${escapeHtml(initials || "?")}</div>`
-            }
+            <button id="openAvatarEditorBtn" class="profile-avatar-button" type="button" aria-label="Изменить аватар">
+              ${renderUserAvatar({ avatarUrl, initials, className: "dash-avatar", alt: "Аватар профиля" })}
+              <span class="profile-avatar-edit-badge" aria-hidden="true">✎</span>
+            </button>
             <div>
               <div style="font-size:22px;"><strong>${escapeHtml(state.user.fullName)}</strong></div>
               <div style="font-size:15px; margin-top:4px; opacity:0.95;">Должность: ${escapeHtml(positionLabel)}</div>
@@ -6495,6 +6666,51 @@
                     <img src="/icons/right-arrow.png" alt="Открыть" />
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+          <div id="avatarEditorModal" class="modal hidden">
+            <div class="panel avatar-editor-panel" role="dialog" aria-modal="true" aria-labelledby="avatarEditorTitle">
+              <div class="avatar-editor-head">
+                <h3 id="avatarEditorTitle" class="panel-title">Ваша аватарка</h3>
+                <button id="closeAvatarEditorBtn" class="month-picker-close" type="button" aria-label="Закрыть">×</button>
+              </div>
+              <div id="avatarEditorPreview" class="avatar-editor-preview custom-avatar avatar-bg-${escapeHtml(customAvatar.background)}">
+                <span>${escapeHtml(customAvatar.emoji)}</span>
+              </div>
+              <div class="avatar-editor-label">Выберите фон</div>
+              <div class="avatar-background-grid">
+                ${avatarBackgrounds
+                  .map(
+                    (background) => `
+                      <button
+                        class="avatar-background-option avatar-bg-${escapeHtml(background)} ${background === customAvatar.background ? "selected" : ""}"
+                        type="button"
+                        data-avatar-background="${escapeHtml(background)}"
+                        aria-label="Выбрать фон"
+                      ></button>
+                    `
+                  )
+                  .join("")}
+              </div>
+              <div class="avatar-editor-label">Выберите эмодзи</div>
+              <div class="avatar-emoji-grid">
+                ${avatarEmojis
+                  .map(
+                    (emoji) => `
+                      <button
+                        class="avatar-emoji-option ${emoji === customAvatar.emoji ? "selected" : ""}"
+                        type="button"
+                        data-avatar-emoji="${escapeHtml(emoji)}"
+                        aria-label="Выбрать ${escapeHtml(emoji)}"
+                      >${escapeHtml(emoji)}</button>
+                    `
+                  )
+                  .join("")}
+              </div>
+              <p id="avatarEditorStatus" class="status mt12"></p>
+              <div class="avatar-editor-actions">
+                <button id="saveAvatarBtn" class="button" type="button">Сохранить</button>
               </div>
             </div>
           </div>
@@ -6641,6 +6857,12 @@
         `;
         const themeToggleBtn = document.getElementById("themeToggleBtn");
         const logoutAccountBtn = document.getElementById("logoutAccountBtn");
+        const openAvatarEditorBtn = document.getElementById("openAvatarEditorBtn");
+        const avatarEditorModal = document.getElementById("avatarEditorModal");
+        const closeAvatarEditorBtn = document.getElementById("closeAvatarEditorBtn");
+        const avatarEditorPreview = document.getElementById("avatarEditorPreview");
+        const avatarEditorStatus = document.getElementById("avatarEditorStatus");
+        const saveAvatarBtn = document.getElementById("saveAvatarBtn");
         const openNotificationsBtn = document.getElementById("openNotificationsBtn");
         const notificationsModal = document.getElementById("notificationsModal");
         const reminder24EnabledInput = document.getElementById("reminder24EnabledInput");
@@ -6666,6 +6888,66 @@
         const securityLogsStatus = document.getElementById("securityLogsStatus");
         const logsPeriodFilter = document.getElementById("logsPeriodFilter");
         const securityLogFilters = logsPeriodFilter?.closest(".security-log-filters");
+        let selectedAvatarBackground = customAvatar.background;
+        let selectedAvatarEmoji = customAvatar.emoji;
+
+        const updateAvatarEditor = () => {
+          if (avatarEditorPreview) {
+            avatarEditorPreview.className = `avatar-editor-preview custom-avatar avatar-bg-${selectedAvatarBackground}`;
+            avatarEditorPreview.innerHTML = `<span>${escapeHtml(selectedAvatarEmoji)}</span>`;
+          }
+          for (const button of avatarEditorModal?.querySelectorAll("[data-avatar-background]") || []) {
+            button.classList.toggle("selected", button.dataset.avatarBackground === selectedAvatarBackground);
+          }
+          for (const button of avatarEditorModal?.querySelectorAll("[data-avatar-emoji]") || []) {
+            button.classList.toggle("selected", button.dataset.avatarEmoji === selectedAvatarEmoji);
+          }
+        };
+
+        openAvatarEditorBtn?.addEventListener("click", () => {
+          avatarEditorStatus.textContent = "";
+          avatarEditorStatus.className = "status";
+          avatarEditorModal?.classList.remove("hidden");
+          updateAvatarEditor();
+        });
+        closeAvatarEditorBtn?.addEventListener("click", () => avatarEditorModal?.classList.add("hidden"));
+        avatarEditorModal?.addEventListener("click", (event) => {
+          if (event.target === avatarEditorModal) avatarEditorModal.classList.add("hidden");
+        });
+        for (const button of avatarEditorModal?.querySelectorAll("[data-avatar-background]") || []) {
+          button.addEventListener("click", () => {
+            selectedAvatarBackground = String(button.dataset.avatarBackground || "ocean");
+            updateAvatarEditor();
+          });
+        }
+        for (const button of avatarEditorModal?.querySelectorAll("[data-avatar-emoji]") || []) {
+          button.addEventListener("click", () => {
+            selectedAvatarEmoji = String(button.dataset.avatarEmoji || "📦");
+            updateAvatarEditor();
+          });
+        }
+        saveAvatarBtn?.addEventListener("click", async () => {
+          saveAvatarBtn.disabled = true;
+          avatarEditorStatus.className = "status";
+          avatarEditorStatus.textContent = "Сохраняем...";
+          try {
+            const data = await api("/api/auth/me/avatar", {
+              method: "PUT",
+              body: JSON.stringify({
+                background: selectedAvatarBackground,
+                emoji: selectedAvatarEmoji
+              })
+            });
+            state.currentEmployee = data.employee || state.currentEmployee;
+            state.avatarNonce = String(Date.now());
+            showTextNotice("Аватарка сохранена");
+            await renderProfile();
+          } catch (error) {
+            avatarEditorStatus.className = "status error";
+            avatarEditorStatus.textContent = `Ошибка: ${error.message}`;
+            saveAvatarBtn.disabled = false;
+          }
+        });
         const logsCategoryFilterWrap = document.getElementById("logsCategoryFilterWrap");
         const logsCategoryFilter = document.getElementById("logsCategoryFilter");
         const logsActorFilterWrap = document.getElementById("logsActorFilterWrap");
@@ -8134,18 +8416,13 @@
                 (emp) => `
                   <div class="employee-row">
                     <div class="employee-main">
-                      ${(() => {
-                        const effectiveAvatarRaw =
-                          emp.avatarUrl || "";
-                        const effectiveAvatar = withAvatarCacheBust(
-                          effectiveAvatarRaw,
-                          `${state.avatarNonce}-${emp.telegramId || emp.id || "emp"}`
-                        );
-                        if (effectiveAvatar) {
-                          return `<img class="employee-avatar" src="${escapeHtml(effectiveAvatar)}" alt="avatar" />`;
-                        }
-                        return `<div class="employee-avatar placeholder">${escapeHtml((emp.fullName || "?").slice(0, 1).toUpperCase())}</div>`;
-                      })()}
+                      ${renderUserAvatar({
+                        avatarUrl: emp.avatarUrl || "",
+                        initials: (emp.fullName || "?").slice(0, 1).toUpperCase(),
+                        className: "employee-avatar",
+                        alt: `Аватар ${emp.fullName || "сотрудника"}`,
+                        nonce: `${state.avatarNonce}-${emp.telegramId || emp.id || "emp"}`
+                      })}
                       <div class="employee-content">
                         <div class="employee-head">
                           <div class="employee-name">${escapeHtml(emp.fullName)}</div>
