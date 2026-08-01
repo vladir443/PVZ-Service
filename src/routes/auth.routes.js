@@ -28,8 +28,8 @@ import {
   PERSONAL_DATA_CONSENT_PATH,
   PERSONAL_DATA_CONSENT_VERSION
 } from "../lib/privacy-consent.js";
-import { env } from "../config/env.js";
 import { clearAuthCookies, setAuthCookies } from "../lib/auth-cookies.js";
+import { sendSmsCode } from "../services/sms.js";
 
 const router = express.Router();
 
@@ -53,30 +53,48 @@ const requestCodeSchema = z.object({
   platform: z.string().max(60).optional().default("")
 });
 
-async function sendSmsCode({ phone, code }) {
-  if (!env.SMS_WEBHOOK_URL) {
-    console.log(`[sms-dev] ${phone}: ${code}`);
-    return { sent: false, devCode: code };
+const smsRequestBuckets = new Map();
+const SMS_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+const SMS_REQUEST_COOLDOWN_MS = 60 * 1000;
+
+function normalizeRateLimitPart(value) {
+  return String(value || "").replace(/[^\dA-Za-z:._-]/g, "").slice(0, 120);
+}
+
+function reserveSmsRequest({ phone, ipAddress }) {
+  const now = Date.now();
+  const phoneKey = `phone:${normalizeRateLimitPart(phone)}`;
+  const ipKey = `ip:${normalizeRateLimitPart(ipAddress)}`;
+  const checks = [
+    { key: phoneKey, max: 5 },
+    { key: ipKey, max: 12 }
+  ].filter((item) => item.key.split(":")[1]);
+
+  for (const { key, max } of checks) {
+    const recent = (smsRequestBuckets.get(key) || []).filter(
+      (timestamp) => now - timestamp < SMS_REQUEST_WINDOW_MS
+    );
+    smsRequestBuckets.set(key, recent);
+    const lastRequestAt = recent.at(-1) || 0;
+    if (now - lastRequestAt < SMS_REQUEST_COOLDOWN_MS) {
+      return { ok: false, retryAfterSeconds: Math.ceil((SMS_REQUEST_COOLDOWN_MS - (now - lastRequestAt)) / 1000) };
+    }
+    if (recent.length >= max) {
+      return { ok: false, retryAfterSeconds: Math.ceil((SMS_REQUEST_WINDOW_MS - (now - recent[0])) / 1000) };
+    }
   }
 
-  const response = await fetch(env.SMS_WEBHOOK_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(env.SMS_WEBHOOK_TOKEN ? { Authorization: `Bearer ${env.SMS_WEBHOOK_TOKEN}` } : {})
-    },
-    body: JSON.stringify({
-      phone,
-      text: `PVZ Group: код для входа ${code}. Никому не сообщайте код.`,
-      code
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`SMS provider error: ${response.status}`);
+  for (const { key } of checks) {
+    smsRequestBuckets.set(key, [...(smsRequestBuckets.get(key) || []), now]);
   }
-
-  return { sent: true };
+  if (smsRequestBuckets.size > 2000) {
+    for (const [key, timestamps] of smsRequestBuckets) {
+      if (!timestamps.some((timestamp) => now - timestamp < SMS_REQUEST_WINDOW_MS)) {
+        smsRequestBuckets.delete(key);
+      }
+    }
+  }
+  return { ok: true, retryAfterSeconds: 0 };
 }
 
 router.post("/request-code", async (req, res, next) => {
@@ -109,6 +127,18 @@ router.post("/request-code", async (req, res, next) => {
       });
     }
 
+    const smsReservation = reserveSmsRequest({
+      phone: parsed.data.phone,
+      ipAddress: req.ip || ""
+    });
+    if (!smsReservation.ok) {
+      res.setHeader("Retry-After", String(smsReservation.retryAfterSeconds));
+      return res.status(429).json({
+        error: "TooManyRequests",
+        message: `Новый код можно запросить через ${smsReservation.retryAfterSeconds} сек.`
+      });
+    }
+
     const consent = createPersonalDataConsent({
       phone: parsed.data.phone,
       documentVersion: PERSONAL_DATA_CONSENT_VERSION,
@@ -132,10 +162,20 @@ router.post("/request-code", async (req, res, next) => {
       });
     }
 
-    const smsResult = await sendSmsCode({
-      phone: employee.phone || parsed.data.phone,
-      code: codeResult.code
-    });
+    let smsResult;
+    try {
+      smsResult = await sendSmsCode({
+        phone: employee.phone || parsed.data.phone,
+        code: codeResult.code,
+        ipAddress: req.ip || ""
+      });
+    } catch (error) {
+      console.error("[sms] delivery failed:", error?.message || error);
+      return res.status(502).json({
+        error: "SmsDeliveryFailed",
+        message: "Не удалось отправить SMS. Попробуйте ещё раз через минуту"
+      });
+    }
 
     return res.json({
       ok: true,

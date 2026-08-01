@@ -24,8 +24,10 @@
 
 - `TELEGRAM_BOT_TOKEN` — напоминания через Telegram;
 - `ADMIN_TELEGRAM_IDS` — Telegram ID главного администратора;
-- `SMS_WEBHOOK_URL` — адрес сервиса отправки SMS;
-- `SMS_WEBHOOK_TOKEN` — токен сервиса отправки SMS.
+- `SMS_RU_API_ID` — секретный API-ключ из личного кабинета SMS.RU;
+- `SMS_RU_FROM` — согласованное имя отправителя SMS.RU, можно оставить пустым;
+- `SMS_RU_TEST_MODE` — `false` для реальной отправки, `true` только для проверки API;
+- `SMS_WEBHOOK_URL` и `SMS_WEBHOOK_TOKEN` — резервный webhook, если SMS.RU не используется напрямую.
 
 `DATABASE_PATH` указывать не нужно: в Amvera база автоматически сохраняется
 в `/data/grafik.db`.
