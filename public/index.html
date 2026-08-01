@@ -825,11 +825,11 @@
       }
 
       .overview-card.blue {
-        border-top: 4px solid #3b82f6;
+        border-left: 4px solid #3b82f6;
         background: linear-gradient(180deg, #f7faff 0%, #ffffff 100%);
       }
       .overview-card.green {
-        border-top: 4px solid #2fa778;
+        border-left: 4px solid #2fa778;
         background: linear-gradient(180deg, #f6fbf9 0%, #ffffff 100%);
       }
       .overview-card.purple { background: #f3f8ff; }
@@ -864,14 +864,6 @@
         font-size: 17px;
         font-weight: 800;
         color: #243754;
-      }
-
-      .home-section-title {
-        margin: 22px 0 0;
-        color: #15233a;
-        font-size: 22px;
-        font-weight: 850;
-        letter-spacing: -0.02em;
       }
 
       body.theme-dark .warn-banner > div:first-child {
@@ -1526,13 +1518,13 @@
 
       body.theme-dark .overview-card.blue {
         border-color: #2a3d59;
-        border-top-color: #4f95f7;
+        border-left-color: #4f95f7;
         background: linear-gradient(180deg, #172740 0%, #152238 100%);
       }
 
       body.theme-dark .overview-card.green {
         border-color: #2a3d59;
-        border-top-color: #3db287;
+        border-left-color: #3db287;
         background: linear-gradient(180deg, #17283a 0%, #152238 100%);
       }
 
@@ -1545,10 +1537,6 @@
       body.theme-dark .home-list-item,
       body.theme-dark .today-schedule-row {
         border-color: #2a3d59;
-      }
-
-      body.theme-dark .home-section-title {
-        color: var(--text);
       }
 
       body.theme-dark .participant-preview-btn {
@@ -4323,10 +4311,6 @@
           border-radius: 16px;
           font-size: 17px;
         }
-        .home-section-title {
-          margin-top: 18px;
-          font-size: 20px;
-        }
         .overview-card,
         .warn-banner {
           border-radius: 17px;
@@ -6087,8 +6071,7 @@
                 <span>Мои финансы</span>
               </button>
             </div>
-            <h2 class="home-section-title">Обзор</h2>
-            <div class="overview-grid mt12">
+            <div class="overview-grid mt16">
               <div class="overview-card blue">
                 <h3>${escapeHtml(todayCardTitle)}</h3>
                 ${overviewShift ? `<div class="big">${escapeHtml(overviewShift)}</div>` : ""}
