@@ -855,6 +855,22 @@
         line-height: 1.3;
       }
 
+      .profile-dashboard-grid {
+        width: min(1100px, 100%);
+        display: grid;
+        grid-template-columns: minmax(280px, 0.78fr) minmax(420px, 1.22fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      .profile-dashboard-grid > * {
+        min-width: 0;
+      }
+
+      .profile-settings-block > h2 {
+        margin-top: 0;
+      }
+
       .profile-logout-wrap {
         display: flex;
         justify-content: center;
@@ -1345,7 +1361,9 @@
       }
 
       body.theme-dark .finance-toggle-icon {
-        filter: brightness(0) invert(1);
+        border-color: #3a5070;
+        background: #172740;
+        color: #d6e2f3;
       }
 
       body.theme-dark .dash-user {
@@ -2189,8 +2207,9 @@
 
       .finance-list {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr));
         gap: 14px;
+        align-items: start;
       }
 
       .finance-employee-card {
@@ -2199,6 +2218,8 @@
         padding: 14px;
         background: #fff;
         box-shadow: 0 4px 14px rgba(20, 37, 69, 0.05);
+        min-width: 0;
+        align-self: start;
       }
 
       .finance-employee-name {
@@ -2464,13 +2485,14 @@
       .finance-period-summary {
         flex: 1 1 auto;
         min-width: 0;
+        width: 100%;
         border: 0;
         background: transparent;
         padding: 12px;
         display: grid;
-        grid-template-columns: minmax(120px, 1fr) repeat(4, minmax(90px, auto)) auto;
+        grid-template-columns: minmax(108px, 1fr) repeat(4, minmax(64px, auto)) 26px;
         align-items: center;
-        gap: 12px;
+        gap: 8px;
         color: var(--text);
         text-align: left;
         cursor: pointer;
@@ -2510,10 +2532,29 @@
       }
 
       .finance-toggle-icon {
-        width: 16px;
-        height: 16px;
-        object-fit: contain;
-        opacity: 0.65;
+        width: 26px;
+        height: 26px;
+        border: 1px solid #d3deec;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        color: #61718a;
+        background: #ffffff;
+        flex: 0 0 auto;
+      }
+
+      .finance-toggle-icon::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: rotate(45deg) translate(-1px, -1px);
+        transition: transform 160ms ease;
+      }
+
+      .finance-toggle-icon.expanded::before {
+        transform: rotate(225deg) translate(-1px, -1px);
       }
 
       .finance-period-details {
@@ -3718,7 +3759,7 @@
       }
 
       .employee-form-input-with-error.has-error input {
-        padding-right: 148px;
+        padding-right: 184px;
       }
 
       .employee-form-inline-error {
@@ -4087,6 +4128,26 @@
         .finance-list {
           grid-template-columns: 1fr;
         }
+        .profile-dashboard-grid {
+          width: 100%;
+          grid-template-columns: minmax(0, 1fr);
+          gap: 16px;
+        }
+        .profile-settings-block > h2 {
+          margin-top: 0;
+        }
+        .settings-row {
+          min-height: 54px;
+          align-items: center;
+          padding: 9px 10px 9px 13px;
+        }
+        .employee-form-input-with-error.has-error input {
+          padding-right: 174px;
+        }
+        .employee-form-inline-error {
+          right: 10px;
+          font-size: 11px;
+        }
         .security-log-filters {
           grid-template-columns: 1fr;
           gap: 8px;
@@ -4153,6 +4214,12 @@
         }
         .bottom-nav-btn {
           font-size: 11px;
+        }
+        .employee-form-input-with-error.has-error input {
+          padding-right: 158px;
+        }
+        .employee-form-inline-error {
+          font-size: 10.5px;
         }
       }
 
@@ -6072,48 +6139,52 @@
               <div class="profile-phone">Телефон: ${escapeHtml(employeeProfile?.phone || "не указан")}</div>
             </div>
           </div>
-          <div class="panel mt12">
-            <h3 class="panel-title">Моя статистика</h3>
-            <div class="overview-grid mt12">
-              <div class="overview-card blue">
-                <h3>Смен в этом месяце</h3>
-                <div class="big">${monthShiftCount}</div>
+          <div class="profile-dashboard-grid mt12">
+            <div class="panel profile-stats-panel">
+              <h3 class="panel-title">Моя статистика</h3>
+              <div class="overview-grid mt12">
+                <div class="overview-card blue">
+                  <h3>Смен в этом месяце</h3>
+                  <div class="big">${monthShiftCount}</div>
+                </div>
               </div>
             </div>
-          </div>
-          <h2 class="mt16">Настройки</h2>
-          <div class="settings-list mt12">
-            <div class="settings-row">
-              <span>Тема</span>
-              <button
-                id="themeToggleBtn"
-                class="theme-switch ${state.theme === "dark" ? "dark" : ""}"
-                type="button"
-                aria-label="Переключить тему"
-                title="Переключить тему"
-              >
-                <span class="theme-switch-thumb">
-                  <img src="/icons/theme-night.png" alt="Тема" />
-                </span>
-              </button>
-            </div>
-            <div class="settings-row">
-              <span>Уведомления</span>
-              <button id="openNotificationsBtn" class="open-arrow-btn" type="button" aria-label="Открыть уведомления">
-                <img src="/icons/right-arrow.png" alt="Открыть" />
-              </button>
-            </div>
-            <div class="settings-row">
-              <span>Безопасность</span>
-              <button id="openSecurityBtn" class="open-arrow-btn" type="button" aria-label="Открыть безопасность">
-                <img src="/icons/right-arrow.png" alt="Открыть" />
-              </button>
-            </div>
-            <div class="settings-row">
-              <span>Админ-панель</span>
-              <button id="openAdminPanelBtn" class="open-arrow-btn ${canOpenAdminPanel ? "" : "disabled"}" type="button" ${canOpenAdminPanel ? "" : "disabled"}>
-                <img src="/icons/right-arrow.png" alt="Открыть" />
-              </button>
+            <div class="profile-settings-block">
+              <h2>Настройки</h2>
+              <div class="settings-list mt12">
+                <div class="settings-row">
+                  <span>Тема</span>
+                  <button
+                    id="themeToggleBtn"
+                    class="theme-switch ${state.theme === "dark" ? "dark" : ""}"
+                    type="button"
+                    aria-label="Переключить тему"
+                    title="Переключить тему"
+                  >
+                    <span class="theme-switch-thumb">
+                      <img src="/icons/theme-night.png" alt="Тема" />
+                    </span>
+                  </button>
+                </div>
+                <div class="settings-row">
+                  <span>Уведомления</span>
+                  <button id="openNotificationsBtn" class="open-arrow-btn" type="button" aria-label="Открыть уведомления">
+                    <img src="/icons/right-arrow.png" alt="Открыть" />
+                  </button>
+                </div>
+                <div class="settings-row">
+                  <span>Безопасность</span>
+                  <button id="openSecurityBtn" class="open-arrow-btn" type="button" aria-label="Открыть безопасность">
+                    <img src="/icons/right-arrow.png" alt="Открыть" />
+                  </button>
+                </div>
+                <div class="settings-row">
+                  <span>Админ-панель</span>
+                  <button id="openAdminPanelBtn" class="open-arrow-btn ${canOpenAdminPanel ? "" : "disabled"}" type="button" ${canOpenAdminPanel ? "" : "disabled"}>
+                    <img src="/icons/right-arrow.png" alt="Открыть" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="profile-logout-wrap">
@@ -8002,7 +8073,7 @@
           const length = input.value.trim().length;
           const invalid = length > 0 && length < 3;
           const emptyRequired = force && length === 0;
-          errorElement.textContent = invalid || emptyRequired ? "Нужно хотя бы 3" : "";
+          errorElement.textContent = invalid || emptyRequired ? "Нужно хотя бы 3 символа" : "";
           inputWrap.classList.toggle("has-error", invalid || emptyRequired);
           input.setAttribute("aria-invalid", invalid || emptyRequired ? "true" : "false");
           return !(invalid || emptyRequired);
@@ -9278,11 +9349,10 @@
                               <span>К выплате</span>
                               <strong>${formatPayoutBalance(total)}</strong>
                             </div>
-                            <img
-                              class="finance-toggle-icon"
-                              src="${expanded ? "/icons/chevron_double_up_icon_143815.png" : "/icons/chevron_double_down_icon_143818.png"}"
-                              alt="${expanded ? "Свернуть" : "Развернуть"}"
-                            />
+                            <span
+                              class="finance-toggle-icon ${expanded ? "expanded" : ""}"
+                              aria-hidden="true"
+                            ></span>
                           </button>
                           ${
                             canMarkShiftPaid && unpaidDays.length
