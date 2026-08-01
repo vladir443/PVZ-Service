@@ -856,9 +856,11 @@
       }
 
       .profile-dashboard-grid {
-        width: 100%;
+        width: min(100%, 980px);
+        margin-right: auto;
+        margin-left: auto;
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr);
         gap: 16px;
         align-items: stretch;
       }
@@ -870,7 +872,7 @@
       .profile-stats-grid {
         flex: 1 1 auto;
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 10px;
       }
 
@@ -884,11 +886,13 @@
       .profile-section-title {
         display: flex;
         width: 100%;
-        min-height: 32px;
+        min-height: 36px;
         margin: 0;
         align-items: center;
         justify-content: center;
         text-align: center;
+        font-size: 20px;
+        font-weight: 800;
         line-height: 1.2;
       }
 
