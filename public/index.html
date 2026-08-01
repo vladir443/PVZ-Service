@@ -6290,7 +6290,7 @@
           const increased = currentValue > previousValue;
           const isPositive = lowerIsBetter ? !increased : increased;
           return {
-            text: `На ${percent}% ${increased ? "больше" : "меньше"}`,
+            text: `На ${percent}% ${increased ? "больше" : "меньше"}, чем в прошлом месяце`,
             className: isPositive ? "positive" : "negative"
           };
         };
