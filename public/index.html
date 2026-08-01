@@ -6285,8 +6285,7 @@
           .join("");
         const canOpenAdminPanel = canManageEmployees();
         screen.innerHTML = `
-          <h2>Профиль</h2>
-          <div class="profile-hero mt12">
+          <div class="profile-hero">
             ${
               photo
                 ? `<img class="dash-avatar" src="${escapeHtml(photo)}" alt="avatar" />`
