@@ -3704,12 +3704,28 @@
       .employee-form-label-row {
         display: flex;
         align-items: baseline;
-        justify-content: space-between;
         gap: 8px;
         min-width: 0;
       }
 
+      .employee-form-input-with-error {
+        position: relative;
+        min-width: 0;
+      }
+
+      .employee-form-input-with-error input {
+        width: 100%;
+      }
+
+      .employee-form-input-with-error.has-error input {
+        padding-right: 148px;
+      }
+
       .employee-form-inline-error {
+        position: absolute;
+        top: 50%;
+        right: 12px;
+        transform: translateY(-50%);
         color: #c62828;
         font-size: 12px;
         font-weight: 500;
@@ -7870,16 +7886,20 @@
                     <div class="employee-form-field">
                       <div class="employee-form-label-row">
                         <div class="employee-form-label">Имя</div>
+                      </div>
+                      <div id="firstNameInputWrap" class="employee-form-input-with-error">
+                        <input id="firstNameInput" type="text" required minlength="3" aria-describedby="firstNameInlineError" />
                         <span id="firstNameInlineError" class="employee-form-inline-error" aria-live="polite"></span>
                       </div>
-                      <input id="firstNameInput" type="text" required minlength="3" aria-describedby="firstNameInlineError" />
                     </div>
                     <div class="employee-form-field">
                       <div class="employee-form-label-row">
                         <div class="employee-form-label">Фамилия</div>
+                      </div>
+                      <div id="lastNameInputWrap" class="employee-form-input-with-error">
+                        <input id="lastNameInput" type="text" required minlength="3" aria-describedby="lastNameInlineError" />
                         <span id="lastNameInlineError" class="employee-form-inline-error" aria-live="polite"></span>
                       </div>
-                      <input id="lastNameInput" type="text" required minlength="3" aria-describedby="lastNameInlineError" />
                     </div>
                     <div class="employee-form-field">
                       <div class="employee-form-label">Должность</div>
@@ -7961,6 +7981,8 @@
         const panelTitle = document.getElementById("employeePanelTitle");
         const firstNameInput = document.getElementById("firstNameInput");
         const lastNameInput = document.getElementById("lastNameInput");
+        const firstNameInputWrap = document.getElementById("firstNameInputWrap");
+        const lastNameInputWrap = document.getElementById("lastNameInputWrap");
         const firstNameInlineError = document.getElementById("firstNameInlineError");
         const lastNameInlineError = document.getElementById("lastNameInlineError");
         const phoneInput = document.getElementById("phoneInput");
@@ -7976,11 +7998,12 @@
         const saveEmployeeFeedback = document.getElementById("saveEmployeeFeedback");
         let editingEmployeeId = null;
 
-        const updateNameFieldError = (input, errorElement, force = false) => {
+        const updateNameFieldError = (input, inputWrap, errorElement, force = false) => {
           const length = input.value.trim().length;
           const invalid = length > 0 && length < 3;
           const emptyRequired = force && length === 0;
-          errorElement.textContent = invalid || emptyRequired ? "Нужно хотя бы 3 символа" : "";
+          errorElement.textContent = invalid || emptyRequired ? "Нужно хотя бы 3" : "";
+          inputWrap.classList.toggle("has-error", invalid || emptyRequired);
           input.setAttribute("aria-invalid", invalid || emptyRequired ? "true" : "false");
           return !(invalid || emptyRequired);
         };
@@ -7990,8 +8013,8 @@
         const resetForm = () => {
           firstNameInput.value = "";
           lastNameInput.value = "";
-          updateNameFieldError(firstNameInput, firstNameInlineError);
-          updateNameFieldError(lastNameInput, lastNameInlineError);
+          updateNameFieldError(firstNameInput, firstNameInputWrap, firstNameInlineError);
+          updateNameFieldError(lastNameInput, lastNameInputWrap, lastNameInlineError);
           phoneInput.value = "";
           telegramInput.value = "";
           vkInput.value = "";
@@ -8096,10 +8119,10 @@
           replacePhoneFromPaste(event, phoneInput);
         });
         firstNameInput.addEventListener("input", () => {
-          updateNameFieldError(firstNameInput, firstNameInlineError);
+          updateNameFieldError(firstNameInput, firstNameInputWrap, firstNameInlineError);
         });
         lastNameInput.addEventListener("input", () => {
-          updateNameFieldError(lastNameInput, lastNameInlineError);
+          updateNameFieldError(lastNameInput, lastNameInputWrap, lastNameInlineError);
         });
 
         saveEmployeeBtn.addEventListener("click", async () => {
@@ -8115,8 +8138,18 @@
           ].map((checkbox) => checkbox.value);
           const accessRole = accessRoleInput.value || "PARTICIPANT";
 
-          const firstNameValid = updateNameFieldError(firstNameInput, firstNameInlineError, true);
-          const lastNameValid = updateNameFieldError(lastNameInput, lastNameInlineError, true);
+          const firstNameValid = updateNameFieldError(
+            firstNameInput,
+            firstNameInputWrap,
+            firstNameInlineError,
+            true
+          );
+          const lastNameValid = updateNameFieldError(
+            lastNameInput,
+            lastNameInputWrap,
+            lastNameInlineError,
+            true
+          );
           if (!firstNameValid || !lastNameValid) {
             return;
           }
