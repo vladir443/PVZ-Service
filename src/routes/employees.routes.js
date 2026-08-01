@@ -51,7 +51,7 @@ const contactSchema = z.object({
   lastName: z.string().trim().min(3).max(60),
   telegramId: z.string().trim().max(64).optional().default(""),
   avatarUrl: z.string().trim().max(500).optional().default(""),
-  phone: z.string().trim().max(30).optional().default(""),
+  phone: z.string().trim().min(1).max(30),
   telegramContact: z.string().trim().max(120).optional().default(""),
   vkContact: z.string().trim().max(200).optional().default(""),
   position: z.enum(["owner", "owner_manager", "senior_manager", "manager", "intern"]),
@@ -74,11 +74,9 @@ function validateLocationCodes(locationCodes) {
 }
 
 function validateContacts(data) {
-  if (data.phone) {
-    const digits = String(data.phone).replace(/\D/g, "");
-    if (digits.length !== 11 || digits[0] !== "7") {
-      return "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
-    }
+  const digits = String(data.phone).replace(/\D/g, "");
+  if (digits.length !== 11 || digits[0] !== "7") {
+    return "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
   }
 
   if (data.telegramContact && !/^@?[a-zA-Z0-9_]{5,}$/.test(data.telegramContact)) {

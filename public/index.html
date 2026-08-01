@@ -3701,6 +3701,35 @@
         color: #233954;
       }
 
+      .employee-form-label-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .employee-form-inline-error {
+        color: #c62828;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+        text-align: right;
+      }
+
+      .employee-form-inline-error:empty {
+        display: none;
+      }
+
+      body.theme-dark .employee-form-inline-error {
+        color: #fca5a5;
+      }
+
+      .employee-form-field input[aria-invalid="true"] {
+        border-color: #dc2626;
+        box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12);
+      }
+
       .employee-form-hint {
         font-size: 12px;
         color: #8090a8;
@@ -7839,14 +7868,18 @@
                   <p class="employee-form-group-title">Основные данные</p>
                   <div class="employee-form-group-grid">
                     <div class="employee-form-field">
-                      <div class="employee-form-label">Имя</div>
-                      <input id="firstNameInput" type="text" />
-                      <div class="employee-form-hint">Минимум 3 символа</div>
+                      <div class="employee-form-label-row">
+                        <div class="employee-form-label">Имя</div>
+                        <span id="firstNameInlineError" class="employee-form-inline-error" aria-live="polite"></span>
+                      </div>
+                      <input id="firstNameInput" type="text" required minlength="3" aria-describedby="firstNameInlineError" />
                     </div>
                     <div class="employee-form-field">
-                      <div class="employee-form-label">Фамилия</div>
-                      <input id="lastNameInput" type="text" />
-                      <div class="employee-form-hint">Минимум 3 символа</div>
+                      <div class="employee-form-label-row">
+                        <div class="employee-form-label">Фамилия</div>
+                        <span id="lastNameInlineError" class="employee-form-inline-error" aria-live="polite"></span>
+                      </div>
+                      <input id="lastNameInput" type="text" required minlength="3" aria-describedby="lastNameInlineError" />
                     </div>
                     <div class="employee-form-field">
                       <div class="employee-form-label">Должность</div>
@@ -7864,8 +7897,7 @@
                   <div class="employee-form-group-grid">
                     <div class="employee-form-field">
                       <div class="employee-form-label">Телефон</div>
-                      <input id="phoneInput" type="tel" placeholder="+7 922 ***‒**‒94" inputmode="numeric" />
-                      <div class="employee-form-hint">Необязательно</div>
+                      <input id="phoneInput" type="tel" placeholder="+7 922 ***‒**‒94" inputmode="numeric" required />
                     </div>
                     <div class="employee-form-field">
                       <div class="employee-form-label">Telegram контакт</div>
@@ -7929,6 +7961,8 @@
         const panelTitle = document.getElementById("employeePanelTitle");
         const firstNameInput = document.getElementById("firstNameInput");
         const lastNameInput = document.getElementById("lastNameInput");
+        const firstNameInlineError = document.getElementById("firstNameInlineError");
+        const lastNameInlineError = document.getElementById("lastNameInlineError");
         const phoneInput = document.getElementById("phoneInput");
         const telegramInput = document.getElementById("telegramInput");
         const vkInput = document.getElementById("vkInput");
@@ -7942,11 +7976,22 @@
         const saveEmployeeFeedback = document.getElementById("saveEmployeeFeedback");
         let editingEmployeeId = null;
 
+        const updateNameFieldError = (input, errorElement, force = false) => {
+          const length = input.value.trim().length;
+          const invalid = length > 0 && length < 3;
+          const emptyRequired = force && length === 0;
+          errorElement.textContent = invalid || emptyRequired ? "Нужно хотя бы 3 символа" : "";
+          input.setAttribute("aria-invalid", invalid || emptyRequired ? "true" : "false");
+          return !(invalid || emptyRequired);
+        };
+
         const openPanel = () => modal.classList.remove("hidden");
         const closePanel = () => modal.classList.add("hidden");
         const resetForm = () => {
           firstNameInput.value = "";
           lastNameInput.value = "";
+          updateNameFieldError(firstNameInput, firstNameInlineError);
+          updateNameFieldError(lastNameInput, lastNameInlineError);
           phoneInput.value = "";
           telegramInput.value = "";
           vkInput.value = "";
@@ -8050,6 +8095,12 @@
         phoneInput.addEventListener("paste", (event) => {
           replacePhoneFromPaste(event, phoneInput);
         });
+        firstNameInput.addEventListener("input", () => {
+          updateNameFieldError(firstNameInput, firstNameInlineError);
+        });
+        lastNameInput.addEventListener("input", () => {
+          updateNameFieldError(lastNameInput, lastNameInlineError);
+        });
 
         saveEmployeeBtn.addEventListener("click", async () => {
           const firstName = firstNameInput.value.trim();
@@ -8064,15 +8115,15 @@
           ].map((checkbox) => checkbox.value);
           const accessRole = accessRoleInput.value || "PARTICIPANT";
 
-          if (firstName.length < 3 || lastName.length < 3) {
-            formStatus.className = "employee-panel-status error";
-            formStatus.textContent = "Имя и фамилия должны быть минимум по 3 символа";
+          const firstNameValid = updateNameFieldError(firstNameInput, firstNameInlineError, true);
+          const lastNameValid = updateNameFieldError(lastNameInput, lastNameInlineError, true);
+          if (!firstNameValid || !lastNameValid) {
             return;
           }
 
-          if (normalizedPhone === null) {
+          if (!normalizedPhone) {
             formStatus.className = "employee-panel-status error";
-            formStatus.textContent = "Телефон должен быть в формате +7 999 999-99-99 (11 цифр, начиная с 7)";
+            formStatus.textContent = "Укажите номер телефона в формате +7 999 999-99-99";
             return;
           }
           if (!locationCodes.length) {
