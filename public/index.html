@@ -2291,6 +2291,7 @@
 
       body.theme-dark #employeePanel input[type="text"],
       body.theme-dark #employeePanel input[type="tel"],
+      body.theme-dark #employeePanel input[type="email"],
       body.theme-dark #employeePanel select {
         background: #ffffff;
         border-color: #cfd9e8;
@@ -2298,7 +2299,8 @@
       }
 
       body.theme-dark #employeePanel input[type="text"]::placeholder,
-      body.theme-dark #employeePanel input[type="tel"]::placeholder {
+      body.theme-dark #employeePanel input[type="tel"]::placeholder,
+      body.theme-dark #employeePanel input[type="email"]::placeholder {
         color: #6b7280;
         opacity: 1;
       }
@@ -4319,7 +4321,10 @@
 
       #employeePanel input[type="text"],
       #employeePanel input[type="tel"],
+      #employeePanel input[type="email"],
       #employeePanel select {
+        width: 100%;
+        box-sizing: border-box;
         background: #fff;
         border: 1px solid #d4dfef;
         border-radius: 10px;
@@ -4330,10 +4335,34 @@
 
       #employeePanel input[type="text"]:focus,
       #employeePanel input[type="tel"]:focus,
+      #employeePanel input[type="email"]:focus,
       #employeePanel select:focus {
         outline: none;
         border-color: #3b82f6;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+      }
+
+      #employeeModal {
+        background: #f6faff;
+        overscroll-behavior: contain;
+      }
+
+      #employeeModal > #employeePanel {
+        width: 100%;
+        max-width: none;
+        min-height: 100vh;
+        min-height: 100svh;
+        min-height: 100dvh;
+        box-sizing: border-box;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        padding: clamp(14px, 2vw, 28px) clamp(12px, 3vw, 48px) calc(28px + env(safe-area-inset-bottom));
+        overflow: visible;
+      }
+
+      body.theme-dark #employeeModal {
+        background: #18263d;
       }
 
       .employee-form-actions {
