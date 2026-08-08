@@ -485,6 +485,16 @@ router.get("/journal", requirePinVerified, (req, res) => {
       issues: parsed.error.flatten()
     });
   }
+  if (
+    parsed.data.scope === "SYSTEM" &&
+    req.user.role !== Role.ADMIN &&
+    req.user.role !== Role.SUPERADMIN
+  ) {
+    return res.status(403).json({
+      error: "Forbidden",
+      message: "Системный журнал доступен только администраторам"
+    });
+  }
   const logs = listAuditLogsForViewer({
     viewerUser: req.user,
     scope: parsed.data.scope,

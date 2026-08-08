@@ -652,11 +652,13 @@
 
       @media (max-width: 480px) {
         .modal.action-confirm-modal {
-          align-items: end;
-          padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
         }
 
         .action-confirm-card {
+          width: min(420px, 100%);
           padding: 22px 18px 18px;
           border-radius: 20px;
         }
@@ -5458,6 +5460,7 @@
           width: 100%;
           grid-template-columns: minmax(0, 1fr);
           gap: 16px;
+          padding-bottom: 18px;
         }
         .home-top-grid {
           grid-template-columns: minmax(0, 1fr);
@@ -5616,15 +5619,16 @@
         }
 
         .month-picker-modal {
-          align-items: end;
-          padding: 0;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
         }
 
         .month-picker-panel {
-          width: 100% !important;
-          max-width: none !important;
-          border-radius: 24px 24px 0 0 !important;
-          padding: 18px 16px calc(20px + env(safe-area-inset-bottom)) !important;
+          width: min(430px, 100%) !important;
+          max-width: 430px !important;
+          border-radius: 24px !important;
+          padding: 18px 16px !important;
         }
 
         .month-picker-grid {
@@ -7442,7 +7446,7 @@
             <h2>Мои финансы</h2>
           </div>
           <div class="finance-month-control mt16" style="max-width:340px;">
-            <span>Месяц</span>
+            <span>Отчетный месяц</span>
             <button class="month-picker-trigger" id="myFinanceMonthBtn" type="button"></button>
           </div>
           <p id="myFinanceStatus" class="status mt12">Загрузка...</p>
@@ -7704,7 +7708,7 @@
         monthButton.addEventListener("click", () => {
           openMonthPicker({
             value: selectedMonth,
-            title: "Месяц выплаты",
+            title: "Отчетный месяц",
             onSelect: (nextMonth) => {
               selectedMonth = nextMonth;
               monthButton.textContent = formatMonthYear(selectedMonth);
@@ -7806,6 +7810,7 @@
           .map((w) => w[0]?.toUpperCase() || "")
           .join("");
         const canOpenAdminPanel = canManageEmployees();
+        const canViewSystemJournal = canOpenAdminPanel;
         screen.innerHTML = `
           <div class="profile-hero">
             <button id="openAvatarEditorBtn" class="profile-avatar-button" type="button" aria-label="Изменить аватар">
@@ -7875,12 +7880,14 @@
                     <img src="/icons/right-arrow.png" alt="Открыть" />
                   </button>
                 </div>
-                <div class="settings-row">
-                  <span>Админ-панель</span>
-                  <button id="openAdminPanelBtn" class="open-arrow-btn ${canOpenAdminPanel ? "" : "disabled"}" type="button" ${canOpenAdminPanel ? "" : "disabled"}>
-                    <img src="/icons/right-arrow.png" alt="Открыть" />
-                  </button>
-                </div>
+                ${canOpenAdminPanel ? `
+                  <div class="settings-row">
+                    <span>Админ-панель</span>
+                    <button id="openAdminPanelBtn" class="open-arrow-btn" type="button" aria-label="Открыть админ-панель">
+                      <img src="/icons/right-arrow.png" alt="Открыть" />
+                    </button>
+                  </div>
+                ` : ""}
               </div>
             </div>
           </div>
@@ -7962,10 +7969,12 @@
 
               <div id="securityLogsSection" class="panel mt12 security-section hidden">
                 <h4 class="panel-title">Журнал действий</h4>
-                <div class="security-log-tabs mt8">
-                  <button id="logsPersonalBtn" class="security-log-tab active" type="button">Персональный</button>
-                  <button id="logsSystemBtn" class="security-log-tab" type="button">Системный</button>
-                </div>
+                ${canViewSystemJournal ? `
+                  <div class="security-log-tabs mt8">
+                    <button id="logsPersonalBtn" class="security-log-tab active" type="button">Персональный</button>
+                    <button id="logsSystemBtn" class="security-log-tab" type="button">Системный</button>
+                  </div>
+                ` : ""}
                 <div class="security-log-filters">
                   <label class="security-log-filter">
                     <span>Период</span>
@@ -9248,15 +9257,16 @@
         };
 
         const loadLogs = async (scope) => {
-          const data = await api(`/api/security/journal?scope=${encodeURIComponent(scope)}&limit=200`);
-          activeSecurityLogsScope = scope === "SYSTEM" ? "SYSTEM" : "PERSONAL";
+          const allowedScope = scope === "SYSTEM" && canViewSystemJournal ? "SYSTEM" : "PERSONAL";
+          const data = await api(`/api/security/journal?scope=${encodeURIComponent(allowedScope)}&limit=200`);
+          activeSecurityLogsScope = allowedScope;
           securityLogsCache = (data?.logs || []).filter((log) => {
             if (log.eventType === "PIN_VERIFY_SUCCESS") return false;
             if (log.eventType === "AUTH_LOGIN_SUCCESS") return !!log.meta?.isNewDevice;
             return true;
           });
-          logsPersonalBtn.classList.toggle("active", activeSecurityLogsScope === "PERSONAL");
-          logsSystemBtn.classList.toggle("active", activeSecurityLogsScope === "SYSTEM");
+          logsPersonalBtn?.classList.toggle("active", activeSecurityLogsScope === "PERSONAL");
+          logsSystemBtn?.classList.toggle("active", activeSecurityLogsScope === "SYSTEM");
           updateSecurityLogActorOptions();
           renderSecurityLogs();
           securityLogsList.scrollTop = 0;
