@@ -1884,8 +1884,7 @@
       }
 
       body.theme-dark .finance-day-reason {
-        border-color: #314968;
-        background: #17263e;
+        background: transparent;
       }
 
       body.theme-dark .finance-day-reason > strong {
@@ -2182,6 +2181,7 @@
 
       body.theme-dark .inline-arrow,
       body.theme-dark .open-arrow-btn img,
+      body.theme-dark .icon-button img,
       body.theme-dark .location-btn-arrow,
       body.theme-dark .dash-arrow,
       body.theme-dark .back-icon-btn img {
@@ -2901,6 +2901,77 @@
         margin-top: 8px;
       }
 
+      .adjust-attachments {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+
+      .adjust-attachment-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .adjust-photo-btn,
+      .employee-document-upload-btn {
+        width: auto;
+        min-height: 36px;
+        padding: 7px 12px;
+        border: 1px solid #cbd8ea;
+        border-radius: 10px;
+        background: #f7faff;
+        color: #24405f;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 750;
+        cursor: pointer;
+      }
+
+      .adjust-paste-hint {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .adjust-photo-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 8px;
+      }
+
+      .adjust-photo {
+        position: relative;
+        width: 68px;
+        height: 68px;
+        overflow: hidden;
+        border-radius: 10px;
+        background: #e8eef7;
+      }
+
+      .adjust-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .adjust-photo-remove {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(20, 30, 45, 0.78);
+        color: #fff;
+        font-size: 15px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
       .finance-list {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr));
@@ -3263,6 +3334,7 @@
         border-top: 1px solid #dce5f2;
         padding: 10px;
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         gap: 8px;
       }
 
@@ -3271,6 +3343,9 @@
       }
 
       .finance-day {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
         border: 1px solid #e1e8f2;
         border-radius: 11px;
         padding: 10px;
@@ -3333,10 +3408,8 @@
         min-width: 0;
         display: grid;
         gap: 4px;
-        padding: 9px 10px;
-        border: 1px solid #e1e8f2;
-        border-radius: 10px;
-        background: #f8fbff;
+        padding: 2px 0;
+        background: transparent;
       }
 
       .finance-day-reason > strong {
@@ -4577,6 +4650,75 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 10px;
+      }
+
+      .employee-document-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .employee-document-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border: 1px solid #dce5f2;
+        border-radius: 10px;
+        background: #f8fbff;
+      }
+
+      .employee-document-link {
+        min-width: 0;
+        color: #1858a8;
+        font-weight: 700;
+        text-decoration: none;
+        overflow-wrap: anywhere;
+      }
+
+      .employee-document-meta {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .employee-document-delete {
+        width: 32px;
+        height: 32px;
+        padding: 7px;
+        border: 1px solid #f0b6b6;
+        border-radius: 9px;
+        background: #fff5f5;
+        cursor: pointer;
+      }
+
+      .employee-document-delete img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      body.theme-dark .adjust-attachments {
+        border-top-color: #314968;
+      }
+
+      body.theme-dark .adjust-photo-btn,
+      body.theme-dark .employee-document-upload-btn {
+        border-color: #3a5276;
+        background: #1a2c47;
+        color: #edf4ff;
+      }
+
+      body.theme-dark .employee-document-item {
+        border-color: #314968;
+        background: #17263e;
+      }
+
+      body.theme-dark .employee-document-link {
+        color: #78b2ff;
       }
 
       .employee-form-field {
@@ -6034,8 +6176,9 @@
       }
 
       async function api(path, options = {}) {
+        const isFormData = options.body instanceof FormData;
         const headers = {
-          "Content-Type": "application/json",
+          ...(isFormData ? {} : { "Content-Type": "application/json" }),
           ...(options.headers || {})
         };
         if (state.telegramId) headers["x-auth-id"] = state.telegramId;
@@ -7077,11 +7220,28 @@
           if (!shift.workStart || !shift.workEnd) return duration;
           return `${escapeHtml(shift.workStart)}–${escapeHtml(shift.workEnd)} · ${duration}`;
         };
-        const financeItemHtml = ({ title, meta, amount, amountClass = "" }) => `
+        const financeItemHtml = ({ title, meta, amount, amountClass = "", attachmentIds = [] }) => `
           <div class="personal-finance-item">
             <div class="personal-finance-item-main">
               <div class="personal-finance-item-title">${title}</div>
               <div class="personal-finance-item-meta">${meta}</div>
+              ${
+                attachmentIds.length
+                  ? `<div class="adjust-photo-list">${attachmentIds
+                      .map(
+                        (id) => `
+                          <a class="adjust-photo" href="/api/schedule/attachments/${escapeHtml(
+                            id
+                          )}" target="_blank" rel="noopener noreferrer">
+                            <img src="/api/schedule/attachments/${escapeHtml(
+                              id
+                            )}" alt="Фото подтверждения" loading="lazy" />
+                          </a>
+                        `
+                      )
+                      .join("")}</div>`
+                  : ""
+              }
             </div>
             <div class="personal-finance-item-amount ${amountClass}">${amount}</div>
           </div>
@@ -7145,7 +7305,8 @@
                     shift.locationTitle
                   )}${item.description ? ` · Описание: ${escapeHtml(item.description)}` : ""}`,
                   amount: `−${formatMoneyUnsigned(item.amount)}`,
-                  amountClass: "negative"
+                  amountClass: "negative",
+                  attachmentIds: Array.isArray(item.attachmentIds) ? item.attachmentIds : []
                 })
               )
               .join("");
@@ -7158,7 +7319,8 @@
                     shift.locationTitle
                   )}${item.description ? ` · Описание: ${escapeHtml(item.description)}` : ""}`,
                   amount: `+${formatMoneyUnsigned(item.amount)}`,
-                  amountClass: "positive"
+                  amountClass: "positive",
+                  attachmentIds: Array.isArray(item.attachmentIds) ? item.attachmentIds : []
                 })
               )
               .join("");
@@ -9386,6 +9548,15 @@
                   </div>
                 </div>
 
+                <div id="employeeDocumentsGroup" class="employee-form-group hidden">
+                  <p class="employee-form-group-title">Документы сотрудника</p>
+                  <div class="muted">Паспорт: PDF, JPG, PNG или WEBP, до 10 МБ</div>
+                  <input id="employeeDocumentInput" class="hidden" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
+                  <button id="employeeDocumentUploadBtn" class="employee-document-upload-btn mt8" type="button">Загрузить паспорт</button>
+                  <p id="employeeDocumentStatus" class="status mt8"></p>
+                  <div id="employeeDocumentList" class="employee-document-list"></div>
+                </div>
+
                 <div class="employee-form-group">
                   <p class="employee-form-group-title">Пункты выдачи</p>
                   <div id="employeeLocationsInput" class="employee-location-options">
@@ -9449,11 +9620,65 @@
         const reliabilityInput = document.getElementById("reliabilityInput");
         const employeeLocationsInput = document.getElementById("employeeLocationsInput");
         const accessRoleInput = document.getElementById("accessRoleInput");
+        const employeeDocumentsGroup = document.getElementById("employeeDocumentsGroup");
+        const employeeDocumentInput = document.getElementById("employeeDocumentInput");
+        const employeeDocumentUploadBtn = document.getElementById("employeeDocumentUploadBtn");
+        const employeeDocumentStatus = document.getElementById("employeeDocumentStatus");
+        const employeeDocumentList = document.getElementById("employeeDocumentList");
         const deleteEmployeeBtn = document.getElementById("deleteEmployeeBtn");
         const deleteEmployeeWrap = deleteEmployeeBtn?.closest(".save-icon-wrap");
         const saveEmployeeBtn = document.getElementById("saveEmployeeBtn");
         const saveEmployeeFeedback = document.getElementById("saveEmployeeFeedback");
         let editingEmployeeId = null;
+
+        const formatFileSize = (bytes) => {
+          const size = Math.max(0, Number(bytes || 0));
+          if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} КБ`;
+          return `${(size / (1024 * 1024)).toFixed(1)} МБ`;
+        };
+
+        const renderEmployeeDocuments = (documents = []) => {
+          employeeDocumentList.innerHTML = documents.length
+            ? documents
+                .map(
+                  (documentItem) => `
+                    <div class="employee-document-item">
+                      <a
+                        class="employee-document-link"
+                        href="/api/employees/${editingEmployeeId}/documents/${escapeHtml(documentItem.id)}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        ${escapeHtml(documentItem.originalName || "Документ")}
+                        <span class="employee-document-meta">${formatFileSize(documentItem.sizeBytes)}</span>
+                      </a>
+                      <button
+                        class="employee-document-delete"
+                        type="button"
+                        data-delete-employee-document="${escapeHtml(documentItem.id)}"
+                        aria-label="Удалить документ"
+                        title="Удалить документ"
+                      ><img src="/icons/delete-bin.png" alt="Удалить" /></button>
+                    </div>
+                  `
+                )
+                .join("")
+            : `<div class="muted">Паспорт пока не загружен.</div>`;
+        };
+
+        const loadEmployeeDocuments = async () => {
+          if (!editingEmployeeId) return;
+          employeeDocumentStatus.className = "status mt8";
+          employeeDocumentStatus.textContent = "Загрузка...";
+          try {
+            const data = await api(`/api/employees/${editingEmployeeId}/documents`);
+            renderEmployeeDocuments(Array.isArray(data.documents) ? data.documents : []);
+            employeeDocumentStatus.textContent = "";
+          } catch (error) {
+            employeeDocumentStatus.className = "status error mt8";
+            employeeDocumentStatus.textContent = error.message;
+          }
+        };
 
         const updateNameFieldError = (input, inputWrap, errorElement, force = false) => {
           const length = input.value.trim().length;
@@ -9495,6 +9720,10 @@
           if (deleteEmployeeWrap) deleteEmployeeWrap.style.display = "none";
           deleteEmployeeBtn.disabled = true;
           deleteEmployeeBtn.title = "Удалить сотрудника";
+          employeeDocumentsGroup.classList.add("hidden");
+          employeeDocumentInput.value = "";
+          employeeDocumentStatus.textContent = "";
+          employeeDocumentList.innerHTML = "";
         };
 
         const openForCreate = () => {
@@ -9553,6 +9782,9 @@
           deleteEmployeeBtn.title = employee.isProtected
             ? "Удаление запрещено"
             : "Удалить сотрудника";
+          employeeDocumentsGroup.classList.remove("hidden");
+          employeeDocumentUploadBtn.disabled = adminCannotEdit;
+          loadEmployeeDocuments();
           openPanel();
         };
 
@@ -9584,6 +9816,53 @@
         });
         lastNameInput.addEventListener("input", () => {
           updateNameFieldError(lastNameInput, lastNameInputWrap, lastNameInlineError);
+        });
+        employeeDocumentUploadBtn.addEventListener("click", () => {
+          if (editingEmployeeId) employeeDocumentInput.click();
+        });
+        employeeDocumentInput.addEventListener("change", async () => {
+          const file = employeeDocumentInput.files?.[0];
+          if (!file || !editingEmployeeId) return;
+          employeeDocumentUploadBtn.disabled = true;
+          employeeDocumentStatus.className = "status mt8";
+          employeeDocumentStatus.textContent = "Загрузка документа...";
+          try {
+            const formData = new FormData();
+            formData.append("file", file, file.name);
+            await api(`/api/employees/${editingEmployeeId}/documents`, {
+              method: "POST",
+              body: formData
+            });
+            employeeDocumentStatus.className = "status ok mt8";
+            employeeDocumentStatus.textContent = "Документ загружен";
+            await loadEmployeeDocuments();
+          } catch (error) {
+            employeeDocumentStatus.className = "status error mt8";
+            employeeDocumentStatus.textContent = error.message;
+          } finally {
+            employeeDocumentInput.value = "";
+            employeeDocumentUploadBtn.disabled = false;
+          }
+        });
+        employeeDocumentList.addEventListener("click", async (event) => {
+          const button = event.target.closest("[data-delete-employee-document]");
+          if (!button || !editingEmployeeId) return;
+          const confirmed = await confirmAction("Удалить паспортный документ?", { danger: true });
+          if (!confirmed) return;
+          button.disabled = true;
+          try {
+            await api(
+              `/api/employees/${editingEmployeeId}/documents/${encodeURIComponent(
+                button.dataset.deleteEmployeeDocument
+              )}`,
+              { method: "DELETE" }
+            );
+            await loadEmployeeDocuments();
+          } catch (error) {
+            employeeDocumentStatus.className = "status error mt8";
+            employeeDocumentStatus.textContent = error.message;
+            button.disabled = false;
+          }
         });
 
         saveEmployeeBtn.addEventListener("click", async () => {
@@ -10642,7 +10921,10 @@
                   .map((item) => ({
                     reason: String(item?.reason || fallbackReason).trim() || fallbackReason,
                     description: String(item?.note || item?.description || "").trim(),
-                    amount: Math.abs(Number(item?.amount || 0))
+                    amount: Math.abs(Number(item?.amount || 0)),
+                    attachmentIds: Array.isArray(item?.attachmentIds)
+                      ? item.attachmentIds.filter(Boolean).slice(0, 6)
+                      : []
                   }))
                   .filter((item) => item.amount > 0);
                 if (normalized.length || fallbackAmount <= 0) return normalized;
@@ -10735,6 +11017,23 @@
                                               item.amount
                                             )}</span>
                                           </div>
+                                          ${
+                                            item.attachmentIds?.length
+                                              ? `<div class="adjust-photo-list">${item.attachmentIds
+                                                  .map(
+                                                    (id) => `
+                                                      <a class="adjust-photo" href="/api/schedule/attachments/${escapeHtml(
+                                                        id
+                                                      )}" target="_blank" rel="noopener noreferrer">
+                                                        <img src="/api/schedule/attachments/${escapeHtml(
+                                                          id
+                                                        )}" alt="Фото подтверждения" loading="lazy" />
+                                                      </a>
+                                                    `
+                                                  )
+                                                  .join("")}</div>`
+                                              : ""
+                                          }
                                         `
                                       )
                                       .join("")}
@@ -11451,6 +11750,58 @@
           const saveAdjustFeedback = document.getElementById("saveAdjustFeedback");
           const closeAdjustBtn = document.getElementById("closeAdjustBtn");
           let adjustTarget = { row: null, kind: null };
+          let activeAdjustCard = null;
+
+          const getCardAttachmentIds = (card) => {
+            try {
+              const parsed = JSON.parse(card?.dataset.attachmentIds || "[]");
+              return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, 6) : [];
+            } catch {
+              return [];
+            }
+          };
+          const setCardAttachmentIds = (card, ids) => {
+            card.dataset.attachmentIds = JSON.stringify([...new Set(ids)].slice(0, 6));
+          };
+          const appendAdjustPhoto = (card, attachment) => {
+            const ids = getCardAttachmentIds(card);
+            if (ids.includes(attachment.id)) return;
+            setCardAttachmentIds(card, [...ids, attachment.id]);
+            const list = card.querySelector("[data-adj-photo-list='1']");
+            list.insertAdjacentHTML(
+              "beforeend",
+              `
+                <div class="adjust-photo" data-attachment-id="${escapeHtml(attachment.id)}">
+                  <img src="/api/schedule/attachments/${escapeHtml(attachment.id)}" alt="Фото подтверждения" loading="lazy" />
+                  <button class="adjust-photo-remove" data-remove-adj-photo="1" type="button" aria-label="Удалить фото">×</button>
+                </div>
+              `
+            );
+          };
+          const uploadAdjustmentPhoto = async (file, card) => {
+            if (!file || !card) return;
+            if (getCardAttachmentIds(card).length >= 6) {
+              adjustError.textContent = "К одной причине можно добавить не больше 6 фотографий";
+              return;
+            }
+            adjustError.className = "status mt8";
+            adjustError.textContent = "Загрузка фотографии...";
+            const formData = new FormData();
+            formData.append("file", file, file.name || `photo-${Date.now()}.png`);
+            try {
+              const data = await api("/api/schedule/attachments", {
+                method: "POST",
+                body: formData
+              });
+              appendAdjustPhoto(card, data.attachment);
+              card.querySelector("[data-adj-check='1']").checked = true;
+              adjustError.className = "status ok mt8";
+              adjustError.textContent = "Фото добавлено";
+            } catch (error) {
+              adjustError.className = "status error mt8";
+              adjustError.textContent = error.message;
+            }
+          };
 
           const getMetaKey = (kind) => {
             if (kind === "deductions1") return "deductions1Meta";
@@ -11486,6 +11837,7 @@
             const existing = parseRowMeta(row, kind);
             const existingMap = new Map(existing.map((item) => [item.reason, item]));
             adjustTarget = { row, kind };
+            activeAdjustCard = null;
             const titleMap = {
               deductions1: "Удержания И1",
               deductions2: "Удержания И2",
@@ -11503,8 +11855,15 @@
               .map((rule, index) => {
                 const prev = existingMap.get(rule.title);
                 const amountValue = prev ? Number(prev.amount || 0) : Number(rule.fixed || 0);
+                const attachmentIds = Array.isArray(prev?.attachmentIds)
+                  ? prev.attachmentIds.filter(Boolean).slice(0, 6)
+                  : [];
                 return `
-                  <div class="adjust-item" data-rule-code="${escapeHtml(rule.code)}">
+                  <div
+                    class="adjust-item"
+                    data-rule-code="${escapeHtml(rule.code)}"
+                    data-attachment-ids="${escapeHtml(JSON.stringify(attachmentIds))}"
+                  >
                     <div class="adjust-item-head">
                       <input id="adjCheck${index}" type="checkbox" data-adj-check="1" ${prev ? "checked" : ""} />
                       <label for="adjCheck${index}">${escapeHtml(rule.title)}</label>
@@ -11534,6 +11893,25 @@
                         />
                       </div>
                     </div>
+                    <div class="adjust-attachments">
+                      <div class="adjust-attachment-actions">
+                        <input class="hidden" data-adj-photo-input="1" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+                        <button class="adjust-photo-btn" data-adj-photo-button="1" type="button">Добавить фото</button>
+                        <span class="adjust-paste-hint">или вставьте изображение Ctrl+V</span>
+                      </div>
+                      <div class="adjust-photo-list" data-adj-photo-list="1">
+                        ${attachmentIds
+                          .map(
+                            (id) => `
+                              <div class="adjust-photo" data-attachment-id="${escapeHtml(id)}">
+                                <img src="/api/schedule/attachments/${escapeHtml(id)}" alt="Фото подтверждения" loading="lazy" />
+                                <button class="adjust-photo-remove" data-remove-adj-photo="1" type="button" aria-label="Удалить фото">×</button>
+                              </div>
+                            `
+                          )
+                          .join("")}
+                      </div>
+                    </div>
                   </div>
                 `;
               })
@@ -11541,6 +11919,59 @@
 
             adjustModal.classList.remove("hidden");
           };
+
+          adjustList.addEventListener("pointerdown", (event) => {
+            const card = event.target.closest(".adjust-item");
+            if (card) activeAdjustCard = card;
+          });
+          adjustList.addEventListener("click", (event) => {
+            const card = event.target.closest(".adjust-item");
+            if (!card) return;
+            activeAdjustCard = card;
+            if (event.target.closest("[data-adj-photo-button='1']")) {
+              card.querySelector("[data-adj-photo-input='1']")?.click();
+              return;
+            }
+            const removeButton = event.target.closest("[data-remove-adj-photo='1']");
+            if (removeButton) {
+              const photo = removeButton.closest("[data-attachment-id]");
+              const attachmentId = photo?.dataset.attachmentId;
+              setCardAttachmentIds(
+                card,
+                getCardAttachmentIds(card).filter((id) => id !== attachmentId)
+              );
+              photo?.remove();
+            }
+          });
+          adjustList.addEventListener("change", async (event) => {
+            const input = event.target.closest("[data-adj-photo-input='1']");
+            if (!input) return;
+            const card = input.closest(".adjust-item");
+            activeAdjustCard = card;
+            for (const file of [...(input.files || [])]) {
+              await uploadAdjustmentPhoto(file, card);
+            }
+            input.value = "";
+          });
+          adjustModal.addEventListener("paste", async (event) => {
+            if (adjustModal.classList.contains("hidden")) return;
+            const imageFiles = [...(event.clipboardData?.files || [])].filter((file) =>
+              String(file.type || "").startsWith("image/")
+            );
+            if (!imageFiles.length) return;
+            const checkedCard = [...adjustList.querySelectorAll(".adjust-item")].find(
+              (item) => item.querySelector("[data-adj-check='1']")?.checked
+            );
+            const card = event.target.closest(".adjust-item") || activeAdjustCard || checkedCard;
+            if (!card) {
+              adjustError.className = "status error mt8";
+              adjustError.textContent = "Сначала выберите причину, к которой относится фото";
+              return;
+            }
+            event.preventDefault();
+            activeAdjustCard = card;
+            for (const file of imageFiles) await uploadAdjustmentPhoto(file, card);
+          });
 
           closeAdjustBtn.addEventListener("click", () => {
             adjustModal.classList.add("hidden");
@@ -11596,7 +12027,8 @@
               items.push({
                 reason: rule.title,
                 amount,
-                note
+                note,
+                attachmentIds: getCardAttachmentIds(card)
               });
               total += amount;
             }

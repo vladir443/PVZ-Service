@@ -1,9 +1,14 @@
 import express from "express";
+import multer from "multer";
 import { z } from "zod";
 import {
+  createSecureFile,
   createEmployee,
+  deleteSecureFileById,
   deleteEmployeeById,
+  getSecureFileById,
   getUserByTelegramId,
+  listEmployeeDocuments,
   listEmployees,
   listLocations,
   logAuditEvent,
@@ -17,6 +22,35 @@ import { Role } from "../lib/roles.js";
 import { setAuthCookies } from "../lib/auth-cookies.js";
 
 const router = express.Router();
+
+const passportMimeTypes = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+]);
+const passportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    callback(
+      passportMimeTypes.has(String(file.mimetype || "").toLowerCase())
+        ? null
+        : new Error("Разрешены PDF, JPG, PNG и WEBP"),
+      passportMimeTypes.has(String(file.mimetype || "").toLowerCase())
+    );
+  }
+});
+
+function receivePassportFile(req, res, next) {
+  passportUpload.single("file")(req, res, (error) => {
+    if (!error) return next();
+    const message = error.code === "LIMIT_FILE_SIZE"
+      ? "Файл паспорта должен быть не больше 10 МБ"
+      : error.message || "Не удалось загрузить документ";
+    return res.status(400).json({ error: "UploadError", message });
+  });
+}
 
 router.use(requireAuth, requireRole(Role.ADMIN, Role.SUPERADMIN));
 
@@ -37,6 +71,34 @@ function isActorSelfTarget({ targetEmployee, actorUser }) {
   const actorFullName = normalizeText(actorUser?.fullName);
   const targetFullName = normalizeText(targetEmployee?.fullName);
   return !!actorFullName && !!targetFullName && actorFullName === targetFullName;
+}
+
+function canManageEmployeeDocuments({ targetEmployee, actorUser }) {
+  const isSelf = isActorSelfTarget({ targetEmployee, actorUser });
+  if (targetEmployee.isProtected) {
+    return actorUser.role === Role.SUPERADMIN && isSelf;
+  }
+  if (actorUser.role === Role.SUPERADMIN) return true;
+  if (actorUser.role !== Role.ADMIN) return false;
+  return isSelf || targetEmployee.accessRole === Role.PARTICIPANT;
+}
+
+function getDocumentTarget(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "ValidationError", message: "Некорректный id сотрудника" });
+    return null;
+  }
+  const employee = listEmployees().find((item) => item.id === id);
+  if (!employee) {
+    res.status(404).json({ error: "NotFound", message: "Сотрудник не найден" });
+    return null;
+  }
+  if (!canManageEmployeeDocuments({ targetEmployee: employee, actorUser: req.user })) {
+    res.status(403).json({ error: "Forbidden", message: "Недостаточно прав для документов сотрудника" });
+    return null;
+  }
+  return employee;
 }
 
 router.get("/", (_req, res, next) => {
@@ -179,6 +241,101 @@ router.post("/", (req, res, next) => {
         message: "Сотрудник с таким именем уже существует"
       });
     }
+    return next(error);
+  }
+});
+
+router.get("/:id/documents", (req, res, next) => {
+  try {
+    const employee = getDocumentTarget(req, res);
+    if (!employee) return;
+    return res.json({ documents: listEmployeeDocuments(employee.id) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/:id/documents", receivePassportFile, (req, res, next) => {
+  try {
+    const employee = getDocumentTarget(req, res);
+    if (!employee) return;
+    if (!req.file?.buffer?.length) {
+      return res.status(400).json({ error: "ValidationError", message: "Выберите документ" });
+    }
+    const document = createSecureFile({
+      category: "EMPLOYEE_PASSPORT",
+      employeeId: employee.id,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      content: req.file.buffer,
+      uploadedByUserId: req.user.id
+    });
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "EMPLOYEE_DOCUMENT_UPLOADED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetTelegramId: employee.telegramId || "",
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: { employeeId: employee.id, fileId: document.id, fileName: document.originalName },
+      systemView: "ALL_ADMINS"
+    });
+    return res.status(201).json({ document });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/:id/documents/:fileId", (req, res, next) => {
+  try {
+    const employee = getDocumentTarget(req, res);
+    if (!employee) return;
+    const file = getSecureFileById(req.params.fileId, { includeContent: true });
+    if (!file || file.category !== "EMPLOYEE_PASSPORT" || file.employeeId !== employee.id) {
+      return res.status(404).json({ error: "NotFound", message: "Документ не найден" });
+    }
+    const safeName = String(file.originalName || "document").replace(/[\r\n"\\]/g, "_");
+    const asciiName = safeName.replace(/[^\x20-\x7e]/g, "_");
+    res.setHeader("Content-Type", file.mimeType);
+    res.setHeader("Content-Length", String(file.sizeBytes));
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(safeName)}`
+    );
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.send(file.content);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.delete("/:id/documents/:fileId", (req, res, next) => {
+  try {
+    const employee = getDocumentTarget(req, res);
+    if (!employee) return;
+    const file = getSecureFileById(req.params.fileId);
+    if (!file || file.category !== "EMPLOYEE_PASSPORT" || file.employeeId !== employee.id) {
+      return res.status(404).json({ error: "NotFound", message: "Документ не найден" });
+    }
+    deleteSecureFileById(file.id);
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "EMPLOYEE_DOCUMENT_DELETED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetTelegramId: employee.telegramId || "",
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: { employeeId: employee.id, fileId: file.id, fileName: file.originalName },
+      systemView: "ALL_ADMINS"
+    });
+    return res.json({ ok: true });
+  } catch (error) {
     return next(error);
   }
 });

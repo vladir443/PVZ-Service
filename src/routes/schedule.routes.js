@@ -1,11 +1,16 @@
 import express from "express";
+import multer from "multer";
 import { z } from "zod";
 import { requireAuth, requirePosition, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
 import {
   createFinancePayment,
+  createSecureFile,
+  deleteSecureFileById,
   deleteFinancePayment,
+  employeeCanAccessAdjustmentFile,
   getEmployeeLocationCodes,
+  getSecureFileById,
   getUpcomingShiftDatesForTelegramId,
   getTodayAssignmentsForTelegramId,
   getScheduleForMonth,
@@ -24,7 +29,96 @@ import {
 
 const router = express.Router();
 
+const adjustmentImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const adjustmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    const allowed = adjustmentImageTypes.has(String(file.mimetype || "").toLowerCase());
+    callback(allowed ? null : new Error("Разрешены изображения JPG, PNG и WEBP"), allowed);
+  }
+});
+
+function receiveAdjustmentImage(req, res, next) {
+  adjustmentUpload.single("file")(req, res, (error) => {
+    if (!error) return next();
+    const message = error.code === "LIMIT_FILE_SIZE"
+      ? "Фотография должна быть не больше 5 МБ"
+      : error.message || "Не удалось загрузить фотографию";
+    return res.status(400).json({ error: "UploadError", message });
+  });
+}
+
 router.use(requireAuth);
+
+router.post(
+  "/attachments",
+  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  receiveAdjustmentImage,
+  (req, res, next) => {
+    try {
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: "ValidationError", message: "Выберите фотографию" });
+      }
+      const attachment = createSecureFile({
+        category: "ADJUSTMENT_PHOTO",
+        originalName: req.file.originalname || "photo.jpg",
+        mimeType: req.file.mimetype,
+        content: req.file.buffer,
+        uploadedByUserId: req.user.id
+      });
+      return res.status(201).json({ attachment });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+router.get(
+  "/attachments/:fileId",
+  (req, res, next) => {
+    try {
+      const file = getSecureFileById(req.params.fileId, { includeContent: true });
+      if (!file || file.category !== "ADJUSTMENT_PHOTO") {
+        return res.status(404).json({ error: "NotFound", message: "Фотография не найдена" });
+      }
+      const isAdmin = req.user.role === Role.ADMIN || req.user.role === Role.SUPERADMIN;
+      if (
+        !isAdmin &&
+        !employeeCanAccessAdjustmentFile({
+          employeeFullName: req.employee.fullName,
+          fileId: file.id
+        })
+      ) {
+        return res.status(403).json({ error: "Forbidden", message: "Нет доступа к фотографии" });
+      }
+      res.setHeader("Content-Type", file.mimeType);
+      res.setHeader("Content-Length", String(file.sizeBytes));
+      res.setHeader("Content-Disposition", "inline");
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      return res.send(file.content);
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+router.delete(
+  "/attachments/:fileId",
+  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  (req, res, next) => {
+    try {
+      const file = getSecureFileById(req.params.fileId);
+      if (!file || file.category !== "ADJUSTMENT_PHOTO") {
+        return res.status(404).json({ error: "NotFound", message: "Фотография не найдена" });
+      }
+      deleteSecureFileById(file.id);
+      return res.json({ ok: true });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
 
 router.get("/locations", (req, res, next) => {
   try {
@@ -238,7 +332,10 @@ function normalizeFinanceItems(items, fallbackReason, fallbackAmount) {
     .map((item) => ({
       reason: String(item?.reason || fallbackReason).trim() || fallbackReason,
       description: String(item?.note || "").trim(),
-      amount: Math.abs(Number(item?.amount || 0))
+      amount: Math.abs(Number(item?.amount || 0)),
+      attachmentIds: Array.isArray(item?.attachmentIds)
+        ? item.attachmentIds.filter(Boolean).slice(0, 6)
+        : []
     }))
     .filter((item) => item.amount > 0);
   if (normalized.length || fallbackAmount <= 0) return normalized;
@@ -634,7 +731,8 @@ const shiftSchema = z.object({
       z.object({
         reason: z.string().max(120),
         amount: z.coerce.number().min(-1000000).max(0),
-        note: z.string().max(250).optional().default("")
+        note: z.string().max(250).optional().default(""),
+        attachmentIds: z.array(z.string().uuid()).max(6).optional().default([])
       })
     )
     .default([]),
@@ -643,7 +741,8 @@ const shiftSchema = z.object({
       z.object({
         reason: z.string().max(120),
         amount: z.coerce.number().min(-1000000).max(0),
-        note: z.string().max(250).optional().default("")
+        note: z.string().max(250).optional().default(""),
+        attachmentIds: z.array(z.string().uuid()).max(6).optional().default([])
       })
     )
     .default([]),
@@ -652,7 +751,8 @@ const shiftSchema = z.object({
       z.object({
         reason: z.string().max(120),
         amount: z.coerce.number().min(0).max(1000000),
-        note: z.string().max(250).optional().default("")
+        note: z.string().max(250).optional().default(""),
+        attachmentIds: z.array(z.string().uuid()).max(6).optional().default([])
       })
     )
     .default([]),
@@ -661,7 +761,8 @@ const shiftSchema = z.object({
       z.object({
         reason: z.string().max(120),
         amount: z.coerce.number().min(0).max(1000000),
-        note: z.string().max(250).optional().default("")
+        note: z.string().max(250).optional().default(""),
+        attachmentIds: z.array(z.string().uuid()).max(6).optional().default([])
       })
     )
     .default([])

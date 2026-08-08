@@ -121,6 +121,25 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS secure_files (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL CHECK(category IN ('ADJUSTMENT_PHOTO', 'EMPLOYEE_PASSPORT')),
+    employee_id INTEGER,
+    original_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    content BLOB NOT NULL,
+    uploaded_by_user_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+    FOREIGN KEY(uploaded_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_secure_files_employee
+    ON secure_files(employee_id, category, created_at);
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS finance_payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     location_code TEXT NOT NULL,
@@ -2018,6 +2037,105 @@ export function updateEmployeeAvatarById({ id, avatarUrl }) {
 
   if (result.changes === 0) return null;
   return listEmployees().find((employee) => employee.id === employeeId) || null;
+}
+
+function mapSecureFile(row, { includeContent = false } = {}) {
+  if (!row) return null;
+  const file = {
+    id: row.id,
+    category: row.category,
+    employeeId: row.employee_id == null ? null : Number(row.employee_id),
+    originalName: row.original_name,
+    mimeType: row.mime_type,
+    sizeBytes: Number(row.size_bytes || 0),
+    uploadedByUserId: row.uploaded_by_user_id == null ? null : Number(row.uploaded_by_user_id),
+    createdAt: row.created_at
+  };
+  if (includeContent) file.content = row.content;
+  return file;
+}
+
+export function createSecureFile({
+  category,
+  employeeId = null,
+  originalName,
+  mimeType,
+  content,
+  uploadedByUserId = null
+}) {
+  const id = crypto.randomUUID();
+  const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content || "");
+  db.prepare(
+    `
+    INSERT INTO secure_files (
+      id, category, employee_id, original_name, mime_type, size_bytes, content, uploaded_by_user_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  ).run(
+    id,
+    category,
+    employeeId == null ? null : Number(employeeId),
+    String(originalName || "file").trim(),
+    String(mimeType || "application/octet-stream").trim(),
+    buffer.length,
+    buffer,
+    uploadedByUserId == null ? null : Number(uploadedByUserId)
+  );
+  return getSecureFileById(id);
+}
+
+export function getSecureFileById(id, { includeContent = false } = {}) {
+  const columns = includeContent
+    ? "id, category, employee_id, original_name, mime_type, size_bytes, content, uploaded_by_user_id, created_at"
+    : "id, category, employee_id, original_name, mime_type, size_bytes, uploaded_by_user_id, created_at";
+  const row = db.prepare(`SELECT ${columns} FROM secure_files WHERE id = ?`).get(String(id || ""));
+  return mapSecureFile(row, { includeContent });
+}
+
+export function listEmployeeDocuments(employeeId) {
+  return db
+    .prepare(
+      `
+      SELECT id, category, employee_id, original_name, mime_type, size_bytes, uploaded_by_user_id, created_at
+      FROM secure_files
+      WHERE employee_id = ? AND category = 'EMPLOYEE_PASSPORT'
+      ORDER BY created_at DESC, original_name COLLATE NOCASE ASC
+      `
+    )
+    .all(Number(employeeId))
+    .map((row) => mapSecureFile(row));
+}
+
+export function deleteSecureFileById(id) {
+  const file = getSecureFileById(id);
+  if (!file) return null;
+  db.prepare("DELETE FROM secure_files WHERE id = ?").run(file.id);
+  return file;
+}
+
+export function employeeCanAccessAdjustmentFile({ employeeFullName, fileId }) {
+  const name = String(employeeFullName || "").trim();
+  const idPattern = `%\"${String(fileId || "").trim()}\"%`;
+  if (!name || !fileId) return false;
+  return !!db
+    .prepare(
+      `
+      SELECT 1
+      FROM shifts
+      WHERE
+        (
+          lower(trim(executor1)) = lower(trim(?))
+          AND (deductions1_meta LIKE ? OR bonuses1_meta LIKE ?)
+        )
+        OR
+        (
+          lower(trim(executor2)) = lower(trim(?))
+          AND (deductions2_meta LIKE ? OR bonuses2_meta LIKE ?)
+        )
+      LIMIT 1
+      `
+    )
+    .get(name, idPattern, idPattern, name, idPattern, idPattern);
 }
 
 export function canLoginByEmployeeAccess({ telegramId, username }) {
