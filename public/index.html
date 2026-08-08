@@ -121,6 +121,16 @@
         min-width: 0;
       }
 
+      body.has-bottom-nav .card {
+        padding-bottom: max(104px, calc(var(--bottom-nav-height, 72px) + 32px));
+      }
+
+      body.personal-finance-view,
+      body.personal-finance-view .wrap,
+      body.personal-finance-view .card {
+        background: var(--card);
+      }
+
       .app-loader {
         min-height: calc(100dvh - 82px);
         display: grid;
@@ -1717,6 +1727,16 @@
 
       body.theme-dark .personal-finance-chevron {
         filter: brightness(0) invert(1);
+      }
+
+      #financeModal,
+      #financeModal > .panel {
+        background: var(--card);
+      }
+
+      #financeModal > .panel {
+        min-height: 100vh;
+        min-height: 100dvh;
       }
 
       .settings-list {
@@ -5809,6 +5829,21 @@
       const screen = document.getElementById("screen");
       const appTitle = document.getElementById("appTitle");
       const bottomNav = document.getElementById("bottomNav");
+      const syncBottomNavClearance = () => {
+        const hasNavigation = bottomNav.childElementCount > 0;
+        const height = hasNavigation ? Math.ceil(bottomNav.getBoundingClientRect().height) : 0;
+        document.body.classList.toggle("has-bottom-nav", hasNavigation);
+        document.documentElement.style.setProperty("--bottom-nav-height", `${height}px`);
+      };
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(syncBottomNavClearance).observe(bottomNav);
+      }
+      if (typeof MutationObserver === "function") {
+        new MutationObserver(() => requestAnimationFrame(syncBottomNavClearance)).observe(bottomNav, {
+          childList: true
+        });
+      }
+      window.addEventListener("resize", syncBottomNavClearance, { passive: true });
       const THEME_STORAGE_KEY = "pvz_theme";
       const SESSION_STORAGE_KEY = "pvz_session_id";
       const AUTH_ID_STORAGE_KEY = "pvz_auth_id";
@@ -6123,6 +6158,7 @@
       }
 
       function renderBottomNav(active = state.activeTab) {
+        document.body.classList.remove("personal-finance-view");
         state.activeTab = active;
         if (["home", "schedule", "employees", "profile"].includes(active)) {
           try {
@@ -7427,6 +7463,7 @@
       async function renderMyFinances() {
         setAppTitle("");
         renderBottomNav("home");
+        document.body.classList.add("personal-finance-view");
         let selectedMonth = monthNow();
         const expandedSections = new Set();
 
