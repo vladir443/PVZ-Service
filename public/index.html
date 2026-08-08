@@ -322,6 +322,31 @@
         cursor: wait;
       }
 
+      .login-code-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px 18px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+      }
+
+      .login-code-action {
+        border: 0;
+        padding: 5px 0;
+        background: transparent;
+        color: #2368bd;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 750;
+        cursor: pointer;
+      }
+
+      .login-code-action:disabled {
+        color: #8b9ab0;
+        cursor: default;
+      }
+
       .pin-setup-card {
         padding: 24px 20px 22px;
       }
@@ -1816,6 +1841,14 @@
 
       body.theme-dark .login-consent-text a {
         color: #77b6ff;
+      }
+
+      body.theme-dark .login-code-action {
+        color: #78b7ff;
+      }
+
+      body.theme-dark .login-code-action:disabled {
+        color: #71809a;
       }
 
       body.theme-dark .home-list-date,
@@ -5548,6 +5581,10 @@
                 </label>
               </div>
               <button id="siteLoginBtn" class="login-button" type="button">Получить код</button>
+              <div id="siteLoginCodeActions" class="login-code-actions hidden">
+                <button id="siteLoginResendBtn" class="login-code-action" type="button">Отправить код повторно</button>
+                <button id="siteLoginChangeEmailBtn" class="login-code-action" type="button">Изменить почту</button>
+              </div>
               <p id="siteLoginStatus" class="status mt12"></p>
             </div>
           </div>
@@ -5559,8 +5596,13 @@
         const consentInput = document.getElementById("siteLoginConsentInput");
         const subtitle = document.getElementById("siteLoginSubtitle");
         const button = document.getElementById("siteLoginBtn");
+        const codeActions = document.getElementById("siteLoginCodeActions");
+        const resendButton = document.getElementById("siteLoginResendBtn");
+        const changeEmailButton = document.getElementById("siteLoginChangeEmailBtn");
         const status = document.getElementById("siteLoginStatus");
         let step = "email";
+        let resendTimerId = 0;
+        let resendAvailableAt = 0;
 
         input?.addEventListener("input", () => {
           status.className = "status";
@@ -5577,6 +5619,7 @@
           const isCode = step === "code";
           codeWrap?.classList.toggle("hidden", !isCode);
           consentWrap?.classList.toggle("hidden", isCode);
+          codeActions?.classList.toggle("hidden", !isCode);
           input.disabled = isCode;
           button.textContent = isCode ? "Подтвердить" : "Получить код";
           subtitle.textContent = isCode
@@ -5585,7 +5628,29 @@
           if (isCode) codeInput?.focus();
         };
 
+        const stopResendTimer = () => {
+          if (resendTimerId) window.clearInterval(resendTimerId);
+          resendTimerId = 0;
+        };
+
+        const updateResendButton = () => {
+          const seconds = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+          resendButton.disabled = seconds > 0;
+          resendButton.textContent = seconds > 0
+            ? `Отправить повторно через ${seconds} сек.`
+            : "Отправить код повторно";
+          if (!seconds) stopResendTimer();
+        };
+
+        const startResendTimer = (seconds = 60) => {
+          stopResendTimer();
+          resendAvailableAt = Date.now() + seconds * 1000;
+          updateResendButton();
+          resendTimerId = window.setInterval(updateResendButton, 1000);
+        };
+
         const requestCode = async () => {
+          const isResend = step === "code";
           const email = String(input?.value || "").trim().toLowerCase();
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             status.className = "status error";
@@ -5598,6 +5663,7 @@
             return;
           }
           button.disabled = true;
+          if (isResend) resendButton.disabled = true;
           status.className = "status";
           status.textContent = "Отправляем код...";
           try {
@@ -5614,6 +5680,7 @@
             requestedEmail = email;
             consentSessionId = String(data?.consentSessionId || "");
             setStep("code");
+            startResendTimer(60);
             status.className = data?.devCode ? "status ok" : "status";
             status.textContent = data?.devCode
               ? `Тестовый код: ${data.devCode}`
@@ -5623,8 +5690,28 @@
             status.textContent = String(error?.message || "Не удалось отправить код");
           } finally {
             button.disabled = false;
+            if (isResend && Date.now() >= resendAvailableAt) {
+              resendButton.disabled = false;
+            }
           }
         };
+
+        resendButton?.addEventListener("click", () => {
+          if (Date.now() < resendAvailableAt) return;
+          requestCode();
+        });
+
+        changeEmailButton?.addEventListener("click", () => {
+          stopResendTimer();
+          requestedEmail = "";
+          consentSessionId = "";
+          codeInput.value = "";
+          setStep("email");
+          input.disabled = false;
+          status.className = "status";
+          status.textContent = "";
+          input.focus();
+        });
 
         const confirmCode = async () => {
           const emailCode = onlyDigits(codeInput?.value || "");
