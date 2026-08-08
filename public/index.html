@@ -2041,6 +2041,52 @@
         color: #e8eef8;
       }
 
+      body.theme-dark .table-wrap {
+        border-color: #3a4e6b;
+        background: #101b2d;
+      }
+
+      body.theme-dark .table-wrap table {
+        background: #121f33;
+        color: #e8eef8;
+      }
+
+      body.theme-dark .table-wrap th {
+        border-color: #415674;
+        background: #1b2d48;
+        color: #f4f8ff;
+      }
+
+      body.theme-dark .table-wrap td {
+        border-color: #354a68;
+        background: #132138;
+        color: #dce7f7;
+      }
+
+      body.theme-dark .table-wrap tbody tr:nth-child(even) td {
+        background: #111e32;
+      }
+
+      body.theme-dark .table-wrap input,
+      body.theme-dark .table-wrap select {
+        background: #0d192b;
+        border-color: #40597c;
+        color: #f2f6fc;
+      }
+
+      body.theme-dark .table-wrap input:focus,
+      body.theme-dark .table-wrap select:focus {
+        border-color: #67a4ff;
+        box-shadow: 0 0 0 2px rgba(72, 142, 245, 0.2);
+        outline: none;
+      }
+
+      body.theme-dark .table-wrap .schedule-rate-output {
+        border-color: #405675;
+        background: #192a44;
+        color: #f4f8ff;
+      }
+
       body.theme-dark .open-arrow-btn,
       body.theme-dark .icon-button,
       body.theme-dark .back-icon-btn,
@@ -4079,6 +4125,22 @@
         overflow-wrap: anywhere;
       }
 
+      .employee-contact-row.missing .employee-contact-value {
+        color: #d54848;
+        font-weight: 850;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      .employee-contact-row.missing .employee-contact-link {
+        cursor: default;
+      }
+
+      .employee-contact-copy-placeholder {
+        width: 24px;
+        height: 24px;
+      }
+
       a.employee-contact-link:hover,
       a.employee-contact-link:focus-visible,
       .employee-contact-copy-btn:hover,
@@ -4498,6 +4560,10 @@
 
       body.theme-dark .employee-contact-value {
         color: #aebed4;
+      }
+
+      body.theme-dark .employee-contact-row.missing .employee-contact-value {
+        color: #ff7777;
       }
 
       #employeePanel input[type="text"],
@@ -8809,6 +8875,18 @@
         return `<span class="badge ${escapeHtml(value)}">${escapeHtml(label)}</span>`;
       }
 
+      function missingEmployeeContact(label) {
+        return `
+          <div class="employee-contact-row missing">
+            <div class="employee-contact-link employee-contact-item">
+              <span class="employee-contact-label">${escapeHtml(label)}</span>
+              <span class="employee-contact-value">Заполнить</span>
+            </div>
+            <span class="employee-contact-copy-placeholder" aria-hidden="true"></span>
+          </div>
+        `;
+      }
+
       function positionOptionsHtml(selected = "manager") {
         return `
           <option value="owner" ${selected === "owner" ? "selected" : ""}>Владелец</option>
@@ -8996,7 +9074,7 @@
                                   <img src="/icons/copy.png" alt="Скопировать" />
                                 </button>
                               </div>`
-                            : ""}
+                            : missingEmployeeContact("Почта")}
                           ${emp.phone
                             ? `<div class="employee-contact-row">
                                 <div class="employee-contact-link employee-contact-item">
@@ -9014,12 +9092,12 @@
                                   <img src="/icons/copy.png" alt="Скопировать" />
                                 </button>
                               </div>`
-                            : ""}
+                            : missingEmployeeContact("Телефон")}
                           ${(() => {
                             const raw = String(emp.telegramContact || "").trim();
-                            if (!raw) return "";
+                            if (!raw) return missingEmployeeContact("TG");
                             const clean = raw.replace(/^@/, "");
-                            if (!clean) return "";
+                            if (!clean) return missingEmployeeContact("TG");
                             const href = /^\d+$/.test(clean)
                               ? `tg://user?id=${clean}`
                               : `https://t.me/${encodeURIComponent(clean)}`;
@@ -9043,7 +9121,7 @@
                           })()}
                           ${(() => {
                             const raw = String(emp.vkContact || "").trim();
-                            if (!raw) return "";
+                            if (!raw) return missingEmployeeContact("VK");
                             const canonical = normalizeVkContact(raw);
                             const href = /^https?:\/\//i.test(canonical) ? canonical : `https://${canonical}`;
                             return `<div class="employee-contact-row">
