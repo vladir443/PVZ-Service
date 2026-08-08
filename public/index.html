@@ -1588,6 +1588,14 @@
         gap: 4px;
       }
 
+      .personal-finance-item-eyebrow {
+        color: #2466b6;
+        font-size: 10px;
+        font-weight: 850;
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+      }
+
       .personal-finance-item-title {
         font-size: 14px;
         font-weight: 800;
@@ -1598,6 +1606,20 @@
         color: var(--muted);
         font-size: 12px;
         line-height: 1.35;
+      }
+
+      .personal-finance-item-reason {
+        margin-top: 3px;
+        padding: 7px 9px;
+        border-radius: 9px;
+        background: #eef5ff;
+        color: #263f62;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .personal-finance-item-reason strong {
+        color: #1858a8;
       }
 
       .personal-finance-item-amount {
@@ -1623,6 +1645,72 @@
       body.theme-dark .personal-finance-details {
         background: #101c30;
         border-top-color: #2a3d59;
+      }
+
+      body.theme-dark .personal-finance-item-eyebrow,
+      body.theme-dark .personal-finance-item-reason strong {
+        color: #78b2ff;
+      }
+
+      body.theme-dark .personal-finance-item-reason {
+        background: #10233d;
+        color: #dce9fb;
+      }
+
+      .personal-finance-photo-button {
+        padding: 0;
+        border: 0;
+        cursor: zoom-in;
+      }
+
+      .personal-finance-photo-viewer {
+        position: fixed;
+        inset: 0;
+        z-index: 3200;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        background: rgba(7, 16, 30, 0.72);
+        backdrop-filter: blur(10px);
+      }
+
+      .personal-finance-photo-viewer.hidden {
+        display: none;
+      }
+
+      .personal-finance-photo-viewer-card {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: min(900px, 100%);
+        max-height: calc(100dvh - 40px);
+        padding: 48px 16px 16px;
+        border-radius: 18px;
+        background: var(--card);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      }
+
+      .personal-finance-photo-viewer-card > img {
+        display: block;
+        max-width: 100%;
+        max-height: calc(100dvh - 104px);
+        border-radius: 12px;
+        object-fit: contain;
+      }
+
+      .personal-finance-photo-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--card);
+        color: var(--text);
+        font-size: 24px;
+        line-height: 1;
+        cursor: pointer;
       }
 
       body.theme-dark .personal-finance-chevron {
@@ -7359,13 +7447,39 @@
           </div>
           <p id="myFinanceStatus" class="status mt12">Загрузка...</p>
           <div id="myFinanceContent"></div>
+          <div id="myFinancePhotoViewer" class="personal-finance-photo-viewer hidden" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
+            <div class="personal-finance-photo-viewer-card">
+              <button id="closeMyFinancePhotoViewer" class="personal-finance-photo-close" type="button" aria-label="Закрыть">×</button>
+              <img id="myFinancePhotoViewerImage" alt="Фото подтверждения" />
+            </div>
+          </div>
         `;
 
         const monthButton = document.getElementById("myFinanceMonthBtn");
         const status = document.getElementById("myFinanceStatus");
         const content = document.getElementById("myFinanceContent");
+        const photoViewer = document.getElementById("myFinancePhotoViewer");
+        const photoViewerImage = document.getElementById("myFinancePhotoViewerImage");
+        const closePhotoViewerButton = document.getElementById("closeMyFinancePhotoViewer");
         let cachedFinanceData = null;
         monthButton.textContent = formatMonthYear(selectedMonth);
+
+        const closeFinancePhotoViewer = () => {
+          photoViewer.classList.add("hidden");
+          photoViewerImage.removeAttribute("src");
+        };
+        content.addEventListener("click", (event) => {
+          const photoButton = event.target.closest("[data-my-finance-photo]");
+          if (!photoButton) return;
+          const photoUrl = String(photoButton.dataset.myFinancePhoto || "");
+          if (!photoUrl.startsWith("/api/schedule/attachments/")) return;
+          photoViewerImage.src = photoUrl;
+          photoViewer.classList.remove("hidden");
+        });
+        closePhotoViewerButton.addEventListener("click", closeFinancePhotoViewer);
+        photoViewer.addEventListener("click", (event) => {
+          if (event.target === photoViewer) closeFinancePhotoViewer();
+        });
 
         const displayPaidAt = (value) => {
           if (!value) return "";
@@ -7387,23 +7501,40 @@
           if (!shift.workStart || !shift.workEnd) return duration;
           return `${escapeHtml(shift.workStart)}–${escapeHtml(shift.workEnd)} · ${duration}`;
         };
-        const financeItemHtml = ({ title, meta, amount, amountClass = "", attachmentIds = [] }) => `
+        const financeItemHtml = ({
+          title,
+          meta,
+          eyebrow = "",
+          reasonDetail = "",
+          amount,
+          amountClass = "",
+          attachmentIds = []
+        }) => `
           <div class="personal-finance-item">
             <div class="personal-finance-item-main">
+              ${eyebrow ? `<div class="personal-finance-item-eyebrow">${escapeHtml(eyebrow)}</div>` : ""}
               <div class="personal-finance-item-title">${title}</div>
               <div class="personal-finance-item-meta">${meta}</div>
+              ${
+                reasonDetail
+                  ? `<div class="personal-finance-item-reason"><strong>Причина:</strong> ${escapeHtml(reasonDetail)}</div>`
+                  : ""
+              }
               ${
                 attachmentIds.length
                   ? `<div class="adjust-photo-list">${attachmentIds
                       .map(
                         (id) => `
-                          <a class="adjust-photo" href="/api/schedule/attachments/${escapeHtml(
-                            id
-                          )}" target="_blank" rel="noopener noreferrer">
+                          <button
+                            class="adjust-photo personal-finance-photo-button"
+                            type="button"
+                            data-my-finance-photo="/api/schedule/attachments/${escapeHtml(id)}"
+                            aria-label="Открыть фото подтверждения"
+                          >
                             <img src="/api/schedule/attachments/${escapeHtml(
                               id
                             )}" alt="Фото подтверждения" loading="lazy" />
-                          </a>
+                          </button>
                         `
                       )
                       .join("")}</div>`
@@ -7467,10 +7598,10 @@
               )
               .map(({ shift, item }) =>
                 financeItemHtml({
-                  title: `Причина удержания: ${escapeHtml(item.reason || "Не указана")}`,
-                  meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(
-                    shift.locationTitle
-                  )}${item.description ? ` · Описание: ${escapeHtml(item.description)}` : ""}`,
+                  eyebrow: "Причина удержания",
+                  title: escapeHtml(item.reason || "Не указана"),
+                  meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(shift.locationTitle)}`,
+                  reasonDetail: item.description || "",
                   amount: `−${formatMoneyUnsigned(item.amount)}`,
                   amountClass: "negative",
                   attachmentIds: Array.isArray(item.attachmentIds) ? item.attachmentIds : []
@@ -7481,10 +7612,10 @@
               .flatMap((shift) => (shift.bonusItems || []).map((item) => ({ shift, item })))
               .map(({ shift, item }) =>
                 financeItemHtml({
-                  title: `Причина доплаты: ${escapeHtml(item.reason || "Не указана")}`,
-                  meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(
-                    shift.locationTitle
-                  )}${item.description ? ` · Описание: ${escapeHtml(item.description)}` : ""}`,
+                  eyebrow: "Причина доплаты",
+                  title: escapeHtml(item.reason || "Не указана"),
+                  meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(shift.locationTitle)}`,
+                  reasonDetail: item.description || "",
                   amount: `+${formatMoneyUnsigned(item.amount)}`,
                   amountClass: "positive",
                   attachmentIds: Array.isArray(item.attachmentIds) ? item.attachmentIds : []
