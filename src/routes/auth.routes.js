@@ -2,9 +2,9 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth, requireAuthAllowUnverifiedPin } from "../middleware/auth.js";
 import {
-  authIdFromPhone,
+  authIdFromEmail,
+  createEmailLoginCode,
   createPersonalDataConsent,
-  createPhoneLoginCode,
   createUserSession,
   bindEmployeeTelegramId,
   createUser,
@@ -16,13 +16,14 @@ import {
   isCoreAdminUsername,
   logAuditEvent,
   linkPersonalDataConsentToAuthSession,
+  migratePhoneUserToEmail,
   revokeSession,
   syncEmployeeTelegramProfile,
   updateUserReminderSettings,
   updateEmployeeAvatarById,
   updateUserProfile,
   updateUserRole,
-  verifyPhoneLoginCode
+  verifyEmailLoginCode
 } from "../db.js";
 import { getAdminTelegramIds, Role } from "../lib/roles.js";
 import {
@@ -30,13 +31,13 @@ import {
   PERSONAL_DATA_CONSENT_VERSION
 } from "../lib/privacy-consent.js";
 import { clearAuthCookies, setAuthCookies } from "../lib/auth-cookies.js";
-import { sendSmsCode } from "../services/sms.js";
+import { sendEmailCode } from "../services/email.js";
 
 const router = express.Router();
 
 const loginSchema = z.object({
-  phone: z.string().min(1).max(40).optional().default(""),
-  smsCode: z.string().max(10).optional().default(""),
+  email: z.string().email().max(254).optional().default(""),
+  emailCode: z.string().max(10).optional().default(""),
   telegramId: z.string().max(64).optional().default(""),
   fullName: z.string().max(120).optional().default(""),
   username: z.string().max(64).optional().default(""),
@@ -47,51 +48,51 @@ const loginSchema = z.object({
 });
 
 const requestCodeSchema = z.object({
-  phone: z.string().min(1).max(40),
+  email: z.string().email().max(254),
   consentAccepted: z.boolean().optional().default(false),
   consentVersion: z.string().max(80).optional().default(""),
   deviceName: z.string().max(120).optional().default(""),
   platform: z.string().max(60).optional().default("")
 });
 
-const smsRequestBuckets = new Map();
-const SMS_REQUEST_WINDOW_MS = 15 * 60 * 1000;
-const SMS_REQUEST_COOLDOWN_MS = 60 * 1000;
+const codeRequestBuckets = new Map();
+const CODE_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+const CODE_REQUEST_COOLDOWN_MS = 60 * 1000;
 
 function normalizeRateLimitPart(value) {
   return String(value || "").replace(/[^\dA-Za-z:._-]/g, "").slice(0, 120);
 }
 
-function reserveSmsRequest({ phone, ipAddress }) {
+function reserveCodeRequest({ email, ipAddress }) {
   const now = Date.now();
-  const phoneKey = `phone:${normalizeRateLimitPart(phone)}`;
+  const emailKey = `email:${normalizeRateLimitPart(email)}`;
   const ipKey = `ip:${normalizeRateLimitPart(ipAddress)}`;
   const checks = [
-    { key: phoneKey, max: 5 },
+    { key: emailKey, max: 5 },
     { key: ipKey, max: 12 }
   ].filter((item) => item.key.split(":")[1]);
 
   for (const { key, max } of checks) {
-    const recent = (smsRequestBuckets.get(key) || []).filter(
-      (timestamp) => now - timestamp < SMS_REQUEST_WINDOW_MS
+    const recent = (codeRequestBuckets.get(key) || []).filter(
+      (timestamp) => now - timestamp < CODE_REQUEST_WINDOW_MS
     );
-    smsRequestBuckets.set(key, recent);
+    codeRequestBuckets.set(key, recent);
     const lastRequestAt = recent.at(-1) || 0;
-    if (now - lastRequestAt < SMS_REQUEST_COOLDOWN_MS) {
-      return { ok: false, retryAfterSeconds: Math.ceil((SMS_REQUEST_COOLDOWN_MS - (now - lastRequestAt)) / 1000) };
+    if (now - lastRequestAt < CODE_REQUEST_COOLDOWN_MS) {
+      return { ok: false, retryAfterSeconds: Math.ceil((CODE_REQUEST_COOLDOWN_MS - (now - lastRequestAt)) / 1000) };
     }
     if (recent.length >= max) {
-      return { ok: false, retryAfterSeconds: Math.ceil((SMS_REQUEST_WINDOW_MS - (now - recent[0])) / 1000) };
+      return { ok: false, retryAfterSeconds: Math.ceil((CODE_REQUEST_WINDOW_MS - (now - recent[0])) / 1000) };
     }
   }
 
   for (const { key } of checks) {
-    smsRequestBuckets.set(key, [...(smsRequestBuckets.get(key) || []), now]);
+    codeRequestBuckets.set(key, [...(codeRequestBuckets.get(key) || []), now]);
   }
-  if (smsRequestBuckets.size > 2000) {
-    for (const [key, timestamps] of smsRequestBuckets) {
-      if (!timestamps.some((timestamp) => now - timestamp < SMS_REQUEST_WINDOW_MS)) {
-        smsRequestBuckets.delete(key);
+  if (codeRequestBuckets.size > 2000) {
+    for (const [key, timestamps] of codeRequestBuckets) {
+      if (!timestamps.some((timestamp) => now - timestamp < CODE_REQUEST_WINDOW_MS)) {
+        codeRequestBuckets.delete(key);
       }
     }
   }
@@ -120,28 +121,29 @@ router.post("/request-code", async (req, res, next) => {
       });
     }
 
-    const employee = getEmployeeByAuth({ phone: parsed.data.phone, telegramId: "", username: "" });
+    const email = parsed.data.email.trim().toLowerCase();
+    const employee = getEmployeeByAuth({ email, telegramId: "", username: "" });
     if (!employee) {
       return res.status(403).json({
         error: "Forbidden",
-        message: "Доступ закрыт: этот номер не найден в базе сотрудников"
+        message: "Доступ закрыт: эта почта не найдена в базе сотрудников"
       });
     }
 
-    const smsReservation = reserveSmsRequest({
-      phone: parsed.data.phone,
+    const codeReservation = reserveCodeRequest({
+      email,
       ipAddress: req.ip || ""
     });
-    if (!smsReservation.ok) {
-      res.setHeader("Retry-After", String(smsReservation.retryAfterSeconds));
+    if (!codeReservation.ok) {
+      res.setHeader("Retry-After", String(codeReservation.retryAfterSeconds));
       return res.status(429).json({
         error: "TooManyRequests",
-        message: `Новый код можно запросить через ${smsReservation.retryAfterSeconds} сек.`
+        message: `Новый код можно запросить через ${codeReservation.retryAfterSeconds} сек.`
       });
     }
 
     const consent = createPersonalDataConsent({
-      phone: parsed.data.phone,
+      email,
       documentVersion: PERSONAL_DATA_CONSENT_VERSION,
       ipAddress: req.ip || "",
       userAgent: req.headers["user-agent"] || "",
@@ -151,37 +153,33 @@ router.post("/request-code", async (req, res, next) => {
     if (!consent) {
       return res.status(400).json({
         error: "ValidationError",
-        message: "Не удалось зафиксировать согласие. Проверьте номер телефона"
+        message: "Не удалось зафиксировать согласие. Проверьте адрес электронной почты"
       });
     }
 
-    const codeResult = createPhoneLoginCode({ phone: parsed.data.phone });
+    const codeResult = createEmailLoginCode({ email });
     if (!codeResult.ok) {
       return res.status(400).json({
         error: "ValidationError",
-        message: "Некорректный номер телефона"
+        message: "Некорректный адрес электронной почты"
       });
     }
 
-    let smsResult;
+    let deliveryResult;
     try {
-      smsResult = await sendSmsCode({
-        phone: employee.phone || parsed.data.phone,
-        code: codeResult.code,
-        ipAddress: req.ip || ""
-      });
+      deliveryResult = await sendEmailCode({ email: employee.email || email, code: codeResult.code });
     } catch (error) {
-      console.error("[sms] delivery failed:", error?.message || error);
+      console.error("[email] delivery failed:", error?.message || error);
       return res.status(502).json({
-        error: "SmsDeliveryFailed",
-        message: "Не удалось отправить SMS. Попробуйте ещё раз через минуту"
+        error: "EmailDeliveryFailed",
+        message: "Не удалось отправить письмо. Проверьте настройки почты или попробуйте через минуту"
       });
     }
 
     return res.json({
       ok: true,
       expiresAt: codeResult.record?.expiresAt || "",
-      devCode: smsResult.devCode || "",
+      devCode: deliveryResult.devCode || "",
       consentSessionId: consent.consentSessionId,
       consentVersion: consent.documentVersion
     });
@@ -202,51 +200,51 @@ router.post("/login", async (req, res, next) => {
     }
 
     const {
-      phone,
-      smsCode,
+      email,
+      emailCode,
       username,
       photoUrl,
       deviceName,
       platform,
       consentSessionId
     } = parsed.data;
-    const phoneAuthId = authIdFromPhone(phone);
-    const telegramId = phoneAuthId || String(parsed.data.telegramId || "").trim();
+    const emailAuthId = authIdFromEmail(email);
+    const telegramId = emailAuthId || String(parsed.data.telegramId || "").trim();
 
     if (!telegramId) {
       return res.status(400).json({
         error: "ValidationError",
-        message: "Введите номер телефона"
+        message: "Введите адрес электронной почты"
       });
     }
 
-    if (phoneAuthId) {
+    if (emailAuthId) {
       const consent = getPersonalDataConsent({
-        phone,
+        email,
         consentSessionId,
         documentVersion: PERSONAL_DATA_CONSENT_VERSION
       });
       if (!consent) {
         return res.status(400).json({
           error: "ConsentRequired",
-          message: "Согласие не найдено. Запросите новый SMS-код",
+          message: "Согласие не найдено. Запросите новый код на почту",
           consentVersion: PERSONAL_DATA_CONSENT_VERSION,
           consentUrl: PERSONAL_DATA_CONSENT_PATH
         });
       }
 
-      const codeResult = verifyPhoneLoginCode({ phone, code: smsCode });
+      const codeResult = verifyEmailLoginCode({ email, code: emailCode });
       if (!codeResult.ok) {
         return res.status(401).json({
-          error: "InvalidSmsCode",
+          error: "InvalidEmailCode",
           message: codeResult.reason === "expired"
             ? "Код истек. Запросите новый код"
-            : "Неверный SMS-код"
+            : "Неверный код из письма"
         });
       }
     }
 
-    const employee = getEmployeeByAuth({ telegramId, username, phone });
+    const employee = getEmployeeByAuth({ telegramId, username, email });
     if (!employee) {
       logAuditEvent({
         scope: "SYSTEM",
@@ -262,11 +260,11 @@ router.post("/login", async (req, res, next) => {
       });
       return res.status(403).json({
         error: "Forbidden",
-        message: "Доступ закрыт: этот номер не найден в базе сотрудников"
+        message: "Доступ закрыт: эта почта не найдена в базе сотрудников"
       });
     }
 
-    if (!phoneAuthId) {
+    if (!emailAuthId) {
       bindEmployeeTelegramId({ telegramId, username });
       syncEmployeeTelegramProfile({ telegramId, username, photoUrl });
     }
@@ -274,11 +272,14 @@ router.post("/login", async (req, res, next) => {
     const adminIds = getAdminTelegramIds();
     const isProtectedOwner =
       employee.isProtected &&
-      (phoneAuthId || String(employee.telegramId || "").trim() === String(telegramId || "").trim());
+      (emailAuthId || String(employee.telegramId || "").trim() === String(telegramId || "").trim());
     const isSuperAdmin = isCoreAdminUsername(username) || isProtectedOwner;
     const shouldBeAdmin =
       isSuperAdmin || adminIds.has(telegramId) || employee.accessRole === Role.ADMIN;
 
+    if (emailAuthId) {
+      migratePhoneUserToEmail({ phone: employee.phone, email: employee.email || email });
+    }
     const existingUser = getUserByTelegramId(telegramId);
     const fullName = String(parsed.data.fullName || "").trim() || employee.fullName;
 
@@ -316,7 +317,7 @@ router.post("/login", async (req, res, next) => {
       userAgent: req.headers["user-agent"] || "",
       ipAddress: req.ip || ""
     });
-    if (phoneAuthId && session?.session_id) {
+    if (emailAuthId && session?.session_id) {
       linkPersonalDataConsentToAuthSession({
         consentSessionId,
         authSessionId: session.session_id

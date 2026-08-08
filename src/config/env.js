@@ -17,11 +17,12 @@ const envSchema = z.object({
     .url()
     .default("https://pvz-group-fildy11.amvera.io"),
   ADMIN_TELEGRAM_IDS: z.string().default(""),
-  SMS_RU_API_ID: z.string().default(""),
-  SMS_RU_FROM: z.string().default(""),
-  SMS_RU_TEST_MODE: z.string().default("false"),
-  SMS_WEBHOOK_URL: z.string().default(""),
-  SMS_WEBHOOK_TOKEN: z.string().default("")
+  SMTP_HOST: z.string().default("smtp.yandex.ru"),
+  SMTP_PORT: z.coerce.number().int().positive().default(465),
+  SMTP_SECURE: z.string().default("true"),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASSWORD: z.string().default(""),
+  SMTP_FROM: z.string().default("")
 });
 
 const parsed = envSchema.safeParse(process.env);

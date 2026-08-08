@@ -48,9 +48,13 @@ async function authBase(req, res, next, { allowUnverifiedPin = false } = {}) {
     const phone = telegramId.startsWith("phone:")
       ? telegramId.slice("phone:".length)
       : "";
+    const email = telegramId.startsWith("email:")
+      ? telegramId.slice("email:".length)
+      : "";
     const employee = getEmployeeByAuth({
+      email,
       phone,
-      telegramId: phone ? "" : telegramId,
+      telegramId: phone || email ? "" : telegramId,
       username: ""
     });
     if (!employee) {

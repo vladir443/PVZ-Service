@@ -97,6 +97,7 @@ db.exec(`
     last_name TEXT NOT NULL DEFAULT '',
     telegram_id TEXT NOT NULL DEFAULT '',
     avatar_url TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL DEFAULT '',
     telegram_contact TEXT NOT NULL DEFAULT '',
     vk_contact TEXT NOT NULL DEFAULT '',
@@ -211,9 +212,26 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS email_login_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    code_salt TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_email_login_codes_email
+    ON email_login_codes(email, created_at);
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS personal_data_consents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     phone_digits TEXT NOT NULL,
+    email TEXT NOT NULL DEFAULT '',
     document_version TEXT NOT NULL,
     accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
     ip_address TEXT NOT NULL DEFAULT '',
@@ -286,6 +304,17 @@ if (!hasColumn("employees", "last_name")) {
 if (!hasColumn("employees", "phone")) {
   db.exec("ALTER TABLE employees ADD COLUMN phone TEXT NOT NULL DEFAULT '';");
 }
+if (!hasColumn("employees", "email")) {
+  db.exec("ALTER TABLE employees ADD COLUMN email TEXT NOT NULL DEFAULT '';");
+}
+if (!hasColumn("personal_data_consents", "email")) {
+  db.exec("ALTER TABLE personal_data_consents ADD COLUMN email TEXT NOT NULL DEFAULT '';");
+}
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_email_unique
+  ON employees(lower(email))
+  WHERE email <> '';
+`);
 if (!hasColumn("employees", "telegram_id")) {
   db.exec("ALTER TABLE employees ADD COLUMN telegram_id TEXT NOT NULL DEFAULT '';");
 }
@@ -384,6 +413,7 @@ const CORE_EMPLOYEE = {
   lastName: "Ставицкий",
   fullName: "Владимир Ставицкий",
   telegramId: "581404942",
+  email: String(env.SMTP_USER || "").trim().toLowerCase(),
   phone: "+7 922 924-24-94",
   telegramContact: "@i1wqq",
   vkContact: "https://vk.ru/volodyast",
@@ -414,11 +444,45 @@ export function authIdFromPhone(phone) {
   return digits ? `phone:${digits}` : "";
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+export function authIdFromEmail(email) {
+  const normalized = normalizeEmail(email);
+  return normalized ? `email:${normalized}` : "";
+}
+
+export function migratePhoneUserToEmail({ phone, email, previousEmail = "" }) {
+  const previousEmailAuthId = authIdFromEmail(previousEmail);
+  const phoneAuthId = authIdFromPhone(phone);
+  const emailAuthId = authIdFromEmail(email);
+  if (!emailAuthId) return { changed: false, authId: "" };
+
+  const oldUser = [previousEmailAuthId, phoneAuthId]
+    .filter(Boolean)
+    .map((authId) => db.prepare("SELECT id, telegram_id FROM users WHERE telegram_id = ?").get(authId))
+    .find(Boolean);
+  const emailUser = db.prepare("SELECT id FROM users WHERE telegram_id = ?").get(emailAuthId);
+  if (!oldUser || (emailUser && emailUser.id !== oldUser.id)) {
+    return { changed: false, authId: emailAuthId };
+  }
+  if (oldUser.telegram_id === emailAuthId) {
+    return { changed: false, authId: emailAuthId };
+  }
+
+  db.transaction(() => {
+    db.prepare("UPDATE users SET telegram_id = ? WHERE id = ?").run(emailAuthId, oldUser.id);
+    db.prepare("UPDATE user_sessions SET telegram_id = ? WHERE user_id = ?").run(emailAuthId, oldUser.id);
+  })();
+  return { changed: true, authId: emailAuthId, userId: oldUser.id };
+}
+
 function ensureCoreEmployee() {
   const existing = db
     .prepare(
       `
-      SELECT id, telegram_id
+      SELECT id, telegram_id, email
       FROM employees
       WHERE is_protected = 1
          OR lower(telegram_contact) = lower(?)
@@ -438,6 +502,7 @@ function ensureCoreEmployee() {
         first_name = ?,
         last_name = ?,
         telegram_id = ?,
+        email = CASE WHEN email = '' THEN ? ELSE email END,
         phone = ?,
         telegram_contact = ?,
         vk_contact = ?,
@@ -452,6 +517,7 @@ function ensureCoreEmployee() {
       CORE_EMPLOYEE.firstName,
       CORE_EMPLOYEE.lastName,
       existing.telegram_id || CORE_EMPLOYEE.telegramId,
+      CORE_EMPLOYEE.email,
       CORE_EMPLOYEE.phone,
       CORE_EMPLOYEE.telegramContact,
       CORE_EMPLOYEE.vkContact,
@@ -464,14 +530,15 @@ function ensureCoreEmployee() {
   db.prepare(
     `
     INSERT INTO employees (
-      full_name, first_name, last_name, telegram_id, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reliable', 'ADMIN', 1)
+      full_name, first_name, last_name, telegram_id, email, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'reliable', 'ADMIN', 1)
     `
   ).run(
     CORE_EMPLOYEE.fullName,
     CORE_EMPLOYEE.firstName,
     CORE_EMPLOYEE.lastName,
     CORE_EMPLOYEE.telegramId,
+    CORE_EMPLOYEE.email,
     CORE_EMPLOYEE.phone,
     CORE_EMPLOYEE.telegramContact,
     CORE_EMPLOYEE.vkContact,
@@ -1667,7 +1734,7 @@ export function listEmployees() {
   return db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, phone, telegram_contact, vk_contact, position, reliability, created_at
+      SELECT id, full_name, first_name, last_name, email, phone, telegram_contact, vk_contact, position, reliability, created_at
            , telegram_id, access_role, is_protected
            , avatar_url
       FROM employees
@@ -1682,6 +1749,7 @@ export function listEmployees() {
       lastName: row.last_name,
       telegramId: row.telegram_id,
       avatarUrl: row.avatar_url,
+      email: row.email,
       phone: row.phone,
       telegramContact: row.telegram_contact,
       vkContact: row.vk_contact,
@@ -1747,6 +1815,7 @@ export function createEmployee({
   lastName,
   telegramId = "",
   avatarUrl = "",
+  email,
   phone,
   telegramContact,
   vkContact,
@@ -1759,8 +1828,8 @@ export function createEmployee({
     .prepare(
       `
       INSERT INTO employees (
-        full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        full_name, first_name, last_name, telegram_id, avatar_url, email, phone, telegram_contact, vk_contact, position, reliability, access_role
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
@@ -1769,6 +1838,7 @@ export function createEmployee({
       lastName.trim(),
       telegramId.trim(),
       avatarUrl.trim(),
+      normalizeEmail(email),
       phone.trim(),
       telegramContact.trim(),
       normalizeVkContactValue(vkContact),
@@ -1780,7 +1850,7 @@ export function createEmployee({
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, email, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE id = ?
       `
@@ -1794,6 +1864,7 @@ export function createEmployee({
     lastName: row.last_name,
     telegramId: row.telegram_id,
     avatarUrl: row.avatar_url,
+    email: row.email,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
@@ -1834,6 +1905,7 @@ export function updateEmployeeById({
   lastName,
   telegramId = "",
   avatarUrl = "",
+  email,
   phone,
   telegramContact,
   vkContact,
@@ -1866,6 +1938,7 @@ export function updateEmployeeById({
         last_name = ?,
         telegram_id = ?,
         avatar_url = ?,
+        email = ?,
         phone = ?,
         telegram_contact = ?,
         vk_contact = ?,
@@ -1881,6 +1954,7 @@ export function updateEmployeeById({
       lastName.trim(),
       telegramId.trim(),
       avatarUrl.trim(),
+      normalizeEmail(email),
       phone.trim(),
       telegramContact.trim(),
       normalizeVkContactValue(vkContact),
@@ -1897,7 +1971,7 @@ export function updateEmployeeById({
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, email, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE id = ?
       `
@@ -1913,6 +1987,7 @@ export function updateEmployeeById({
       lastName: row.last_name,
       telegramId: row.telegram_id,
       avatarUrl: row.avatar_url,
+      email: row.email,
       phone: row.phone,
       telegramContact: row.telegram_contact,
       vkContact: row.vk_contact,
@@ -2150,21 +2225,25 @@ export function insertShiftReminderLog({
 
 export function getEmployeeByTelegramId(telegramId) {
   const safeTelegramId = String(telegramId || "").trim();
+  const email = safeTelegramId.startsWith("email:")
+    ? normalizeEmail(safeTelegramId.slice("email:".length))
+    : "";
   const phoneDigits = safeTelegramId.startsWith("phone:")
     ? normalizePhoneDigits(safeTelegramId.slice("phone:".length))
     : "";
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, email, phone, telegram_contact, vk_contact, position, reliability, is_protected, created_at
            , access_role
       FROM employees
       WHERE telegram_id = ?
+         OR (? <> '' AND lower(email) = ?)
          OR (? <> '' AND replace(replace(replace(replace(replace(phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = ?)
       LIMIT 1
       `
     )
-    .get(safeTelegramId, phoneDigits, phoneDigits);
+    .get(safeTelegramId, email, email, phoneDigits, phoneDigits);
 
   if (!row) return null;
   return {
@@ -2174,6 +2253,7 @@ export function getEmployeeByTelegramId(telegramId) {
     lastName: row.last_name,
     telegramId: row.telegram_id,
     avatarUrl: row.avatar_url,
+    email: row.email,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
@@ -2193,7 +2273,7 @@ export function getEmployeeByPhone(phone) {
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, email, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE replace(replace(replace(replace(replace(phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = ?
       LIMIT 1
@@ -2209,6 +2289,7 @@ export function getEmployeeByPhone(phone) {
     lastName: row.last_name,
     telegramId: row.telegram_id,
     avatarUrl: row.avatar_url,
+    email: row.email,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
@@ -2222,7 +2303,40 @@ export function getEmployeeByPhone(phone) {
   };
 }
 
-export function getEmployeeByAuth({ telegramId, username, phone = "" }) {
+export function getEmployeeByEmail(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  const row = db.prepare(`
+    SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, email, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+    FROM employees
+    WHERE lower(email) = ?
+    LIMIT 1
+  `).get(normalized);
+  if (!row) return null;
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    telegramId: row.telegram_id,
+    avatarUrl: row.avatar_url,
+    email: row.email,
+    phone: row.phone,
+    telegramContact: row.telegram_contact,
+    vkContact: row.vk_contact,
+    position: row.position,
+    reliability: row.reliability,
+    accessRole: fromDbRole(row.access_role, row.is_protected === 1),
+    isProtected: row.is_protected === 1,
+    locationCodes: getEmployeeLocationCodes(row.id),
+    locations: getEmployeeLocations(row.id),
+    createdAt: row.created_at
+  };
+}
+
+export function getEmployeeByAuth({ telegramId, username, phone = "", email = "" }) {
+  const safeEmail = normalizeEmail(email);
+  if (safeEmail) return getEmployeeByEmail(safeEmail);
   const safePhone = String(phone || "").trim();
   if (safePhone) {
     return getEmployeeByPhone(safePhone);
@@ -2235,7 +2349,7 @@ export function getEmployeeByAuth({ telegramId, username, phone = "" }) {
   const row = db
     .prepare(
       `
-      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
+      SELECT id, full_name, first_name, last_name, telegram_id, avatar_url, email, phone, telegram_contact, vk_contact, position, reliability, access_role, is_protected, created_at
       FROM employees
       WHERE (? <> '' AND telegram_id = ?)
          OR (? <> '' AND lower(replace(telegram_contact, '@', '')) = ?)
@@ -2259,6 +2373,7 @@ export function getEmployeeByAuth({ telegramId, username, phone = "" }) {
     lastName: row.last_name,
     telegramId: row.telegram_id,
     avatarUrl: row.avatar_url,
+    email: row.email,
     phone: row.phone,
     telegramContact: row.telegram_contact,
     vkContact: row.vk_contact,
@@ -2378,11 +2493,45 @@ export function createPhoneLoginCode({ phone, ttlMinutes = 10 }) {
   return { ok: true, code, record: mapPhoneLoginCodeRow(row) };
 }
 
+export function createEmailLoginCode({ email, ttlMinutes = 10 }) {
+  const normalized = normalizeEmail(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    return { ok: false, reason: "invalid_email" };
+  }
+
+  db.prepare(`
+    UPDATE email_login_codes
+    SET consumed_at = datetime('now')
+    WHERE email = ? AND consumed_at = ''
+  `).run(normalized);
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = createSmsCodeHash(code, salt);
+  const safeTtl = Math.max(1, Math.min(30, Number(ttlMinutes) || 10));
+  const expiresAt = new Date(Date.now() + safeTtl * 60 * 1000).toISOString();
+  const result = db.prepare(`
+    INSERT INTO email_login_codes (email, code_hash, code_salt, expires_at)
+    VALUES (?, ?, ?, ?)
+  `).run(normalized, hash, salt, expiresAt);
+
+  return {
+    ok: true,
+    code,
+    record: {
+      id: result.lastInsertRowid,
+      email: normalized,
+      expiresAt
+    }
+  };
+}
+
 function mapPersonalDataConsentRow(row) {
   if (!row) return null;
   return {
     id: row.id,
     phoneDigits: row.phone_digits,
+    email: row.email,
     documentVersion: row.document_version,
     acceptedAt: row.accepted_at,
     ipAddress: row.ip_address,
@@ -2396,6 +2545,7 @@ function mapPersonalDataConsentRow(row) {
 
 export function createPersonalDataConsent({
   phone,
+  email = "",
   documentVersion,
   ipAddress = "",
   userAgent = "",
@@ -2403,8 +2553,9 @@ export function createPersonalDataConsent({
   platform = ""
 }) {
   const phoneDigits = normalizePhoneDigits(phone);
+  const normalizedEmail = normalizeEmail(email);
   const safeVersion = String(documentVersion || "").trim();
-  if (!phoneDigits || !safeVersion) return null;
+  if ((!phoneDigits && !normalizedEmail) || !safeVersion) return null;
 
   const consentSessionId = crypto.randomBytes(24).toString("hex");
   const result = db
@@ -2412,6 +2563,7 @@ export function createPersonalDataConsent({
       `
       INSERT INTO personal_data_consents (
         phone_digits,
+        email,
         document_version,
         ip_address,
         consent_session_id,
@@ -2419,11 +2571,12 @@ export function createPersonalDataConsent({
         device_name,
         platform
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
       phoneDigits,
+      normalizedEmail,
       safeVersion,
       String(ipAddress || ""),
       consentSessionId,
@@ -2445,11 +2598,12 @@ export function createPersonalDataConsent({
   );
 }
 
-export function getPersonalDataConsent({ phone, consentSessionId, documentVersion }) {
+export function getPersonalDataConsent({ phone = "", email = "", consentSessionId, documentVersion }) {
   const phoneDigits = normalizePhoneDigits(phone);
+  const normalizedEmail = normalizeEmail(email);
   const safeConsentSessionId = String(consentSessionId || "").trim();
   const safeVersion = String(documentVersion || "").trim();
-  if (!phoneDigits || !safeConsentSessionId || !safeVersion) return null;
+  if ((!phoneDigits && !normalizedEmail) || !safeConsentSessionId || !safeVersion) return null;
 
   return mapPersonalDataConsentRow(
     db
@@ -2457,13 +2611,13 @@ export function getPersonalDataConsent({ phone, consentSessionId, documentVersio
         `
         SELECT *
         FROM personal_data_consents
-        WHERE phone_digits = ?
+        WHERE ((? <> '' AND phone_digits = ?) OR (? <> '' AND lower(email) = ?))
           AND consent_session_id = ?
           AND document_version = ?
         LIMIT 1
         `
       )
-      .get(phoneDigits, safeConsentSessionId, safeVersion)
+      .get(phoneDigits, phoneDigits, normalizedEmail, normalizedEmail, safeConsentSessionId, safeVersion)
   );
 }
 
@@ -2523,6 +2677,42 @@ export function verifyPhoneLoginCode({ phone, code }) {
 
   db.prepare("UPDATE phone_login_codes SET consumed_at = datetime('now') WHERE id = ?").run(row.id);
   return { ok: true, phoneDigits };
+}
+
+export function verifyEmailLoginCode({ email, code }) {
+  const normalized = normalizeEmail(email);
+  const safeCode = String(code || "").replace(/\D/g, "");
+  if (!normalized || !/^\d{6}$/.test(safeCode)) {
+    return { ok: false, reason: "invalid_code" };
+  }
+
+  const row = db.prepare(`
+    SELECT id, email, code_hash, code_salt, attempts, expires_at, consumed_at
+    FROM email_login_codes
+    WHERE email = ? AND consumed_at = ''
+    ORDER BY id DESC
+    LIMIT 1
+  `).get(normalized);
+
+  if (!row) return { ok: false, reason: "not_found" };
+  if (new Date(row.expires_at).getTime() < Date.now()) return { ok: false, reason: "expired" };
+  if (Number(row.attempts || 0) >= 5) return { ok: false, reason: "too_many_attempts" };
+
+  const incomingHash = createSmsCodeHash(safeCode, row.code_salt);
+  let matched = false;
+  try {
+    matched = crypto.timingSafeEqual(Buffer.from(incomingHash, "hex"), Buffer.from(row.code_hash, "hex"));
+  } catch {
+    matched = false;
+  }
+
+  if (!matched) {
+    db.prepare("UPDATE email_login_codes SET attempts = attempts + 1 WHERE id = ?").run(row.id);
+    return { ok: false, reason: "invalid_code" };
+  }
+
+  db.prepare("UPDATE email_login_codes SET consumed_at = datetime('now') WHERE id = ?").run(row.id);
+  return { ok: true, email: normalized };
 }
 
 function createSessionId() {

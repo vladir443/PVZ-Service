@@ -4881,7 +4881,7 @@
       const SESSION_STORAGE_KEY = "pvz_session_id";
       const AUTH_ID_STORAGE_KEY = "pvz_auth_id";
       const ACTIVE_TAB_STORAGE_KEY = "pvz_active_tab";
-      const PERSONAL_DATA_CONSENT_VERSION = "2026-07-31-v1";
+      const PERSONAL_DATA_CONSENT_VERSION = "2026-08-08-v2";
       const interfaceIconPaths = [
         "/icons/back-arrow.png",
         "/icons/chevron_double_down_icon_143818.png",
@@ -5523,27 +5523,27 @@
         await renderMain(overviewData);
       }
 
-      function renderPhoneLogin() {
+      function renderEmailLogin() {
         clearPinKeyboard();
         setAppTitle("PVZ Group");
         bottomNav.innerHTML = "";
-        let requestedPhone = "";
+        let requestedEmail = "";
         let consentSessionId = "";
         screen.innerHTML = `
           <div class="login-panel">
             <div class="login-card">
               <h2 class="login-title">Вход для сотрудников</h2>
-              <div id="siteLoginSubtitle" class="login-subtitle">Введите номер телефона, который указан в базе сотрудников.</div>
-              <label for="siteLoginPhoneInput">Номер телефона</label>
-              <input id="siteLoginPhoneInput" type="tel" inputmode="numeric" autocomplete="tel" placeholder="+7 922 ***-**-94" />
+              <div id="siteLoginSubtitle" class="login-subtitle">Введите почту, которая указана в базе сотрудников.</div>
+              <label for="siteLoginEmailInput">Электронная почта</label>
+              <input id="siteLoginEmailInput" type="email" inputmode="email" autocomplete="email" placeholder="name@yandex.ru" />
               <div id="siteLoginCodeWrap" class="hidden">
-                <label for="siteLoginCodeInput">SMS-код</label>
+                <label for="siteLoginCodeInput">Код из письма</label>
                 <input id="siteLoginCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр" />
               </div>
               <div id="siteLoginConsentWrap" class="login-consent">
                 <input id="siteLoginConsentInput" class="login-consent-checkbox" type="checkbox" autocomplete="off" />
                 <label class="login-consent-text" for="siteLoginConsentInput">
-                  Я даю согласие на обработку моих персональных данных в целях регистрации, авторизации, защиты аккаунта, подтверждения действий и получения сервисных SMS с кодами подтверждения в соответствии с
+                  Я даю согласие на обработку моих персональных данных в целях регистрации, авторизации, защиты аккаунта, подтверждения действий и получения сервисных писем с кодами подтверждения в соответствии с
                   <a href="/privacy-consent.html" target="_blank" rel="noopener noreferrer">Согласием на обработку персональных данных</a>.
                 </label>
               </div>
@@ -5552,7 +5552,7 @@
             </div>
           </div>
         `;
-        const input = document.getElementById("siteLoginPhoneInput");
+        const input = document.getElementById("siteLoginEmailInput");
         const codeInput = document.getElementById("siteLoginCodeInput");
         const codeWrap = document.getElementById("siteLoginCodeWrap");
         const consentWrap = document.getElementById("siteLoginConsentWrap");
@@ -5560,18 +5560,11 @@
         const subtitle = document.getElementById("siteLoginSubtitle");
         const button = document.getElementById("siteLoginBtn");
         const status = document.getElementById("siteLoginStatus");
-        let step = "phone";
+        let step = "email";
 
-        input?.addEventListener("focus", () => {
-          if (!input.value.trim()) input.value = "+7";
-        });
         input?.addEventListener("input", () => {
-          input.value = applyPhoneMask(input.value);
           status.className = "status";
           status.textContent = "";
-        });
-        input?.addEventListener("paste", (event) => {
-          replacePhoneFromPaste(event, input);
         });
         codeInput?.addEventListener("input", () => {
           codeInput.value = onlyDigits(codeInput.value).slice(0, 6);
@@ -5587,16 +5580,16 @@
           input.disabled = isCode;
           button.textContent = isCode ? "Подтвердить" : "Получить код";
           subtitle.textContent = isCode
-            ? "Введите код из SMS, который отправлен на ваш номер."
-            : "Введите номер телефона, который указан в базе сотрудников.";
+            ? `Введите код из письма, отправленного на ${requestedEmail}.`
+            : "Введите почту, которая указана в базе сотрудников.";
           if (isCode) codeInput?.focus();
         };
 
         const requestCode = async () => {
-          const phone = normalizePhone(input?.value || "");
-          if (!phone) {
+          const email = String(input?.value || "").trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             status.className = "status error";
-            status.textContent = "Введите номер в формате +7 999 123-45-67";
+            status.textContent = "Введите корректный адрес электронной почты";
             return;
           }
           if (!consentInput?.checked) {
@@ -5611,20 +5604,20 @@
             const data = await api("/api/auth/request-code", {
               method: "POST",
               body: JSON.stringify({
-                phone,
+                email,
                 consentAccepted: true,
                 consentVersion: PERSONAL_DATA_CONSENT_VERSION,
                 deviceName: navigator.platform || "device",
                 platform: isPhoneClient() ? "mobile-web" : "desktop-web"
               })
             });
-            requestedPhone = phone;
+            requestedEmail = email;
             consentSessionId = String(data?.consentSessionId || "");
             setStep("code");
             status.className = data?.devCode ? "status ok" : "status";
             status.textContent = data?.devCode
               ? `Тестовый код: ${data.devCode}`
-              : "Код отправлен по SMS";
+              : "Код отправлен на почту";
           } catch (error) {
             status.className = "status error";
             status.textContent = String(error?.message || "Не удалось отправить код");
@@ -5634,10 +5627,10 @@
         };
 
         const confirmCode = async () => {
-          const smsCode = onlyDigits(codeInput?.value || "");
-          if (smsCode.length !== 6) {
+          const emailCode = onlyDigits(codeInput?.value || "");
+          if (emailCode.length !== 6) {
             status.className = "status error";
-            status.textContent = "Введите 6 цифр из SMS";
+            status.textContent = "Введите 6 цифр из письма";
             return;
           }
           button.disabled = true;
@@ -5647,8 +5640,8 @@
             const login = await api("/api/auth/login", {
               method: "POST",
               body: JSON.stringify({
-                phone: requestedPhone,
-                smsCode,
+                email: requestedEmail,
+                emailCode,
                 deviceName: navigator.platform || "device",
                 platform: isPhoneClient() ? "mobile-web" : "desktop-web",
                 consentSessionId
@@ -6010,7 +6003,7 @@
             localStorage.removeItem(AUTH_ID_STORAGE_KEY);
             localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
           } catch {}
-          renderPhoneLogin();
+          renderEmailLogin();
         });
         renderDots();
       }
@@ -6078,7 +6071,7 @@
               localStorage.removeItem(AUTH_ID_STORAGE_KEY);
             } catch {}
           }
-          renderPhoneLogin();
+          renderEmailLogin();
         } catch (error) {
           screen.innerHTML = `<p class="status error">Ошибка: ${escapeHtml(error.message)}</p>`;
         }
@@ -8166,7 +8159,7 @@
             localStorage.removeItem(AUTH_ID_STORAGE_KEY);
             localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
           } catch {}
-          renderPhoneLogin();
+          renderEmailLogin();
         });
         openSecurityBtn?.addEventListener("click", async () => {
           securitySessionsStatus.className = "status";
@@ -8434,6 +8427,9 @@
 
       function mapEmployeeApiError(error) {
         if (!error?.message) return "Не удалось сохранить сотрудника";
+        if (error.message.toLowerCase().includes("почт") || error.message.toLowerCase().includes("email")) {
+          return error.message;
+        }
         if (error.message.includes("phone") || error.message.includes("телефон")) {
           return "Некорректный номер телефона. Пример: +7 999 123-45-67";
         }
@@ -8570,6 +8566,14 @@
                           }
                         </div>
                         <div class="employee-contacts">
+                          ${emp.email
+                            ? `<div class="employee-contact-row">
+                                <a class="employee-contact-link employee-contact-item" href="mailto:${escapeHtml(emp.email)}">Почта: ${escapeHtml(emp.email)}</a>
+                                <button type="button" class="employee-contact-copy-btn" data-copy-value="${escapeHtml(emp.email)}" data-copy-label="Почта" aria-label="Скопировать почту" title="Скопировать почту">
+                                  <img src="/icons/copy.png" alt="Скопировать" />
+                                </button>
+                              </div>`
+                            : ""}
                           ${emp.phone
                             ? `<div class="employee-contact-row">
                                 <div class="employee-contact-link employee-contact-item">Телефон: ${escapeHtml(emp.phone)}</div>
@@ -8656,6 +8660,10 @@
                 <div class="employee-form-group">
                   <p class="employee-form-group-title">Основные данные</p>
                   <div class="employee-form-group-grid">
+                    <div class="employee-form-field">
+                      <div class="employee-form-label">Электронная почта</div>
+                      <input id="emailInput" type="email" inputmode="email" autocomplete="email" placeholder="name@yandex.ru" required />
+                    </div>
                     <div class="employee-form-field">
                       <div class="employee-form-label-row">
                         <div class="employee-form-label">Имя</div>
@@ -8758,6 +8766,7 @@
         const lastNameInputWrap = document.getElementById("lastNameInputWrap");
         const firstNameInlineError = document.getElementById("firstNameInlineError");
         const lastNameInlineError = document.getElementById("lastNameInlineError");
+        const emailInput = document.getElementById("emailInput");
         const phoneInput = document.getElementById("phoneInput");
         const telegramInput = document.getElementById("telegramInput");
         const vkInput = document.getElementById("vkInput");
@@ -8788,6 +8797,7 @@
           lastNameInput.value = "";
           updateNameFieldError(firstNameInput, firstNameInputWrap, firstNameInlineError);
           updateNameFieldError(lastNameInput, lastNameInputWrap, lastNameInlineError);
+          emailInput.value = "";
           phoneInput.value = "";
           telegramInput.value = "";
           vkInput.value = "";
@@ -8830,6 +8840,7 @@
           panelTitle.textContent = "Редактировать сотрудника";
           firstNameInput.value = employee.firstName || "";
           lastNameInput.value = employee.lastName || "";
+          emailInput.value = employee.email || "";
           phoneInput.value = employee.phone || "";
           telegramInput.value = employee.telegramContact || "";
           vkInput.value = normalizeVkContact(employee.vkContact || "");
@@ -8901,6 +8912,7 @@
         saveEmployeeBtn.addEventListener("click", async () => {
           const firstName = firstNameInput.value.trim();
           const lastName = lastNameInput.value.trim();
+          const email = emailInput.value.trim().toLowerCase();
           const normalizedPhone = normalizePhone(phoneInput.value);
           const telegramContact = normalizeTelegramContact(telegramInput.value);
           const vkContact = normalizeVkContact(vkInput.value);
@@ -8927,6 +8939,13 @@
             return;
           }
 
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            formStatus.className = "employee-panel-status error";
+            formStatus.textContent = "Укажите корректную электронную почту";
+            emailInput.focus();
+            return;
+          }
+
           if (!normalizedPhone) {
             formStatus.className = "employee-panel-status error";
             formStatus.textContent = "Укажите номер телефона в формате +7 999 999-99-99";
@@ -8946,11 +8965,12 @@
               ? `/api/employees/${editingEmployeeId}`
               : "/api/employees";
 
-            await api(endpoint, {
+            const savedEmployee = await api(endpoint, {
               method,
               body: JSON.stringify({
                 firstName,
                 lastName,
+                email,
                 phone: normalizedPhone || "",
                 telegramContact,
                 vkContact,
@@ -8960,6 +8980,12 @@
                 accessRole
               })
             });
+            if (savedEmployee?.authId) {
+              state.telegramId = String(savedEmployee.authId);
+              try {
+                localStorage.setItem(AUTH_ID_STORAGE_KEY, state.telegramId);
+              } catch {}
+            }
 
             formStatus.className = "employee-panel-status ok";
             formStatus.textContent = editingEmployeeId ? "Сотрудник обновлен" : "Сотрудник добавлен";

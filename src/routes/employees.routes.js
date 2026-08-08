@@ -7,12 +7,14 @@ import {
   listEmployees,
   listLocations,
   logAuditEvent,
+  migratePhoneUserToEmail,
   replaceEmployeeLocations,
   updateUserRole,
   updateEmployeeById
 } from "../db.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
+import { setAuthCookies } from "../lib/auth-cookies.js";
 
 const router = express.Router();
 
@@ -51,6 +53,7 @@ const contactSchema = z.object({
   lastName: z.string().trim().min(3).max(60),
   telegramId: z.string().trim().max(64).optional().default(""),
   avatarUrl: z.string().trim().max(500).optional().default(""),
+  email: z.string().trim().email("Укажите корректную почту").max(254),
   phone: z.string().trim().min(1).max(30),
   telegramContact: z.string().trim().max(120).optional().default(""),
   vkContact: z.string().trim().max(200).optional().default(""),
@@ -132,6 +135,7 @@ router.post("/", (req, res, next) => {
       lastName: parsed.data.lastName,
       telegramId: parsed.data.telegramId,
       avatarUrl: parsed.data.avatarUrl,
+      email: parsed.data.email,
       phone: parsed.data.phone,
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
@@ -163,6 +167,12 @@ router.post("/", (req, res, next) => {
 
     return res.status(201).json({ employee });
   } catch (error) {
+    if (String(error.message || "").includes("employees.email")) {
+      return res.status(409).json({
+        error: "Conflict",
+        message: "Эта почта уже привязана к другому сотруднику"
+      });
+    }
     if (String(error.message || "").includes("UNIQUE")) {
       return res.status(409).json({
         error: "Conflict",
@@ -248,6 +258,7 @@ router.put("/:id", (req, res, next) => {
       lastName: parsed.data.lastName,
       telegramId: parsed.data.telegramId,
       avatarUrl: parsed.data.avatarUrl || targetEmployee.avatarUrl || "",
+      email: parsed.data.email,
       phone: parsed.data.phone,
       telegramContact: parsed.data.telegramContact,
       vkContact: parsed.data.vkContact,
@@ -269,6 +280,11 @@ router.put("/:id", (req, res, next) => {
         message: "Сотрудник не найден"
       });
     }
+    const authMigration = migratePhoneUserToEmail({
+      phone: result.employee.phone,
+      previousEmail: targetEmployee.email || "",
+      email: result.employee.email
+    });
     result.employee.locations = replaceEmployeeLocations(
       result.employee.id,
       locationsValidation.locationCodes
@@ -305,8 +321,19 @@ router.put("/:id", (req, res, next) => {
       systemView: "ALL_ADMINS"
     });
 
-    return res.json({ employee: result.employee });
+    const nextAuthId = isSelf && authMigration?.authId ? authMigration.authId : "";
+    if (nextAuthId && req.session?.id) {
+      setAuthCookies(req, res, { authId: nextAuthId, sessionId: req.session.id });
+    }
+
+    return res.json({ employee: result.employee, authId: nextAuthId });
   } catch (error) {
+    if (String(error.message || "").includes("employees.email")) {
+      return res.status(409).json({
+        error: "Conflict",
+        message: "Эта почта уже привязана к другому сотруднику"
+      });
+    }
     if (String(error.message || "").includes("UNIQUE")) {
       return res.status(409).json({
         error: "Conflict",
