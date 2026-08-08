@@ -3941,6 +3941,9 @@
 
       .employees-list {
         display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 500px));
+        justify-content: start;
+        align-items: stretch;
         gap: 10px;
       }
 
@@ -4545,6 +4548,7 @@
 
       @media (max-width: 700px) {
         .employees-list {
+          grid-template-columns: minmax(0, 1fr);
           gap: 10px;
         }
 
@@ -8970,16 +8974,18 @@
                           ${escapeHtml(positions[emp.position] || emp.position)}
                           ${emp.accessRole ? ` · Доступ: ${escapeHtml(userRoles[emp.accessRole] || emp.accessRole)}` : ""}
                         </div>
-                        <div class="employee-locationline">
-                          ПВЗ: ${
-                            Array.isArray(emp.locations) && emp.locations.length
-                              ? emp.locations
-                                  .map((location) => renderLocationLabelHtml(location.title))
-                                  .join(", ")
-                              : "не назначены"
-                          }
-                        </div>
-                        <div class="employee-contacts">
+                      </div>
+                    </div>
+                    <div class="employee-locationline">
+                      ПВЗ: ${
+                        Array.isArray(emp.locations) && emp.locations.length
+                          ? emp.locations
+                              .map((location) => renderLocationLabelHtml(location.title))
+                              .join(", ")
+                          : "не назначены"
+                      }
+                    </div>
+                    <div class="employee-contacts">
                           ${emp.email
                             ? `<div class="employee-contact-row">
                                 <a class="employee-contact-link employee-contact-item" href="mailto:${escapeHtml(emp.email)}">
@@ -9057,8 +9063,6 @@
                               </button>
                             </div>`;
                           })()}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 `
