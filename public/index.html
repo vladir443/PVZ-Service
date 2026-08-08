@@ -322,6 +322,29 @@
         cursor: wait;
       }
 
+      .login-skip-button {
+        width: 100%;
+        margin-top: 10px;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        color: #52657f;
+        font-size: 14px;
+        font-weight: 800;
+        padding: 11px 16px;
+        cursor: pointer;
+      }
+
+      .login-skip-button:hover {
+        background: #edf3fb;
+        color: #174f96;
+      }
+
+      .login-skip-button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+
       .login-code-actions {
         display: flex;
         align-items: center;
@@ -1849,6 +1872,15 @@
 
       body.theme-dark .login-code-action:disabled {
         color: #71809a;
+      }
+
+      body.theme-dark .login-skip-button {
+        color: #aebed4;
+      }
+
+      body.theme-dark .login-skip-button:hover {
+        background: #182945;
+        color: #8ec5ff;
       }
 
       body.theme-dark .home-list-date,
@@ -5847,6 +5879,9 @@
                 <button id="initialPinContinueBtn" class="login-button pin-modal-continue" type="button" ${canContinue ? "" : "disabled"}>
                   ${busy ? "Сохраняем..." : escapeHtml(current.button)}
                 </button>
+                <button id="initialPinSkipBtn" class="login-skip-button" type="button" ${busy ? "disabled" : ""}>
+                  Ввести позже
+                </button>
               </div>
             </div>
           `;
@@ -5870,6 +5905,17 @@
           });
 
           document.getElementById("initialPinContinueBtn")?.addEventListener("click", continueSetup);
+          document.getElementById("initialPinSkipBtn")?.addEventListener("click", async () => {
+            if (busy) return;
+            busy = true;
+            render();
+            try {
+              await bootstrapAfterAuth();
+            } catch (error) {
+              busy = false;
+              showError(String(error?.message || "Не удалось открыть приложение"));
+            }
+          });
           bindPinKeyboard({
             onDigit: (digit) =>
               screen.querySelector(`[data-initial-pin-key="${digit}"]`)?.click(),
@@ -6141,10 +6187,6 @@
               state.avatarNonce = String(Date.now());
               if (sessionData?.security?.pinRequired) {
                 renderPinGate(sessionData?.security?.pinState || null);
-                return;
-              }
-              if (!sessionData?.security?.pinEnabled) {
-                renderInitialPinSetup();
                 return;
               }
               await bootstrapAfterAuth();
