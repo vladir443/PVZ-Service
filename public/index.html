@@ -1879,6 +1879,19 @@
         border-color: #276a4b;
       }
 
+      body.theme-dark .finance-day-reasons {
+        border-top-color: #2a3d59;
+      }
+
+      body.theme-dark .finance-day-reason {
+        border-color: #314968;
+        background: #17263e;
+      }
+
+      body.theme-dark .finance-day-reason > strong {
+        color: #aebdd2;
+      }
+
       body.theme-dark .finance-toggle-icon {
         border-color: #3a5070;
         background: #172740;
@@ -3305,6 +3318,56 @@
         min-width: 96px;
         padding: 8px 10px;
         font-size: 13px;
+      }
+
+      .finance-day-reasons {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        padding-top: 9px;
+        border-top: 1px solid #e1e8f2;
+      }
+
+      .finance-day-reason {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+        padding: 9px 10px;
+        border: 1px solid #e1e8f2;
+        border-radius: 10px;
+        background: #f8fbff;
+      }
+
+      .finance-day-reason > strong {
+        color: #334964;
+        font-size: 11px;
+      }
+
+      .finance-day-reason-list {
+        display: grid;
+        gap: 4px;
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .finance-day-reason-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .finance-day-reason-item span:first-child {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .finance-day-reason-amount {
+        flex: 0 0 auto;
+        font-weight: 800;
+        white-space: nowrap;
       }
 
       .finance-paid-badge {
@@ -5103,8 +5166,13 @@
         }
         .finance-day-date,
         .finance-day-action,
-        .finance-paid-badge {
+        .finance-paid-badge,
+        .finance-unpaid-badge,
+        .finance-day-reasons {
           grid-column: 1 / -1;
+        }
+        .finance-day-reasons {
+          grid-template-columns: minmax(0, 1fr);
         }
         .finance-day-action {
           width: 100%;
@@ -7072,10 +7140,10 @@
               )
               .map(({ shift, item }) =>
                 financeItemHtml({
-                  title: escapeHtml(item.reason || "Удержание"),
+                  title: `Причина удержания: ${escapeHtml(item.reason || "Не указана")}`,
                   meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(
                     shift.locationTitle
-                  )}${item.description ? ` · ${escapeHtml(item.description)}` : ""}`,
+                  )}${item.description ? ` · Описание: ${escapeHtml(item.description)}` : ""}`,
                   amount: `−${formatMoneyUnsigned(item.amount)}`,
                   amountClass: "negative"
                 })
@@ -7085,10 +7153,10 @@
               .flatMap((shift) => (shift.bonusItems || []).map((item) => ({ shift, item })))
               .map(({ shift, item }) =>
                 financeItemHtml({
-                  title: escapeHtml(item.reason || "Доплата"),
+                  title: `Причина доплаты: ${escapeHtml(item.reason || "Не указана")}`,
                   meta: `${escapeHtml(ruDate(shift.date))} · ${renderLocationLabelHtml(
                     shift.locationTitle
-                  )}${item.description ? ` · ${escapeHtml(item.description)}` : ""}`,
+                  )}${item.description ? ` · Описание: ${escapeHtml(item.description)}` : ""}`,
                   amount: `+${formatMoneyUnsigned(item.amount)}`,
                   amountClass: "positive"
                 })
@@ -7120,7 +7188,7 @@
               },
               {
                 key: "deductions",
-                title: "Нарушения",
+                title: "Удержания",
                 caption: "Удержания за месяц",
                 amount: `−${formatMoneyUnsigned(summary.deductions)}`,
                 amountClass: "negative",
@@ -7128,7 +7196,7 @@
               },
               {
                 key: "bonuses",
-                title: "Премии",
+                title: "Доплаты",
                 caption: "Доплаты за месяц",
                 amount: `+${formatMoneyUnsigned(summary.bonuses)}`,
                 amountClass: "positive",
@@ -7150,7 +7218,7 @@
                 <div class="personal-finance-balance-value">${formatPayoutBalance(summary.balance)}</div>
                 <div class="personal-finance-balance-note">
                   Начислено за месяц: ${formatMoneyUnsigned(summary.accrued)}
-                  <br />Зарплата + премии − нарушения − выплачено
+                  <br />Зарплата + доплаты − удержания − выплачено
                 </div>
               </div>
               <div class="personal-finance-sections">
@@ -7302,7 +7370,7 @@
                   <div class="profile-stat-trend ${shiftsTrend.className}">${shiftsTrend.text}</div>
                 </div>
                 <div class="profile-stat-card">
-                  <div class="profile-stat-label">Нарушения</div>
+                  <div class="profile-stat-label">Удержания</div>
                   <div class="profile-stat-value">${profileStats.current.violations}</div>
                   <div class="profile-stat-trend ${violationsTrend.className}">${violationsTrend.text}</div>
                 </div>
@@ -10569,6 +10637,27 @@
                 ? Number(payment.deductionsAmount || 0)
                 : currentDeduction;
               const bonuses = payment ? Number(payment.bonusesAmount || 0) : currentBonus;
+              const normalizeAdjustmentItems = (items, fallbackReason, fallbackAmount) => {
+                const normalized = (Array.isArray(items) ? items : [])
+                  .map((item) => ({
+                    reason: String(item?.reason || fallbackReason).trim() || fallbackReason,
+                    description: String(item?.note || item?.description || "").trim(),
+                    amount: Math.abs(Number(item?.amount || 0))
+                  }))
+                  .filter((item) => item.amount > 0);
+                if (normalized.length || fallbackAmount <= 0) return normalized;
+                return [{ reason: "Не указана", description: "", amount: fallbackAmount }];
+              };
+              const deductionItems = normalizeAdjustmentItems(
+                slot === 1 ? row.deductions1Meta : row.deductions2Meta,
+                "Удержание",
+                deductions
+              );
+              const bonusItems = normalizeAdjustmentItems(
+                slot === 1 ? row.bonuses1Meta : row.bonuses2Meta,
+                "Доплата",
+                bonuses
+              );
               days.push({
                 date: row.date,
                 locationCode: row.locationCode,
@@ -10578,6 +10667,8 @@
                 salary,
                 deductions,
                 bonuses,
+                deductionItems,
+                bonusItems,
                 total: salary + bonuses - deductions,
                 payment
               });
@@ -10625,6 +10716,36 @@
                       ? days
                           .map((day) => {
                             const actionIndex = dayActions.push({ employeeName, day }) - 1;
+                            const reasonGroupHtml = (label, items, amountPrefix) => {
+                              if (!items.length) return "";
+                              return `
+                                <div class="finance-day-reason">
+                                  <strong>${label}</strong>
+                                  <div class="finance-day-reason-list">
+                                    ${items
+                                      .map(
+                                        (item) => `
+                                          <div class="finance-day-reason-item">
+                                            <span>${escapeHtml(item.reason)}${
+                                              item.description
+                                                ? ` — ${escapeHtml(item.description)}`
+                                                : ""
+                                            }</span>
+                                            <span class="finance-day-reason-amount">${amountPrefix}${formatMoneyUnsigned(
+                                              item.amount
+                                            )}</span>
+                                          </div>
+                                        `
+                                      )
+                                      .join("")}
+                                  </div>
+                                </div>
+                              `;
+                            };
+                            const reasonsHtml = [
+                              reasonGroupHtml("Причина удержания", day.deductionItems, "−"),
+                              reasonGroupHtml("Причина доплаты", day.bonusItems, "+")
+                            ].join("");
                             return `
                               <div class="finance-day ${day.payment ? "paid" : ""}">
                                 <div class="finance-day-date">
@@ -10659,6 +10780,7 @@
                                       ? `<button class="button finance-day-action" type="button" data-pay-shift="${actionIndex}">Оплатить</button>`
                                       : `<span class="finance-unpaid-badge">Не оплачено</span>`
                                 }
+                                ${reasonsHtml ? `<div class="finance-day-reasons">${reasonsHtml}</div>` : ""}
                               </div>
                             `;
                           })
