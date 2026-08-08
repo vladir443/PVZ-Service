@@ -3272,6 +3272,9 @@
         margin: 0 12px 12px;
         padding: 8px 12px;
         font-size: 13px;
+        box-sizing: border-box;
+        max-width: calc(100% - 24px);
+        white-space: normal;
       }
 
       .finance-period-head > .finance-paid-badge {
@@ -3351,7 +3354,7 @@
         padding: 10px;
         background: #fff;
         display: grid;
-        grid-template-columns: minmax(105px, 1fr) repeat(4, minmax(70px, auto)) auto;
+        grid-template-columns: minmax(105px, 1fr) repeat(4, minmax(58px, auto)) minmax(0, 104px);
         align-items: center;
         gap: 10px;
       }
@@ -3390,9 +3393,14 @@
       }
 
       .finance-day-action {
-        min-width: 96px;
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        max-width: 104px;
+        justify-self: end;
         padding: 8px 10px;
         font-size: 13px;
+        white-space: normal;
       }
 
       .finance-day-reasons {
@@ -4219,10 +4227,10 @@
 
       .employees-list {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(380px, 500px));
-        justify-content: start;
+        grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+        justify-content: stretch;
         align-items: stretch;
-        gap: 10px;
+        gap: 14px;
       }
 
       .employee-row {
@@ -4256,6 +4264,53 @@
 
       .employee-row.reliability-borderline {
         border-left-color: #d65050;
+      }
+
+      .employee-row.avatar-accent-ocean,
+      .employee-row.avatar-accent-photo {
+        border-left-color: #2f80ed;
+      }
+
+      .employee-row.avatar-accent-sunset {
+        border-left-color: #ff6f61;
+      }
+
+      .employee-row.avatar-accent-forest {
+        border-left-color: #20a47a;
+      }
+
+      .employee-row.avatar-accent-violet {
+        border-left-color: #8b5cf6;
+      }
+
+      .employee-row.avatar-accent-graphite {
+        border-left-color: #53627a;
+      }
+
+      .employee-row.avatar-accent-gold {
+        border-left-color: #e5a600;
+      }
+
+      .employee-row.avatar-accent-ice {
+        border-left-color: #55b9e9;
+      }
+
+      .employee-row.avatar-accent-berry {
+        border-left-color: #d43b82;
+      }
+
+      .employee-photo-upload-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 12px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid #e1e8f2;
+      }
+
+      body.theme-dark .employee-photo-upload-row {
+        border-bottom-color: #314968;
       }
 
       .employee-main {
@@ -6070,6 +6125,12 @@
         } catch {
           return null;
         }
+      }
+
+      function employeeAvatarAccent(avatarUrl) {
+        const customAvatar = parseCustomAvatar(avatarUrl);
+        if (customAvatar) return customAvatar.background;
+        return String(avatarUrl || "").trim() ? "photo" : "ocean";
       }
 
       function renderUserAvatar({ avatarUrl, initials = "?", className, alt = "avatar", nonce = state.avatarNonce }) {
@@ -8604,6 +8665,24 @@
             badge: "Сотрудники",
             tone: "ok"
           },
+          EMPLOYEE_PHOTO_UPDATED: {
+            title: "Фото сотрудника обновлено",
+            description: "В карточке сотрудника установлена новая фотография.",
+            badge: "Сотрудники",
+            tone: "ok"
+          },
+          EMPLOYEE_DOCUMENT_UPLOADED: {
+            title: "Документ сотрудника загружен",
+            description: "В защищенное хранилище добавлен документ сотрудника.",
+            badge: "Сотрудники",
+            tone: "ok"
+          },
+          EMPLOYEE_DOCUMENT_DELETED: {
+            title: "Документ сотрудника удален",
+            description: "Документ удален из защищенного хранилища.",
+            badge: "Сотрудники",
+            tone: "warning"
+          },
           EMPLOYEE_DELETED: {
             title: "Сотрудник удален",
             description: "Сотрудник удален из базы.",
@@ -9351,7 +9430,10 @@
           ? state.employees
               .map(
                 (emp) => `
-                  <div class="employee-row reliability-${escapeHtml(emp.reliability || "checking")}">
+                  <div
+                    class="employee-row reliability-${escapeHtml(emp.reliability || "checking")} avatar-accent-${escapeHtml(employeeAvatarAccent(emp.avatarUrl))}"
+                    data-employee-card-id="${escapeHtml(emp.id)}"
+                  >
                     <div class="employee-main">
                       ${renderUserAvatar({
                         avatarUrl: emp.avatarUrl || "",
@@ -9550,6 +9632,14 @@
 
                 <div id="employeeDocumentsGroup" class="employee-form-group hidden">
                   <p class="employee-form-group-title">Документы сотрудника</p>
+                  <div class="employee-photo-upload-row">
+                    <div>
+                      <div class="employee-form-label">Фото сотрудника</div>
+                      <div class="muted">JPG, PNG или WEBP, до 5 МБ</div>
+                    </div>
+                    <input id="employeePhotoInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp" />
+                    <button id="employeePhotoUploadBtn" class="employee-document-upload-btn" type="button">Загрузить фото</button>
+                  </div>
                   <div class="muted">Паспорт: PDF, JPG, PNG или WEBP, до 10 МБ</div>
                   <input id="employeeDocumentInput" class="hidden" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
                   <button id="employeeDocumentUploadBtn" class="employee-document-upload-btn mt8" type="button">Загрузить паспорт</button>
@@ -9621,6 +9711,8 @@
         const employeeLocationsInput = document.getElementById("employeeLocationsInput");
         const accessRoleInput = document.getElementById("accessRoleInput");
         const employeeDocumentsGroup = document.getElementById("employeeDocumentsGroup");
+        const employeePhotoInput = document.getElementById("employeePhotoInput");
+        const employeePhotoUploadBtn = document.getElementById("employeePhotoUploadBtn");
         const employeeDocumentInput = document.getElementById("employeeDocumentInput");
         const employeeDocumentUploadBtn = document.getElementById("employeeDocumentUploadBtn");
         const employeeDocumentStatus = document.getElementById("employeeDocumentStatus");
@@ -9721,6 +9813,7 @@
           deleteEmployeeBtn.disabled = true;
           deleteEmployeeBtn.title = "Удалить сотрудника";
           employeeDocumentsGroup.classList.add("hidden");
+          employeePhotoInput.value = "";
           employeeDocumentInput.value = "";
           employeeDocumentStatus.textContent = "";
           employeeDocumentList.innerHTML = "";
@@ -9783,6 +9876,7 @@
             ? "Удаление запрещено"
             : "Удалить сотрудника";
           employeeDocumentsGroup.classList.remove("hidden");
+          employeePhotoUploadBtn.disabled = adminCannotEdit;
           employeeDocumentUploadBtn.disabled = adminCannotEdit;
           loadEmployeeDocuments();
           openPanel();
@@ -9816,6 +9910,54 @@
         });
         lastNameInput.addEventListener("input", () => {
           updateNameFieldError(lastNameInput, lastNameInputWrap, lastNameInlineError);
+        });
+        employeePhotoUploadBtn.addEventListener("click", () => {
+          if (editingEmployeeId) employeePhotoInput.click();
+        });
+        employeePhotoInput.addEventListener("change", async () => {
+          const file = employeePhotoInput.files?.[0];
+          if (!file || !editingEmployeeId) return;
+          employeePhotoUploadBtn.disabled = true;
+          employeeDocumentStatus.className = "status mt8";
+          employeeDocumentStatus.textContent = "Загрузка фото...";
+          try {
+            const formData = new FormData();
+            formData.append("file", file, file.name);
+            const result = await api(`/api/employees/${editingEmployeeId}/photo`, {
+              method: "POST",
+              body: formData
+            });
+            const employee = state.employees.find((item) => String(item.id) === String(editingEmployeeId));
+            if (employee && result.employee) {
+              employee.avatarUrl = result.employee.avatarUrl || "";
+            }
+            state.avatarNonce = Date.now();
+            const card = screen.querySelector(`[data-employee-card-id="${String(editingEmployeeId)}"]`);
+            const oldAvatar = card?.querySelector(".employee-avatar");
+            if (card && oldAvatar && employee) {
+              const avatarHolder = document.createElement("div");
+              avatarHolder.innerHTML = renderUserAvatar({
+                avatarUrl: employee.avatarUrl || "",
+                initials: (employee.fullName || "?").slice(0, 1).toUpperCase(),
+                className: "employee-avatar",
+                alt: `Аватар ${employee.fullName || "сотрудника"}`,
+                nonce: state.avatarNonce
+              });
+              oldAvatar.replaceWith(avatarHolder.firstElementChild);
+              for (const accent of avatarBackgrounds.concat("photo")) {
+                card.classList.remove(`avatar-accent-${accent}`);
+              }
+              card.classList.add(`avatar-accent-${employeeAvatarAccent(employee.avatarUrl)}`);
+            }
+            employeeDocumentStatus.className = "status ok mt8";
+            employeeDocumentStatus.textContent = "Фото сотрудника обновлено";
+          } catch (error) {
+            employeeDocumentStatus.className = "status error mt8";
+            employeeDocumentStatus.textContent = error.message;
+          } finally {
+            employeePhotoInput.value = "";
+            employeePhotoUploadBtn.disabled = false;
+          }
         });
         employeeDocumentUploadBtn.addEventListener("click", () => {
           if (editingEmployeeId) employeeDocumentInput.click();

@@ -123,7 +123,7 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS secure_files (
     id TEXT PRIMARY KEY,
-    category TEXT NOT NULL CHECK(category IN ('ADJUSTMENT_PHOTO', 'EMPLOYEE_PASSPORT')),
+    category TEXT NOT NULL CHECK(category IN ('ADJUSTMENT_PHOTO', 'EMPLOYEE_PASSPORT', 'EMPLOYEE_PHOTO')),
     employee_id INTEGER,
     original_name TEXT NOT NULL,
     mime_type TEXT NOT NULL,
@@ -138,6 +138,40 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_secure_files_employee
     ON secure_files(employee_id, category, created_at);
 `);
+
+const secureFilesTableSql = String(
+  db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'secure_files'").get()?.sql || ""
+);
+if (secureFilesTableSql && !secureFilesTableSql.includes("EMPLOYEE_PHOTO")) {
+  db.exec(`
+    DROP INDEX IF EXISTS idx_secure_files_employee;
+    ALTER TABLE secure_files RENAME TO secure_files_legacy;
+    CREATE TABLE secure_files (
+      id TEXT PRIMARY KEY,
+      category TEXT NOT NULL CHECK(category IN ('ADJUSTMENT_PHOTO', 'EMPLOYEE_PASSPORT', 'EMPLOYEE_PHOTO')),
+      employee_id INTEGER,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      content BLOB NOT NULL,
+      uploaded_by_user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+      FOREIGN KEY(uploaded_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+    INSERT INTO secure_files (
+      id, category, employee_id, original_name, mime_type, size_bytes, content,
+      uploaded_by_user_id, created_at
+    )
+    SELECT
+      id, category, employee_id, original_name, mime_type, size_bytes, content,
+      uploaded_by_user_id, created_at
+    FROM secure_files_legacy;
+    DROP TABLE secure_files_legacy;
+    CREATE INDEX idx_secure_files_employee
+      ON secure_files(employee_id, category, created_at);
+  `);
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS finance_payments (

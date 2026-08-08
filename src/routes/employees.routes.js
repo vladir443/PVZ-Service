@@ -14,6 +14,7 @@ import {
   logAuditEvent,
   migratePhoneUserToEmail,
   replaceEmployeeLocations,
+  updateEmployeeAvatarById,
   updateUserRole,
   updateEmployeeById
 } from "../db.js";
@@ -41,6 +42,27 @@ const passportUpload = multer({
     );
   }
 });
+const employeePhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp"].includes(
+      String(file.mimetype || "").toLowerCase()
+    );
+    callback(allowed ? null : new Error("Разрешены изображения JPG, PNG и WEBP"), allowed);
+  }
+});
+
+function decodeUploadFileName(value) {
+  const name = String(value || "file");
+  if (!/[ÐÑ]/.test(name)) return name;
+  try {
+    const decoded = Buffer.from(name, "latin1").toString("utf8");
+    return decoded.includes("�") ? name : decoded;
+  } catch {
+    return name;
+  }
+}
 
 function receivePassportFile(req, res, next) {
   passportUpload.single("file")(req, res, (error) => {
@@ -51,6 +73,38 @@ function receivePassportFile(req, res, next) {
     return res.status(400).json({ error: "UploadError", message });
   });
 }
+
+function receiveEmployeePhoto(req, res, next) {
+  employeePhotoUpload.single("file")(req, res, (error) => {
+    if (!error) return next();
+    const message = error.code === "LIMIT_FILE_SIZE"
+      ? "Фотография сотрудника должна быть не больше 5 МБ"
+      : error.message || "Не удалось загрузить фотографию";
+    return res.status(400).json({ error: "UploadError", message });
+  });
+}
+
+router.get("/:id/photo", requireAuth, (req, res, next) => {
+  try {
+    const employeeId = Number(req.params.id);
+    const file = getSecureFileById(req.query.file, { includeContent: true });
+    if (
+      !Number.isInteger(employeeId) ||
+      !file ||
+      file.category !== "EMPLOYEE_PHOTO" ||
+      file.employeeId !== employeeId
+    ) {
+      return res.status(404).json({ error: "NotFound", message: "Фотография не найдена" });
+    }
+    res.setHeader("Content-Type", file.mimeType);
+    res.setHeader("Content-Length", String(file.sizeBytes));
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    return res.send(file.content);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 router.use(requireAuth, requireRole(Role.ADMIN, Role.SUPERADMIN));
 
@@ -265,7 +319,7 @@ router.post("/:id/documents", receivePassportFile, (req, res, next) => {
     const document = createSecureFile({
       category: "EMPLOYEE_PASSPORT",
       employeeId: employee.id,
-      originalName: req.file.originalname,
+      originalName: decodeUploadFileName(req.file.originalname),
       mimeType: req.file.mimetype,
       content: req.file.buffer,
       uploadedByUserId: req.user.id
@@ -307,6 +361,44 @@ router.get("/:id/documents/:fileId", (req, res, next) => {
     );
     res.setHeader("Cache-Control", "private, no-store");
     return res.send(file.content);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/:id/photo", receiveEmployeePhoto, (req, res, next) => {
+  try {
+    const employee = getDocumentTarget(req, res);
+    if (!employee) return;
+    if (!req.file?.buffer?.length) {
+      return res.status(400).json({ error: "ValidationError", message: "Выберите фотографию" });
+    }
+    const previousPhotoMatch = String(employee.avatarUrl || "").match(/[?&]file=([0-9a-f-]{36})/i);
+    const photo = createSecureFile({
+      category: "EMPLOYEE_PHOTO",
+      employeeId: employee.id,
+      originalName: decodeUploadFileName(req.file.originalname),
+      mimeType: req.file.mimetype,
+      content: req.file.buffer,
+      uploadedByUserId: req.user.id
+    });
+    const avatarUrl = `/api/employees/${employee.id}/photo?file=${photo.id}`;
+    const updatedEmployee = updateEmployeeAvatarById({ id: employee.id, avatarUrl });
+    if (previousPhotoMatch?.[1]) deleteSecureFileById(previousPhotoMatch[1]);
+    logAuditEvent({
+      scope: "SYSTEM",
+      eventType: "EMPLOYEE_PHOTO_UPDATED",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetTelegramId: employee.telegramId || "",
+      sessionId: req.session?.id || "",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: { employeeId: employee.id, fileId: photo.id, fileName: photo.originalName },
+      systemView: "ALL_ADMINS"
+    });
+    return res.status(201).json({ employee: updatedEmployee, photo });
   } catch (error) {
     return next(error);
   }

@@ -39,6 +39,17 @@ const adjustmentUpload = multer({
   }
 });
 
+function decodeUploadFileName(value) {
+  const name = String(value || "photo.jpg");
+  if (!/[ÐÑ]/.test(name)) return name;
+  try {
+    const decoded = Buffer.from(name, "latin1").toString("utf8");
+    return decoded.includes("�") ? name : decoded;
+  } catch {
+    return name;
+  }
+}
+
 function receiveAdjustmentImage(req, res, next) {
   adjustmentUpload.single("file")(req, res, (error) => {
     if (!error) return next();
@@ -62,7 +73,7 @@ router.post(
       }
       const attachment = createSecureFile({
         category: "ADJUSTMENT_PHOTO",
-        originalName: req.file.originalname || "photo.jpg",
+        originalName: decodeUploadFileName(req.file.originalname),
         mimeType: req.file.mimetype,
         content: req.file.buffer,
         uploadedByUserId: req.user.id
