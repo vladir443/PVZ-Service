@@ -535,6 +535,100 @@
         color: #ffb7bd;
       }
 
+      .modal.action-confirm-modal {
+        z-index: 11000;
+        padding: 18px;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+
+      .action-confirm-card {
+        width: min(420px, 100%);
+        padding: 24px;
+        border: 1px solid #dce5f1;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 24px 70px rgba(15, 35, 66, 0.24);
+        text-align: center;
+      }
+
+      .action-confirm-title {
+        margin: 0;
+        color: #17243b;
+        font-size: 21px;
+        font-weight: 850;
+        line-height: 1.25;
+      }
+
+      .action-confirm-message {
+        margin: 10px 0 0;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .action-confirm-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .action-confirm-btn {
+        min-height: 46px;
+        border: 1px solid #d3deec;
+        border-radius: 13px;
+        background: #f5f8fc;
+        color: #263750;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .action-confirm-btn.confirm {
+        border-color: #1f5faf;
+        background: #1f5faf;
+        color: #ffffff;
+      }
+
+      .action-confirm-btn.confirm.danger {
+        border-color: #c93636;
+        background: #c93636;
+      }
+
+      body.theme-dark .action-confirm-card {
+        border-color: #314867;
+        background: #17253b;
+        box-shadow: 0 26px 76px rgba(0, 0, 0, 0.46);
+      }
+
+      body.theme-dark .action-confirm-title {
+        color: #f3f7ff;
+      }
+
+      body.theme-dark .action-confirm-message {
+        color: #aebed4;
+      }
+
+      body.theme-dark .action-confirm-btn {
+        border-color: #3a506e;
+        background: #22344f;
+        color: #eaf1fb;
+      }
+
+      @media (max-width: 480px) {
+        .modal.action-confirm-modal {
+          align-items: end;
+          padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+        }
+
+        .action-confirm-card {
+          padding: 22px 18px 18px;
+          border-radius: 20px;
+        }
+      }
+
       .back-icon-btn {
         width: 42px;
         height: 42px;
@@ -5128,13 +5222,50 @@
         showTextNotice("Недостаточно прав для раздела Сотрудники", "error");
       }
 
-      function confirmAction(message) {
-        if (typeof tg?.showConfirm === "function") {
-          return new Promise((resolve) => {
-            tg.showConfirm(message, (ok) => resolve(!!ok));
+      function confirmAction(message, options = {}) {
+        return new Promise((resolve) => {
+          const modal = document.createElement("div");
+          modal.className = "modal action-confirm-modal";
+          modal.innerHTML = `
+            <div class="action-confirm-card" role="dialog" aria-modal="true" aria-labelledby="actionConfirmTitle" aria-describedby="actionConfirmMessage">
+              <h2 id="actionConfirmTitle" class="action-confirm-title"></h2>
+              <p id="actionConfirmMessage" class="action-confirm-message"></p>
+              <div class="action-confirm-actions">
+                <button class="action-confirm-btn" type="button" data-confirm-result="cancel"></button>
+                <button class="action-confirm-btn confirm ${options.danger ? "danger" : ""}" type="button" data-confirm-result="confirm"></button>
+              </div>
+            </div>
+          `;
+          modal.querySelector("#actionConfirmTitle").textContent = String(options.title || "Подтвердите действие");
+          modal.querySelector("#actionConfirmMessage").textContent = String(message || "");
+          const cancelButton = modal.querySelector('[data-confirm-result="cancel"]');
+          const confirmButton = modal.querySelector('[data-confirm-result="confirm"]');
+          cancelButton.textContent = String(options.cancelText || "Нет");
+          confirmButton.textContent = String(options.confirmText || "Да");
+
+          let finished = false;
+          const finish = (result) => {
+            if (finished) return;
+            finished = true;
+            document.removeEventListener("keydown", handleKeydown);
+            modal.remove();
+            syncModalScrollLock();
+            resolve(result);
+          };
+          const handleKeydown = (event) => {
+            if (event.key === "Escape") finish(false);
+          };
+
+          cancelButton.addEventListener("click", () => finish(false));
+          confirmButton.addEventListener("click", () => finish(true));
+          modal.addEventListener("click", (event) => {
+            if (event.target === modal) finish(false);
           });
-        }
-        return Promise.resolve(window.confirm(message));
+          document.addEventListener("keydown", handleKeydown);
+          document.body.appendChild(modal);
+          syncModalScrollLock();
+          window.requestAnimationFrame(() => cancelButton.focus());
+        });
       }
 
       let activePinKeyboardCleanup = null;
@@ -8304,7 +8435,12 @@
           themeToggleBtn.classList.toggle("dark", state.theme === "dark");
         });
         logoutAccountBtn?.addEventListener("click", async () => {
-          const confirmed = await confirmAction("Выйти из аккаунта на этом устройстве?");
+          const confirmed = await confirmAction("Вы действительно хотите выйти из аккаунта на этом устройстве?", {
+            title: "Выйти из аккаунта?",
+            cancelText: "Нет",
+            confirmText: "Да",
+            danger: true
+          });
           if (!confirmed) return;
           logoutAccountBtn.disabled = true;
           await api("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -10546,7 +10682,7 @@
               btn.addEventListener("click", async () => {
                 const paymentId = Number(btn.dataset.historyCancelId);
                 if (!Number.isInteger(paymentId) || paymentId <= 0) return;
-                if (!window.confirm("Отменить эту выплату?")) return;
+                if (!(await confirmAction("Отменить эту выплату?", { danger: true }))) return;
                 btn.disabled = true;
                 financeError.textContent = "";
                 try {
