@@ -2073,13 +2073,46 @@ export function updateEmployeeAvatarById({ id, avatarUrl }) {
   return listEmployees().find((employee) => employee.id === employeeId) || null;
 }
 
+const windows1251Decoder = new TextDecoder("windows-1251");
+const windows1251EncodeMap = new Map(
+  Array.from({ length: 256 }, (_, byte) => [
+    windows1251Decoder.decode(Uint8Array.of(byte)),
+    byte
+  ])
+);
+
+function recoverStoredFileName(value) {
+  let name = String(value || "file");
+  for (let pass = 0; pass < 2; pass += 1) {
+    let decoded = name;
+    if (/[ÐÑ]/.test(name)) {
+      decoded = Buffer.from(name, "latin1").toString("utf8");
+    } else {
+      const bytes = [];
+      let canEncode = true;
+      for (const character of name) {
+        const byte = windows1251EncodeMap.get(character);
+        if (byte == null) {
+          canEncode = false;
+          break;
+        }
+        bytes.push(byte);
+      }
+      if (canEncode) decoded = Buffer.from(bytes).toString("utf8");
+    }
+    if (decoded === name || decoded.includes("�")) break;
+    name = decoded;
+  }
+  return name;
+}
+
 function mapSecureFile(row, { includeContent = false } = {}) {
   if (!row) return null;
   const file = {
     id: row.id,
     category: row.category,
     employeeId: row.employee_id == null ? null : Number(row.employee_id),
-    originalName: row.original_name,
+    originalName: recoverStoredFileName(row.original_name),
     mimeType: row.mime_type,
     sizeBytes: Number(row.size_bytes || 0),
     uploadedByUserId: row.uploaded_by_user_id == null ? null : Number(row.uploaded_by_user_id),
@@ -2137,6 +2170,20 @@ export function listEmployeeDocuments(employeeId) {
       `
     )
     .all(Number(employeeId))
+    .map((row) => mapSecureFile(row));
+}
+
+export function listAllEmployeeDocuments() {
+  return db
+    .prepare(
+      `
+      SELECT id, category, employee_id, original_name, mime_type, size_bytes, uploaded_by_user_id, created_at
+      FROM secure_files
+      WHERE category = 'EMPLOYEE_PASSPORT'
+      ORDER BY employee_id ASC, created_at DESC, original_name COLLATE NOCASE ASC
+      `
+    )
+    .all()
     .map((row) => mapSecureFile(row));
 }
 

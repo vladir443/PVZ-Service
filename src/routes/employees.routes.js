@@ -8,6 +8,7 @@ import {
   deleteEmployeeById,
   getSecureFileById,
   getUserByTelegramId,
+  listAllEmployeeDocuments,
   listEmployeeDocuments,
   listEmployees,
   listLocations,
@@ -157,7 +158,16 @@ function getDocumentTarget(req, res) {
 
 router.get("/", (_req, res, next) => {
   try {
-    const employees = listEmployees();
+    const documentsByEmployee = new Map();
+    for (const document of listAllEmployeeDocuments()) {
+      const documents = documentsByEmployee.get(document.employeeId) || [];
+      documents.push(document);
+      documentsByEmployee.set(document.employeeId, documents);
+    }
+    const employees = listEmployees().map((employee) => ({
+      ...employee,
+      documents: documentsByEmployee.get(employee.id) || []
+    }));
     return res.json({ employees, locations: listLocations() });
   } catch (error) {
     return next(error);

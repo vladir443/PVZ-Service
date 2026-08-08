@@ -475,6 +475,33 @@
         margin-top: 16px;
       }
 
+      .form-save-footer .save-icon-btn,
+      .form-save-footer > .button {
+        box-sizing: border-box;
+        min-width: 112px;
+        min-height: 42px;
+        height: 42px;
+        padding: 0 16px;
+        border: 1px solid #cbd8ea;
+        border-radius: 10px;
+        background: #f8fbff;
+        color: #243a5a;
+        box-shadow: none;
+      }
+
+      .form-save-footer .save-icon-btn:hover,
+      .form-save-footer > .button:hover {
+        border-color: #aebed5;
+        background: #eef4fc;
+      }
+
+      body.theme-dark .form-save-footer .save-icon-btn,
+      body.theme-dark .form-save-footer > .button {
+        border-color: #3a5276;
+        background: #1a2c47;
+        color: #edf4ff;
+      }
+
       .save-feedback {
         min-height: 16px;
         font-size: 13px;
@@ -4367,6 +4394,54 @@
         color: #7a879d;
       }
 
+      .employee-card-documents {
+        display: grid;
+        gap: 7px;
+        padding-top: 10px;
+        border-top: 1px solid #e4ebf5;
+      }
+
+      .employee-card-documents-title {
+        color: #8290a5;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+      }
+
+      .employee-card-document-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+        gap: 7px;
+      }
+
+      .employee-card-document {
+        min-width: 0;
+        color: #52637c;
+        text-decoration: none;
+      }
+
+      .employee-card-document img {
+        display: block;
+        width: 100%;
+        height: 68px;
+        border: 1px solid #dce5f2;
+        border-radius: 10px;
+        background: #eef3fa;
+        object-fit: cover;
+      }
+
+      .employee-card-document span {
+        display: block;
+        margin-top: 4px;
+        overflow: hidden;
+        font-size: 10px;
+        font-weight: 650;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .employee-contact-item {
         overflow-wrap: anywhere;
       }
@@ -4715,13 +4790,34 @@
 
       .employee-document-item {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
         gap: 10px;
         padding: 9px 10px;
         border: 1px solid #dce5f2;
         border-radius: 10px;
         background: #f8fbff;
+      }
+
+      .employee-document-preview {
+        display: grid;
+        place-items: center;
+        width: 68px;
+        height: 54px;
+        overflow: hidden;
+        border: 1px solid #dce5f2;
+        border-radius: 9px;
+        background: #eef3fa;
+        color: #52637c;
+        font-size: 11px;
+        font-weight: 850;
+        text-decoration: none;
+      }
+
+      .employee-document-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
 
       .employee-document-link {
@@ -4770,6 +4866,16 @@
       body.theme-dark .employee-document-item {
         border-color: #314968;
         background: #17263e;
+      }
+
+      body.theme-dark .employee-card-documents {
+        border-top-color: #314968;
+      }
+
+      body.theme-dark .employee-card-document img,
+      body.theme-dark .employee-document-preview {
+        border-color: #3a5276;
+        background: #102039;
       }
 
       body.theme-dark .employee-document-link {
@@ -5013,8 +5119,8 @@
       }
 
       .employee-delete-btn {
-        width: 38px;
-        height: 38px;
+        width: 42px;
+        height: 42px;
         border: 1px solid #dc2626;
         border-radius: 10px;
         background: #dc2626;
@@ -9422,6 +9528,40 @@
         return /^\d{4}$/.test(String(pin || ""));
       }
 
+      function renderEmployeeCardDocuments(employee) {
+        const imageDocuments = (Array.isArray(employee.documents) ? employee.documents : []).filter(
+          (documentItem) => String(documentItem.mimeType || "").startsWith("image/")
+        );
+        if (!imageDocuments.length) return "";
+        return `
+          <div class="employee-card-documents">
+            <div class="employee-card-documents-title">Документы</div>
+            <div class="employee-card-document-grid">
+              ${imageDocuments
+                .map(
+                  (documentItem) => `
+                    <a
+                      class="employee-card-document"
+                      href="/api/employees/${escapeHtml(employee.id)}/documents/${escapeHtml(documentItem.id)}"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="${escapeHtml(documentItem.originalName || "Документ")}"
+                    >
+                      <img
+                        src="/api/employees/${escapeHtml(employee.id)}/documents/${escapeHtml(documentItem.id)}"
+                        alt="${escapeHtml(documentItem.originalName || "Документ сотрудника")}"
+                        loading="lazy"
+                      />
+                      <span>${escapeHtml(documentItem.originalName || "Документ")}</span>
+                    </a>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
+        `;
+      }
+
       async function renderEmployeesBase() {
         setAppTitle("");
         await loadEmployees();
@@ -9553,6 +9693,7 @@
                             </div>`;
                           })()}
                     </div>
+                    ${renderEmployeeCardDocuments(emp)}
                   </div>
                 `
               )
@@ -9733,11 +9874,27 @@
           employeeDocumentList.innerHTML = documents.length
             ? documents
                 .map(
-                  (documentItem) => `
+                  (documentItem) => {
+                    const documentUrl = `/api/employees/${editingEmployeeId}/documents/${escapeHtml(documentItem.id)}`;
+                    const isImage = String(documentItem.mimeType || "").startsWith("image/");
+                    return `
                     <div class="employee-document-item">
                       <a
+                        class="employee-document-preview"
+                        href="${documentUrl}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Открыть ${escapeHtml(documentItem.originalName || "документ")}"
+                      >
+                        ${
+                          isImage
+                            ? `<img src="${documentUrl}" alt="${escapeHtml(documentItem.originalName || "Документ")}" loading="lazy" />`
+                            : "PDF"
+                        }
+                      </a>
+                      <a
                         class="employee-document-link"
-                        href="/api/employees/${editingEmployeeId}/documents/${escapeHtml(documentItem.id)}"
+                        href="${documentUrl}"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -9752,7 +9909,8 @@
                         title="Удалить документ"
                       ><img src="/icons/delete-bin.png" alt="Удалить" /></button>
                     </div>
-                  `
+                  `;
+                  }
                 )
                 .join("")
             : `<div class="muted">Паспорт пока не загружен.</div>`;
