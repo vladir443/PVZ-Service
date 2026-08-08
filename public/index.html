@@ -587,8 +587,8 @@
       }
 
       .action-confirm-btn.confirm {
-        border-color: #1f5faf;
-        background: #1f5faf;
+        border-color: #c93636;
+        background: #c93636;
         color: #ffffff;
       }
 
@@ -615,6 +615,12 @@
         border-color: #3a506e;
         background: #22344f;
         color: #eaf1fb;
+      }
+
+      body.theme-dark .action-confirm-btn.confirm {
+        border-color: #d14949;
+        background: #c93636;
+        color: #ffffff;
       }
 
       @media (max-width: 480px) {
@@ -3941,50 +3947,85 @@
       .employee-row {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 8px;
+        height: 100%;
+        min-width: 0;
+        gap: 10px;
         align-items: stretch;
         border: 1px solid #dfe7f2;
-        border-radius: 16px;
-        padding: 13px 14px;
-        background: #fbfdff;
-        box-shadow: 0 3px 10px rgba(20, 37, 69, 0.04);
+        border-left-width: 4px;
+        border-radius: 18px;
+        padding: 16px;
+        background: linear-gradient(145deg, #ffffff 0%, #f7faff 100%);
+        box-shadow: 0 8px 24px rgba(20, 37, 69, 0.06);
+        transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+      }
+
+      .employee-row:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 30px rgba(20, 37, 69, 0.1);
+      }
+
+      .employee-row.reliability-reliable {
+        border-left-color: #2ca66f;
+      }
+
+      .employee-row.reliability-checking {
+        border-left-color: #dba51c;
+      }
+
+      .employee-row.reliability-borderline {
+        border-left-color: #d65050;
       }
 
       .employee-main {
         display: flex;
         align-items: flex-start;
-        gap: 12px;
+        gap: 14px;
+        min-width: 0;
+        height: 100%;
       }
 
       .employee-content {
+        width: 100%;
         min-width: 0;
-        display: grid;
-        gap: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
 
       .employee-head {
+        position: relative;
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 8px;
-        flex-wrap: nowrap;
+        min-width: 0;
+        padding-right: 42px;
+        flex-wrap: wrap;
       }
 
       .employee-name {
+        min-width: 0;
         font-size: 17px;
         font-weight: 800;
-        line-height: 1.2;
+        line-height: 1.25;
         color: #162033;
+        overflow-wrap: anywhere;
       }
 
       .employee-roleline {
-        font-size: 13px;
-        line-height: 1.35;
+        font-size: 12.5px;
+        font-weight: 650;
+        line-height: 1.4;
         color: #40526f;
       }
 
       .employee-contacts {
         display: grid;
-        gap: 3px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px 10px;
+        margin-top: auto;
+        padding-top: 10px;
+        border-top: 1px solid #e4ebf5;
         font-size: 12px;
         line-height: 1.35;
         color: #7a879d;
@@ -3997,11 +4038,17 @@
       .employee-contact-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
-        gap: 8px;
+        min-width: 0;
+        gap: 6px;
         align-items: center;
       }
 
       .employee-contact-link {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 5px;
+        align-items: baseline;
+        min-width: 0;
         color: #64748b;
         text-decoration: none;
         border: 0;
@@ -4011,6 +4058,21 @@
         font: inherit;
         text-align: left;
         cursor: pointer;
+        overflow-wrap: anywhere;
+      }
+
+      .employee-contact-label {
+        color: #8290a5;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+      }
+
+      .employee-contact-value {
+        min-width: 0;
+        color: #52637c;
+        font-weight: 600;
         overflow-wrap: anywhere;
       }
 
@@ -4067,14 +4129,17 @@
       }
 
       .employee-head-actions {
-        margin-left: auto;
+        position: absolute;
+        top: 0;
+        right: 0;
         display: flex;
         align-items: center;
+        flex: 0 0 auto;
       }
 
       .employee-edit-icon-btn {
-        width: 32px;
-        height: 32px;
+        width: 34px;
+        height: 34px;
         border: 1px solid #d2dceb;
         border-radius: 10px;
         background: #f7faff;
@@ -4392,10 +4457,15 @@
       }
 
       .employee-locationline {
-        margin-top: 5px;
-        color: #63748e;
+        margin-top: 1px;
+        padding: 8px 10px;
+        border: 1px solid #e5ecf6;
+        border-radius: 10px;
+        background: #f6f9fd;
+        color: #5a6d89;
         font-size: 12px;
         line-height: 1.4;
+        overflow-wrap: anywhere;
       }
 
       body.theme-dark .employee-location-option {
@@ -4411,6 +4481,20 @@
 
       body.theme-dark .employee-locationline {
         color: #9fb0c9;
+        border-color: #304866;
+        background: #132137;
+      }
+
+      body.theme-dark .employee-contacts {
+        border-top-color: #2b405e;
+      }
+
+      body.theme-dark .employee-contact-label {
+        color: #8193ad;
+      }
+
+      body.theme-dark .employee-contact-value {
+        color: #aebed4;
       }
 
       #employeePanel input[type="text"],
@@ -4457,6 +4541,42 @@
 
       body.theme-dark #employeeModal {
         background: #18263d;
+      }
+
+      @media (max-width: 700px) {
+        .employees-list {
+          gap: 10px;
+        }
+
+        .employee-row {
+          padding: 14px 12px;
+          border-radius: 16px;
+        }
+
+        .employee-row:hover {
+          transform: none;
+        }
+
+        .employee-main {
+          gap: 10px;
+        }
+
+        .employee-avatar {
+          width: 44px;
+          height: 44px;
+        }
+
+        .employee-name {
+          font-size: 16px;
+        }
+
+        .employee-contacts {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .employee-contact-link {
+          grid-template-columns: 52px minmax(0, 1fr);
+        }
       }
 
       .employee-form-actions {
@@ -8820,7 +8940,7 @@
           ? state.employees
               .map(
                 (emp) => `
-                  <div class="employee-row">
+                  <div class="employee-row reliability-${escapeHtml(emp.reliability || "checking")}">
                     <div class="employee-main">
                       ${renderUserAvatar({
                         avatarUrl: emp.avatarUrl || "",
@@ -8862,7 +8982,10 @@
                         <div class="employee-contacts">
                           ${emp.email
                             ? `<div class="employee-contact-row">
-                                <a class="employee-contact-link employee-contact-item" href="mailto:${escapeHtml(emp.email)}">Почта: ${escapeHtml(emp.email)}</a>
+                                <a class="employee-contact-link employee-contact-item" href="mailto:${escapeHtml(emp.email)}">
+                                  <span class="employee-contact-label">Почта</span>
+                                  <span class="employee-contact-value">${escapeHtml(emp.email)}</span>
+                                </a>
                                 <button type="button" class="employee-contact-copy-btn" data-copy-value="${escapeHtml(emp.email)}" data-copy-label="Почта" aria-label="Скопировать почту" title="Скопировать почту">
                                   <img src="/icons/copy.png" alt="Скопировать" />
                                 </button>
@@ -8870,7 +8993,10 @@
                             : ""}
                           ${emp.phone
                             ? `<div class="employee-contact-row">
-                                <div class="employee-contact-link employee-contact-item">Телефон: ${escapeHtml(emp.phone)}</div>
+                                <div class="employee-contact-link employee-contact-item">
+                                  <span class="employee-contact-label">Телефон</span>
+                                  <span class="employee-contact-value">${escapeHtml(emp.phone)}</span>
+                                </div>
                                 <button
                                   type="button"
                                   class="employee-contact-copy-btn"
@@ -8893,7 +9019,10 @@
                               : `https://t.me/${encodeURIComponent(clean)}`;
                             const label = raw.startsWith("@") ? raw : `@${raw}`;
                             return `<div class="employee-contact-row">
-                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">TG: ${escapeHtml(label)}</a>
+                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+                                <span class="employee-contact-label">TG</span>
+                                <span class="employee-contact-value">${escapeHtml(label)}</span>
+                              </a>
                               <button
                                 type="button"
                                 class="employee-contact-copy-btn"
@@ -8912,7 +9041,10 @@
                             const canonical = normalizeVkContact(raw);
                             const href = /^https?:\/\//i.test(canonical) ? canonical : `https://${canonical}`;
                             return `<div class="employee-contact-row">
-                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">VK: ${escapeHtml(canonical)}</a>
+                              <a class="employee-contact-link employee-contact-item" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+                                <span class="employee-contact-label">VK</span>
+                                <span class="employee-contact-value">${escapeHtml(canonical)}</span>
+                              </a>
                               <button
                                 type="button"
                                 class="employee-contact-copy-btn"
@@ -9033,7 +9165,7 @@
               </div>
               <div class="form-save-footer">
                 <div class="save-icon-wrap">
-                  <button class="save-icon-btn" id="saveEmployeeBtn" type="button">Сохранить</button>
+                  <button class="save-icon-btn" id="saveEmployeeBtn" type="button">Добавить</button>
                   <div id="saveEmployeeFeedback" class="save-feedback"></div>
                 </div>
                 <div class="save-icon-wrap">
@@ -9103,6 +9235,7 @@
           accessRoleInput.innerHTML = accessRoleOptionsHtml("PARTICIPANT", state.user.role, false);
           accessRoleInput.value = "PARTICIPANT";
           accessRoleInput.disabled = false;
+          saveEmployeeBtn.textContent = "Добавить";
           saveEmployeeBtn.disabled = false;
           formStatus.className = "employee-panel-status";
           formStatus.textContent = "";
@@ -9132,6 +9265,7 @@
 
           editingEmployeeId = employee.id;
           panelTitle.textContent = "Редактировать сотрудника";
+          saveEmployeeBtn.textContent = "Сохранить";
           firstNameInput.value = employee.firstName || "";
           lastNameInput.value = employee.lastName || "";
           emailInput.value = employee.email || "";
@@ -9283,7 +9417,7 @@
 
             formStatus.className = "employee-panel-status ok";
             formStatus.textContent = editingEmployeeId ? "Сотрудник обновлен" : "Сотрудник добавлен";
-            showSavedFeedback(saveEmployeeFeedback);
+            showSavedFeedback(saveEmployeeFeedback, editingEmployeeId ? "Сохранено" : "Добавлено");
             window.setTimeout(() => {
               closePanel();
               renderEmployeesBase();
