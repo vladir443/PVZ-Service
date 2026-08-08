@@ -1885,6 +1885,66 @@
         color: #d6e2f3;
       }
 
+      body.theme-dark .adjust-item {
+        border-color: #314968;
+        background: #17263e;
+        color: #e8eef8;
+      }
+
+      body.theme-dark .adjust-item-head label {
+        color: #f1f6fd;
+      }
+
+      body.theme-dark .adjust-item-desc {
+        color: #9fb0c9;
+      }
+
+      body.theme-dark .adjust-item input:disabled {
+        background: #1c2c45;
+        color: #aebdd2;
+        opacity: 0.8;
+      }
+
+      body.theme-dark .adjust-item input[type="checkbox"] {
+        accent-color: #4c8ee8;
+      }
+
+      body.theme-dark .finance-period-stat.total strong {
+        color: #55d592;
+      }
+
+      body.theme-dark .finance-paid-badge {
+        border: 1px solid #28684b;
+        background: #143528;
+        color: #8be0b6;
+      }
+
+      body.theme-dark .finance-unpaid-badge {
+        border: 1px solid #715827;
+        background: #342b18;
+        color: #f1c86f;
+      }
+
+      body.theme-dark .card-toggle {
+        border-color: #3b5477;
+        background: #192a43;
+      }
+
+      body.theme-dark .card-toggle.open {
+        background: #223754;
+      }
+
+      body.theme-dark .card-toggle img {
+        filter: brightness(0) invert(1);
+        opacity: 0.9;
+      }
+
+      body.theme-dark .finance-history-item {
+        border-color: #314968;
+        background: #17263e;
+        color: #dce7f7;
+      }
+
       body.theme-dark .dash-user {
         background: linear-gradient(180deg, #152238 0%, #122034 100%);
         border-color: #2a3d59;
@@ -2039,6 +2099,18 @@
         background: #0f1a2d;
         border-color: #334a6c;
         color: #e8eef8;
+      }
+
+      body.theme-dark input::placeholder,
+      body.theme-dark textarea::placeholder {
+        color: #7f91ab;
+        opacity: 1;
+      }
+
+      body.theme-dark input[type="date"],
+      body.theme-dark input[type="month"],
+      body.theme-dark input[type="time"] {
+        color-scheme: dark;
       }
 
       body.theme-dark .table-wrap {
@@ -3090,6 +3162,7 @@
 
       .finance-period-head {
         display: flex;
+        flex-direction: column;
         align-items: stretch;
       }
 
@@ -3111,10 +3184,15 @@
 
       .finance-pay-period-btn {
         flex: 0 0 auto;
-        align-self: center;
-        margin-right: 12px;
+        align-self: flex-end;
+        margin: 0 12px 12px;
         padding: 8px 12px;
         font-size: 13px;
+      }
+
+      .finance-period-head > .finance-paid-badge {
+        align-self: flex-end !important;
+        margin: 0 12px 12px !important;
       }
 
       .finance-period-title {
@@ -3247,6 +3325,24 @@
         font-size: 12px;
         font-weight: 800;
         white-space: nowrap;
+      }
+
+      .finance-history-item {
+        display: grid;
+        gap: 5px;
+        padding: 12px;
+        border: 1px solid #dce5f2;
+        border-radius: 12px;
+        background: #f8fbff;
+        color: #334964;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .finance-history-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 5px;
       }
 
       .panel-head {
@@ -5012,6 +5108,9 @@
         }
         .finance-day-action {
           width: 100%;
+        }
+        .adjust-item-grid {
+          grid-template-columns: minmax(0, 1fr);
         }
         .finance-employee-head {
           align-items: flex-start;
