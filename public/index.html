@@ -1710,6 +1710,14 @@
         object-fit: contain;
       }
 
+      .personal-finance-photo-viewer-card > iframe {
+        width: 100%;
+        height: calc(100dvh - 104px);
+        border: 0;
+        border-radius: 12px;
+        background: #fff;
+      }
+
       .personal-finance-photo-close {
         position: absolute;
         top: 10px;
@@ -3091,6 +3099,11 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
+      }
+
+      .adjust-photo img[data-image-preview],
+      button.adjust-photo[data-image-preview] {
+        cursor: zoom-in;
       }
 
       .adjust-photo-remove {
@@ -4538,6 +4551,16 @@
         text-decoration: none;
       }
 
+      button.employee-card-document {
+        width: 100%;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        cursor: zoom-in;
+      }
+
       .employee-card-document img {
         display: block;
         width: 100%;
@@ -4929,6 +4952,11 @@
         font-size: 11px;
         font-weight: 850;
         text-decoration: none;
+      }
+
+      button.employee-document-preview {
+        padding: 0;
+        cursor: zoom-in;
       }
 
       .employee-document-preview img {
@@ -5680,6 +5708,13 @@
       </div>
     </div>
     <nav id="bottomNav" class="bottom-nav"></nav>
+    <div id="globalImageViewer" class="personal-finance-photo-viewer hidden" role="dialog" aria-modal="true" aria-label="Просмотр изображения">
+      <div class="personal-finance-photo-viewer-card">
+        <button id="closeGlobalImageViewer" class="personal-finance-photo-close" type="button" aria-label="Закрыть">×</button>
+        <img id="globalImageViewerImage" alt="Просмотр изображения" />
+        <iframe id="globalDocumentViewerFrame" class="hidden" title="Просмотр документа"></iframe>
+      </div>
+    </div>
 
     <script>
       const tg = window.Telegram?.WebApp;
@@ -5829,6 +5864,45 @@
       const screen = document.getElementById("screen");
       const appTitle = document.getElementById("appTitle");
       const bottomNav = document.getElementById("bottomNav");
+      const globalImageViewer = document.getElementById("globalImageViewer");
+      const globalImageViewerImage = document.getElementById("globalImageViewerImage");
+      const globalDocumentViewerFrame = document.getElementById("globalDocumentViewerFrame");
+      const closeGlobalImageViewer = () => {
+        globalImageViewer.classList.add("hidden");
+        globalImageViewerImage.removeAttribute("src");
+        globalImageViewerImage.classList.remove("hidden");
+        globalDocumentViewerFrame.removeAttribute("src");
+        globalDocumentViewerFrame.classList.add("hidden");
+      };
+      document.getElementById("closeGlobalImageViewer").addEventListener("click", closeGlobalImageViewer);
+      globalImageViewer.addEventListener("click", (event) => {
+        if (event.target === globalImageViewer) closeGlobalImageViewer();
+      });
+      document.addEventListener("click", (event) => {
+        const preview = event.target instanceof Element
+          ? event.target.closest("[data-image-preview], [data-document-preview]")
+          : null;
+        if (!preview) return;
+        const previewUrl = String(preview.dataset.imagePreview || preview.dataset.documentPreview || "").trim();
+        if (!previewUrl) return;
+        event.preventDefault();
+        if (preview.dataset.documentPreview) {
+          globalImageViewerImage.classList.add("hidden");
+          globalDocumentViewerFrame.src = previewUrl;
+          globalDocumentViewerFrame.classList.remove("hidden");
+        } else {
+          globalDocumentViewerFrame.classList.add("hidden");
+          globalImageViewerImage.src = previewUrl;
+          globalImageViewerImage.alt = String(preview.dataset.imageAlt || "Изображение документа");
+          globalImageViewerImage.classList.remove("hidden");
+        }
+        globalImageViewer.classList.remove("hidden");
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !globalImageViewer.classList.contains("hidden")) {
+          closeGlobalImageViewer();
+        }
+      });
       const syncBottomNavClearance = () => {
         const hasNavigation = bottomNav.childElementCount > 0;
         const height = hasNavigation ? Math.ceil(bottomNav.getBoundingClientRect().height) : 0;
@@ -9771,11 +9845,11 @@
               ${imageDocuments
                 .map(
                   (documentItem) => `
-                    <a
+                    <button
                       class="employee-card-document"
-                      href="/api/employees/${escapeHtml(employee.id)}/documents/${escapeHtml(documentItem.id)}"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      type="button"
+                      data-image-preview="/api/employees/${escapeHtml(employee.id)}/documents/${escapeHtml(documentItem.id)}"
+                      data-image-alt="${escapeHtml(documentItem.originalName || "Документ сотрудника")}"
                       title="${escapeHtml(documentItem.originalName || "Документ")}"
                     >
                       <img
@@ -9784,7 +9858,7 @@
                         loading="lazy"
                       />
                       <span>${escapeHtml(documentItem.originalName || "Документ")}</span>
-                    </a>
+                    </button>
                   `
                 )
                 .join("")}
@@ -10002,7 +10076,7 @@
                   </div>
                 </div>
 
-                <div id="employeeDocumentsGroup" class="employee-form-group hidden">
+                <div id="employeeDocumentsGroup" class="employee-form-group">
                   <p class="employee-form-group-title">Документы сотрудника</p>
                   <div class="employee-photo-upload-row">
                     <div>
@@ -10013,7 +10087,7 @@
                     <button id="employeePhotoUploadBtn" class="employee-document-upload-btn" type="button">Загрузить фото</button>
                   </div>
                   <div class="muted">Паспорт: PDF, JPG, PNG или WEBP, до 10 МБ</div>
-                  <input id="employeeDocumentInput" class="hidden" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
+                  <input id="employeeDocumentInput" class="hidden" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple />
                   <button id="employeeDocumentUploadBtn" class="employee-document-upload-btn mt8" type="button">Загрузить паспорт</button>
                   <p id="employeeDocumentStatus" class="status mt8"></p>
                   <div id="employeeDocumentList" class="employee-document-list"></div>
@@ -10094,6 +10168,18 @@
         const saveEmployeeBtn = document.getElementById("saveEmployeeBtn");
         const saveEmployeeFeedback = document.getElementById("saveEmployeeFeedback");
         let editingEmployeeId = null;
+        let loadedEmployeeDocuments = [];
+        let pendingEmployeePhoto = null;
+        let pendingEmployeeDocuments = [];
+
+        const releasePendingEmployeeFiles = () => {
+          if (pendingEmployeePhoto?.url) URL.revokeObjectURL(pendingEmployeePhoto.url);
+          for (const pending of pendingEmployeeDocuments) {
+            if (pending.url) URL.revokeObjectURL(pending.url);
+          }
+          pendingEmployeePhoto = null;
+          pendingEmployeeDocuments = [];
+        };
 
         const formatFileSize = (bytes) => {
           const size = Math.max(0, Number(bytes || 0));
@@ -10101,37 +10187,54 @@
           return `${(size / (1024 * 1024)).toFixed(1)} МБ`;
         };
 
-        const renderEmployeeDocuments = (documents = []) => {
-          employeeDocumentList.innerHTML = documents.length
-            ? documents
+        const renderEmployeeDocuments = (documents = loadedEmployeeDocuments) => {
+          loadedEmployeeDocuments = Array.isArray(documents) ? documents : [];
+          const pendingRows = [
+            pendingEmployeePhoto
+              ? `
+                <div class="employee-document-item">
+                  <button class="employee-document-preview" type="button" data-image-preview="${escapeHtml(pendingEmployeePhoto.url)}" data-image-alt="Фото сотрудника">
+                    <img src="${escapeHtml(pendingEmployeePhoto.url)}" alt="Фото сотрудника" />
+                  </button>
+                  <div class="employee-document-link">
+                    Фото сотрудника: ${escapeHtml(pendingEmployeePhoto.file.name)}
+                    <span class="employee-document-meta">Будет загружено после добавления</span>
+                  </div>
+                  <button class="employee-document-delete" type="button" data-remove-pending-photo="1" aria-label="Убрать фото" title="Убрать фото"><img src="/icons/delete-bin.png" alt="Убрать" /></button>
+                </div>
+              `
+              : "",
+            ...pendingEmployeeDocuments.map((pending) => `
+              <div class="employee-document-item">
+                ${
+                  pending.isImage
+                    ? `<button class="employee-document-preview" type="button" data-image-preview="${escapeHtml(pending.url)}" data-image-alt="${escapeHtml(pending.file.name)}"><img src="${escapeHtml(pending.url)}" alt="${escapeHtml(pending.file.name)}" /></button>`
+                    : `<button class="employee-document-preview" type="button" data-document-preview="${escapeHtml(pending.url)}" aria-label="Открыть ${escapeHtml(pending.file.name)}">PDF</button>`
+                }
+                <div class="employee-document-link">
+                  ${escapeHtml(pending.file.name)}
+                  <span class="employee-document-meta">Будет загружено после добавления · ${formatFileSize(pending.file.size)}</span>
+                </div>
+                <button class="employee-document-delete" type="button" data-remove-pending-document="${escapeHtml(pending.id)}" aria-label="Убрать документ" title="Убрать документ"><img src="/icons/delete-bin.png" alt="Убрать" /></button>
+              </div>
+            `)
+          ].filter(Boolean).join("");
+          const savedRows = loadedEmployeeDocuments.length
+            ? loadedEmployeeDocuments
                 .map(
                   (documentItem) => {
                     const documentUrl = `/api/employees/${editingEmployeeId}/documents/${escapeHtml(documentItem.id)}`;
                     const isImage = String(documentItem.mimeType || "").startsWith("image/");
                     return `
                     <div class="employee-document-item">
-                      <a
-                        class="employee-document-preview"
-                        href="${documentUrl}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Открыть ${escapeHtml(documentItem.originalName || "документ")}"
-                      >
-                        ${
-                          isImage
-                            ? `<img src="${documentUrl}" alt="${escapeHtml(documentItem.originalName || "Документ")}" loading="lazy" />`
-                            : "PDF"
-                        }
-                      </a>
-                      <a
-                        class="employee-document-link"
-                        href="${documentUrl}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
+                      ${isImage
+                        ? `<button class="employee-document-preview" type="button" data-image-preview="${documentUrl}" data-image-alt="${escapeHtml(documentItem.originalName || "Документ")}" title="Открыть ${escapeHtml(documentItem.originalName || "документ")}"><img src="${documentUrl}" alt="${escapeHtml(documentItem.originalName || "Документ")}" loading="lazy" /></button>`
+                        : `<button class="employee-document-preview" type="button" data-document-preview="${documentUrl}" aria-label="Открыть ${escapeHtml(documentItem.originalName || "PDF документ")}">PDF</button>`
+                      }
+                      <div class="employee-document-link">
                         ${escapeHtml(documentItem.originalName || "Документ")}
                         <span class="employee-document-meta">${formatFileSize(documentItem.sizeBytes)}</span>
-                      </a>
+                      </div>
                       <button
                         class="employee-document-delete"
                         type="button"
@@ -10144,7 +10247,10 @@
                   }
                 )
                 .join("")
-            : `<div class="muted">Паспорт пока не загружен.</div>`;
+            : "";
+          employeeDocumentList.innerHTML = pendingRows || savedRows
+            ? `${pendingRows}${savedRows}`
+            : `<div class="muted">Фото и паспорт пока не выбраны.</div>`;
         };
 
         const loadEmployeeDocuments = async () => {
@@ -10172,8 +10278,13 @@
         };
 
         const openPanel = () => modal.classList.remove("hidden");
-        const closePanel = () => modal.classList.add("hidden");
+        const closePanel = () => {
+          modal.classList.add("hidden");
+          releasePendingEmployeeFiles();
+        };
         const resetForm = () => {
+          releasePendingEmployeeFiles();
+          loadedEmployeeDocuments = [];
           firstNameInput.value = "";
           lastNameInput.value = "";
           updateNameFieldError(firstNameInput, firstNameInputWrap, firstNameInlineError);
@@ -10190,6 +10301,8 @@
           accessRoleInput.innerHTML = accessRoleOptionsHtml("PARTICIPANT", state.user.role, false);
           accessRoleInput.value = "PARTICIPANT";
           accessRoleInput.disabled = false;
+          employeePhotoUploadBtn.disabled = false;
+          employeeDocumentUploadBtn.disabled = false;
           saveEmployeeBtn.textContent = "Добавить";
           saveEmployeeBtn.disabled = false;
           formStatus.className = "employee-panel-status";
@@ -10201,11 +10314,11 @@
           if (deleteEmployeeWrap) deleteEmployeeWrap.style.display = "none";
           deleteEmployeeBtn.disabled = true;
           deleteEmployeeBtn.title = "Удалить сотрудника";
-          employeeDocumentsGroup.classList.add("hidden");
+          employeeDocumentsGroup.classList.remove("hidden");
           employeePhotoInput.value = "";
           employeeDocumentInput.value = "";
           employeeDocumentStatus.textContent = "";
-          employeeDocumentList.innerHTML = "";
+          renderEmployeeDocuments([]);
         };
 
         const openForCreate = () => {
@@ -10223,6 +10336,8 @@
             return;
           }
 
+          releasePendingEmployeeFiles();
+          loadedEmployeeDocuments = [];
           editingEmployeeId = employee.id;
           panelTitle.textContent = "Редактировать сотрудника";
           saveEmployeeBtn.textContent = "Сохранить";
@@ -10301,11 +10416,32 @@
           updateNameFieldError(lastNameInput, lastNameInputWrap, lastNameInlineError);
         });
         employeePhotoUploadBtn.addEventListener("click", () => {
-          if (editingEmployeeId) employeePhotoInput.click();
+          employeePhotoInput.click();
         });
         employeePhotoInput.addEventListener("change", async () => {
           const file = employeePhotoInput.files?.[0];
-          if (!file || !editingEmployeeId) return;
+          if (!file) return;
+          if (!editingEmployeeId) {
+            if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+              employeeDocumentStatus.className = "status error mt8";
+              employeeDocumentStatus.textContent = "Фото должно быть в формате JPG, PNG или WEBP";
+              employeePhotoInput.value = "";
+              return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+              employeeDocumentStatus.className = "status error mt8";
+              employeeDocumentStatus.textContent = "Фотография сотрудника должна быть не больше 5 МБ";
+              employeePhotoInput.value = "";
+              return;
+            }
+            if (pendingEmployeePhoto?.url) URL.revokeObjectURL(pendingEmployeePhoto.url);
+            pendingEmployeePhoto = { file, url: URL.createObjectURL(file) };
+            employeeDocumentStatus.className = "status ok mt8";
+            employeeDocumentStatus.textContent = "Фото выбрано и загрузится после добавления сотрудника";
+            renderEmployeeDocuments();
+            employeePhotoInput.value = "";
+            return;
+          }
           employeePhotoUploadBtn.disabled = true;
           employeeDocumentStatus.className = "status mt8";
           employeeDocumentStatus.textContent = "Загрузка фото...";
@@ -10349,23 +10485,53 @@
           }
         });
         employeeDocumentUploadBtn.addEventListener("click", () => {
-          if (editingEmployeeId) employeeDocumentInput.click();
+          employeeDocumentInput.click();
         });
         employeeDocumentInput.addEventListener("change", async () => {
-          const file = employeeDocumentInput.files?.[0];
-          if (!file || !editingEmployeeId) return;
+          const files = [...(employeeDocumentInput.files || [])];
+          if (!files.length) return;
+          if (!editingEmployeeId) {
+            const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+            const invalidFile = files.find((file) => !allowedTypes.has(file.type) || file.size > 10 * 1024 * 1024);
+            if (invalidFile) {
+              employeeDocumentStatus.className = "status error mt8";
+              employeeDocumentStatus.textContent = !allowedTypes.has(invalidFile.type)
+                ? "Паспорт должен быть в формате PDF, JPG, PNG или WEBP"
+                : "Каждый документ должен быть не больше 10 МБ";
+              employeeDocumentInput.value = "";
+              return;
+            }
+            pendingEmployeeDocuments.push(
+              ...files.map((file, index) => {
+                const isImage = file.type.startsWith("image/");
+                return {
+                  id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+                  file,
+                  isImage,
+                  url: URL.createObjectURL(file)
+                };
+              })
+            );
+            employeeDocumentStatus.className = "status ok mt8";
+            employeeDocumentStatus.textContent = "Документы выбраны и загрузятся после добавления сотрудника";
+            renderEmployeeDocuments();
+            employeeDocumentInput.value = "";
+            return;
+          }
           employeeDocumentUploadBtn.disabled = true;
           employeeDocumentStatus.className = "status mt8";
-          employeeDocumentStatus.textContent = "Загрузка документа...";
+          employeeDocumentStatus.textContent = "Загрузка документов...";
           try {
-            const formData = new FormData();
-            formData.append("file", file, file.name);
-            await api(`/api/employees/${editingEmployeeId}/documents`, {
-              method: "POST",
-              body: formData
-            });
+            for (const file of files) {
+              const formData = new FormData();
+              formData.append("file", file, file.name);
+              await api(`/api/employees/${editingEmployeeId}/documents`, {
+                method: "POST",
+                body: formData
+              });
+            }
             employeeDocumentStatus.className = "status ok mt8";
-            employeeDocumentStatus.textContent = "Документ загружен";
+            employeeDocumentStatus.textContent = files.length > 1 ? "Документы загружены" : "Документ загружен";
             await loadEmployeeDocuments();
           } catch (error) {
             employeeDocumentStatus.className = "status error mt8";
@@ -10376,6 +10542,22 @@
           }
         });
         employeeDocumentList.addEventListener("click", async (event) => {
+          const removePendingPhoto = event.target.closest("[data-remove-pending-photo]");
+          if (removePendingPhoto) {
+            if (pendingEmployeePhoto?.url) URL.revokeObjectURL(pendingEmployeePhoto.url);
+            pendingEmployeePhoto = null;
+            renderEmployeeDocuments();
+            return;
+          }
+          const removePendingDocument = event.target.closest("[data-remove-pending-document]");
+          if (removePendingDocument) {
+            const pendingId = String(removePendingDocument.dataset.removePendingDocument || "");
+            const pending = pendingEmployeeDocuments.find((item) => item.id === pendingId);
+            if (pending?.url) URL.revokeObjectURL(pending.url);
+            pendingEmployeeDocuments = pendingEmployeeDocuments.filter((item) => item.id !== pendingId);
+            renderEmployeeDocuments();
+            return;
+          }
           const button = event.target.closest("[data-delete-employee-document]");
           if (!button || !editingEmployeeId) return;
           const confirmed = await confirmAction("Удалить паспортный документ?", { danger: true });
@@ -10447,10 +10629,11 @@
           try {
             formStatus.className = "employee-panel-status";
             formStatus.textContent = "";
-            const method = editingEmployeeId ? "PUT" : "POST";
-            const endpoint = editingEmployeeId
-              ? `/api/employees/${editingEmployeeId}`
-              : "/api/employees";
+            const isCreatingEmployee = !editingEmployeeId;
+            const method = isCreatingEmployee ? "POST" : "PUT";
+            const endpoint = isCreatingEmployee
+              ? "/api/employees"
+              : `/api/employees/${editingEmployeeId}`;
 
             const savedEmployee = await api(endpoint, {
               method,
@@ -10467,6 +10650,38 @@
                 accessRole
               })
             });
+            const savedEmployeeId = editingEmployeeId || savedEmployee?.employee?.id;
+            if (isCreatingEmployee && savedEmployeeId) {
+              editingEmployeeId = savedEmployeeId;
+              panelTitle.textContent = "Редактировать сотрудника";
+              saveEmployeeBtn.textContent = "Сохранить";
+            }
+            if (savedEmployeeId && (pendingEmployeePhoto || pendingEmployeeDocuments.length)) {
+              employeeDocumentStatus.className = "status mt8";
+              employeeDocumentStatus.textContent = "Загрузка выбранных файлов...";
+              if (pendingEmployeePhoto) {
+                const photoFormData = new FormData();
+                photoFormData.append("file", pendingEmployeePhoto.file, pendingEmployeePhoto.file.name);
+                await api(`/api/employees/${savedEmployeeId}/photo`, {
+                  method: "POST",
+                  body: photoFormData
+                });
+                if (pendingEmployeePhoto.url) URL.revokeObjectURL(pendingEmployeePhoto.url);
+                pendingEmployeePhoto = null;
+              }
+              for (const pending of [...pendingEmployeeDocuments]) {
+                const documentFormData = new FormData();
+                documentFormData.append("file", pending.file, pending.file.name);
+                await api(`/api/employees/${savedEmployeeId}/documents`, {
+                  method: "POST",
+                  body: documentFormData
+                });
+                if (pending.url) URL.revokeObjectURL(pending.url);
+                pendingEmployeeDocuments = pendingEmployeeDocuments.filter((item) => item.id !== pending.id);
+              }
+              employeeDocumentStatus.className = "status ok mt8";
+              employeeDocumentStatus.textContent = "Фото и документы загружены";
+            }
             if (savedEmployee?.authId) {
               state.telegramId = String(savedEmployee.authId);
               try {
@@ -10475,8 +10690,8 @@
             }
 
             formStatus.className = "employee-panel-status ok";
-            formStatus.textContent = editingEmployeeId ? "Сотрудник обновлен" : "Сотрудник добавлен";
-            showSavedFeedback(saveEmployeeFeedback, editingEmployeeId ? "Сохранено" : "Добавлено");
+            formStatus.textContent = isCreatingEmployee ? "Сотрудник добавлен" : "Сотрудник обновлен";
+            showSavedFeedback(saveEmployeeFeedback, isCreatingEmployee ? "Добавлено" : "Сохранено");
             window.setTimeout(() => {
               closePanel();
               renderEmployeesBase();
@@ -11553,13 +11768,17 @@
                                               ? `<div class="adjust-photo-list">${item.attachmentIds
                                                   .map(
                                                     (id) => `
-                                                      <a class="adjust-photo" href="/api/schedule/attachments/${escapeHtml(
-                                                        id
-                                                      )}" target="_blank" rel="noopener noreferrer">
+                                                      <button
+                                                        class="adjust-photo"
+                                                        type="button"
+                                                        data-image-preview="/api/schedule/attachments/${escapeHtml(id)}"
+                                                        data-image-alt="Фото подтверждения"
+                                                        aria-label="Открыть фото подтверждения"
+                                                      >
                                                         <img src="/api/schedule/attachments/${escapeHtml(
                                                           id
                                                         )}" alt="Фото подтверждения" loading="lazy" />
-                                                      </a>
+                                                      </button>
                                                     `
                                                   )
                                                   .join("")}</div>`
@@ -12303,7 +12522,13 @@
               "beforeend",
               `
                 <div class="adjust-photo" data-attachment-id="${escapeHtml(attachment.id)}">
-                  <img src="/api/schedule/attachments/${escapeHtml(attachment.id)}" alt="Фото подтверждения" loading="lazy" />
+                  <img
+                    src="/api/schedule/attachments/${escapeHtml(attachment.id)}"
+                    data-image-preview="/api/schedule/attachments/${escapeHtml(attachment.id)}"
+                    data-image-alt="Фото подтверждения"
+                    alt="Фото подтверждения"
+                    loading="lazy"
+                  />
                   <button class="adjust-photo-remove" data-remove-adj-photo="1" type="button" aria-label="Удалить фото">×</button>
                 </div>
               `
@@ -12435,7 +12660,13 @@
                           .map(
                             (id) => `
                               <div class="adjust-photo" data-attachment-id="${escapeHtml(id)}">
-                                <img src="/api/schedule/attachments/${escapeHtml(id)}" alt="Фото подтверждения" loading="lazy" />
+                                <img
+                                  src="/api/schedule/attachments/${escapeHtml(id)}"
+                                  data-image-preview="/api/schedule/attachments/${escapeHtml(id)}"
+                                  data-image-alt="Фото подтверждения"
+                                  alt="Фото подтверждения"
+                                  loading="lazy"
+                                />
                                 <button class="adjust-photo-remove" data-remove-adj-photo="1" type="button" aria-label="Удалить фото">×</button>
                               </div>
                             `
