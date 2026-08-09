@@ -6,11 +6,15 @@ dotenv.config();
 const defaultDatabasePath = process.env.AMVERA
   ? "/data/grafik.db"
   : "./data/grafik.db";
+const defaultFileStoragePath = process.env.AMVERA
+  ? "/data/files"
+  : "./data/files";
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   HOST: z.string().default("0.0.0.0"),
   DATABASE_PATH: z.string().min(1).default(defaultDatabasePath),
+  FILE_STORAGE_PATH: z.string().min(1).default(defaultFileStoragePath),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   TELEGRAM_BOT_TOKEN: z.string().default(""),
   PUBLIC_APP_URL: z

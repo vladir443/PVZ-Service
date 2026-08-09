@@ -1,8 +1,13 @@
 import express from "express";
 import multer from "multer";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { requireAuth, requirePosition, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
+import {
+  removeTemporaryUpload,
+  secureUploadTempDirectory
+} from "../services/file-storage.js";
 import {
   createFinancePayment,
   createSecureFile,
@@ -16,6 +21,7 @@ import {
   getScheduleForMonth,
   listFinancePaymentsForMonth,
   listEmployees,
+  listScheduleOccupancyForMonth,
   listShiftPaymentsForMonth,
   listLocations,
   logAuditEvent,
@@ -40,7 +46,10 @@ function centsToMoney(value) {
 
 const adjustmentImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const adjustmentUpload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, secureUploadTempDirectory),
+    filename: (_req, _file, callback) => callback(null, `${crypto.randomUUID()}.upload`)
+  }),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, callback) => {
     const allowed = adjustmentImageTypes.has(String(file.mimetype || "").toLowerCase());
@@ -77,18 +86,19 @@ router.post(
   receiveAdjustmentImage,
   (req, res, next) => {
     try {
-      if (!req.file?.buffer?.length) {
+      if (!req.file?.path || !req.file.size) {
         return res.status(400).json({ error: "ValidationError", message: "Выберите фотографию" });
       }
       const attachment = createSecureFile({
         category: "ADJUSTMENT_PHOTO",
         originalName: decodeUploadFileName(req.file.originalname),
         mimeType: req.file.mimetype,
-        content: req.file.buffer,
+        sourcePath: req.file.path,
         uploadedByUserId: req.user.id
       });
       return res.status(201).json({ attachment });
     } catch (error) {
+      removeTemporaryUpload(req.file?.path);
       return next(error);
     }
   }
@@ -98,7 +108,7 @@ router.get(
   "/attachments/:fileId",
   (req, res, next) => {
     try {
-      const file = getSecureFileById(req.params.fileId, { includeContent: true });
+      const file = getSecureFileById(req.params.fileId, { includeReadPath: true });
       if (!file || file.category !== "ADJUSTMENT_PHOTO") {
         return res.status(404).json({ error: "NotFound", message: "Фотография не найдена" });
       }
@@ -116,7 +126,7 @@ router.get(
       res.setHeader("Content-Length", String(file.sizeBytes));
       res.setHeader("Content-Disposition", "inline");
       res.setHeader("Cache-Control", "private, max-age=3600");
-      return res.send(file.content);
+      return res.sendFile(file.readPath);
     } catch (error) {
       return next(error);
     }
@@ -145,6 +155,25 @@ router.get("/locations", (req, res, next) => {
     const allowedCodes = new Set(getEmployeeLocationCodes(req.employee.id));
     const locations = listLocations().filter((location) => allowedCodes.has(location.code));
     return res.json({ locations });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/occupancy", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
+  try {
+    const month = String(req.query.month || "");
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({
+        error: "ValidationError",
+        message: "Укажите месяц в формате ГГГГ-ММ"
+      });
+    }
+    const assignments = listScheduleOccupancyForMonth({
+      month,
+      excludeLocationCode: String(req.query.excludeLocationCode || "").trim()
+    });
+    return res.json({ month, assignments });
   } catch (error) {
     return next(error);
   }

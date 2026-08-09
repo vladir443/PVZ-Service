@@ -4,6 +4,11 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { env } from "./config/env.js";
 import { DbRole, Role, fromDbRole, toDbRole } from "./lib/roles.js";
+import {
+  persistSecureFile,
+  removeStoredFile,
+  resolveSecureFilePath
+} from "./services/file-storage.js";
 
 function prepareDatabasePath(databasePath) {
   try {
@@ -139,7 +144,8 @@ db.exec(`
     original_name TEXT NOT NULL,
     mime_type TEXT NOT NULL,
     size_bytes INTEGER NOT NULL,
-    content BLOB NOT NULL,
+    content BLOB,
+    storage_path TEXT NOT NULL DEFAULT '',
     uploaded_by_user_id INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
@@ -153,7 +159,13 @@ db.exec(`
 const secureFilesTableSql = String(
   db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'secure_files'").get()?.sql || ""
 );
-if (secureFilesTableSql && !secureFilesTableSql.includes("EMPLOYEE_PHOTO")) {
+const secureFileColumns = db.prepare("PRAGMA table_info(secure_files)").all();
+const secureFileContentColumn = secureFileColumns.find((column) => column.name === "content");
+const secureFilesNeedRebuild =
+  !secureFilesTableSql.includes("EMPLOYEE_PHOTO") ||
+  !secureFileColumns.some((column) => column.name === "storage_path") ||
+  Number(secureFileContentColumn?.notnull || 0) === 1;
+if (secureFilesNeedRebuild) {
   db.exec(`
     DROP INDEX IF EXISTS idx_secure_files_employee;
     ALTER TABLE secure_files RENAME TO secure_files_legacy;
@@ -164,24 +176,50 @@ if (secureFilesTableSql && !secureFilesTableSql.includes("EMPLOYEE_PHOTO")) {
       original_name TEXT NOT NULL,
       mime_type TEXT NOT NULL,
       size_bytes INTEGER NOT NULL,
-      content BLOB NOT NULL,
+      content BLOB,
+      storage_path TEXT NOT NULL DEFAULT '',
       uploaded_by_user_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
       FOREIGN KEY(uploaded_by_user_id) REFERENCES users(id) ON DELETE SET NULL
     );
     INSERT INTO secure_files (
-      id, category, employee_id, original_name, mime_type, size_bytes, content,
+      id, category, employee_id, original_name, mime_type, size_bytes, content, storage_path,
       uploaded_by_user_id, created_at
     )
     SELECT
-      id, category, employee_id, original_name, mime_type, size_bytes, content,
+      id, category, employee_id, original_name, mime_type, size_bytes, content, '',
       uploaded_by_user_id, created_at
     FROM secure_files_legacy;
     DROP TABLE secure_files_legacy;
     CREATE INDEX idx_secure_files_employee
       ON secure_files(employee_id, category, created_at);
   `);
+}
+
+const legacySecureFiles = db
+  .prepare(
+    `
+    SELECT id, content
+    FROM secure_files
+    WHERE storage_path = '' AND content IS NOT NULL
+    `
+  )
+  .all();
+const finishSecureFileMigration = db.prepare(
+  "UPDATE secure_files SET storage_path = ?, content = NULL WHERE id = ?"
+);
+for (const legacyFile of legacySecureFiles) {
+  const stored = persistSecureFile({ id: legacyFile.id, content: legacyFile.content });
+  finishSecureFileMigration.run(stored.relativePath, legacyFile.id);
+}
+if (legacySecureFiles.length) {
+  console.log(`[files] Migrated ${legacySecureFiles.length} secure file(s) from SQLite.`);
+  try {
+    db.exec("VACUUM");
+  } catch (error) {
+    console.warn(`[files] SQLite compaction skipped: ${error.message}`);
+  }
 }
 
 db.exec(`
@@ -1157,6 +1195,43 @@ export function getScheduleForMonth({ locationCode, month }) {
   };
 }
 
+export function listScheduleOccupancyForMonth({ month, excludeLocationCode = "" }) {
+  const { year, month: monthNum } = parseMonth(month);
+  const monthDays = getMonthDays(year, monthNum);
+  const monthStart = monthDays[0];
+  const monthEnd = monthDays[monthDays.length - 1];
+
+  return db
+    .prepare(
+      `
+      SELECT
+        s.shift_date,
+        s.location_code,
+        l.title AS location_title,
+        s.executor1,
+        s.executor2,
+        s.executor1_employee_id,
+        s.executor2_employee_id
+      FROM shifts s
+      JOIN locations l ON l.code = s.location_code
+      WHERE s.shift_date >= ?
+        AND s.shift_date <= ?
+        AND (? = '' OR s.location_code <> ?)
+      ORDER BY s.shift_date ASC, l.title COLLATE NOCASE ASC
+      `
+    )
+    .all(monthStart, monthEnd, excludeLocationCode, excludeLocationCode)
+    .map((row) => ({
+      date: row.shift_date,
+      locationCode: row.location_code,
+      locationTitle: row.location_title,
+      executor1: row.executor1 || "",
+      executor2: row.executor2 || "",
+      executor1EmployeeId: row.executor1_employee_id ?? null,
+      executor2EmployeeId: row.executor2_employee_id ?? null
+    }));
+}
+
 export function upsertShift({
   locationCode,
   date,
@@ -2048,6 +2123,24 @@ export function deleteFinancePayment({ locationCode, paymentId }) {
 }
 
 export function listEmployees() {
+  const locationsByEmployee = new Map();
+  const locationRows = db
+    .prepare(
+      `
+      SELECT el.employee_id, l.code, l.title
+      FROM employee_locations el
+      JOIN locations l ON l.code = el.location_code
+      ORDER BY l.title COLLATE NOCASE ASC
+      `
+    )
+    .all();
+
+  for (const row of locationRows) {
+    const locations = locationsByEmployee.get(row.employee_id) || [];
+    locations.push({ code: row.code, title: row.title });
+    locationsByEmployee.set(row.employee_id, locations);
+  }
+
   return db
     .prepare(
       `
@@ -2074,8 +2167,8 @@ export function listEmployees() {
       reliability: row.reliability,
       accessRole: fromDbRole(row.access_role, row.is_protected === 1),
       isProtected: row.is_protected === 1,
-      locationCodes: getEmployeeLocationCodes(row.id),
-      locations: getEmployeeLocations(row.id),
+      locationCodes: (locationsByEmployee.get(row.id) || []).map((location) => location.code),
+      locations: locationsByEmployee.get(row.id) || [],
       createdAt: row.created_at
     }));
 }
@@ -2204,6 +2297,9 @@ export function deleteEmployeeById(id) {
     return { deleted: false, reason: "protected" };
   }
 
+  const storedFiles = db
+    .prepare("SELECT storage_path FROM secure_files WHERE employee_id = ?")
+    .all(id);
   const result = db
     .prepare(
       `
@@ -2212,6 +2308,10 @@ export function deleteEmployeeById(id) {
       `
     )
     .run(id);
+
+  if (result.changes > 0) {
+    for (const file of storedFiles) removeStoredFile(file.storage_path);
+  }
 
   return { deleted: result.changes > 0, reason: result.changes > 0 ? "ok" : "not_found" };
 }
@@ -2381,7 +2481,7 @@ function recoverStoredFileName(value) {
   return name;
 }
 
-function mapSecureFile(row, { includeContent = false } = {}) {
+function mapSecureFile(row, { includeReadPath = false } = {}) {
   if (!row) return null;
   const file = {
     id: row.id,
@@ -2393,7 +2493,9 @@ function mapSecureFile(row, { includeContent = false } = {}) {
     uploadedByUserId: row.uploaded_by_user_id == null ? null : Number(row.uploaded_by_user_id),
     createdAt: row.created_at
   };
-  if (includeContent) file.content = row.content;
+  if (includeReadPath && row.storage_path) {
+    file.readPath = resolveSecureFilePath(row.storage_path);
+  }
   return file;
 }
 
@@ -2402,43 +2504,49 @@ export function createSecureFile({
   employeeId = null,
   originalName,
   mimeType,
-  content,
+  content = null,
+  sourcePath = "",
   uploadedByUserId = null
 }) {
   const id = crypto.randomUUID();
-  const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content || "");
-  db.prepare(
-    `
-    INSERT INTO secure_files (
-      id, category, employee_id, original_name, mime_type, size_bytes, content, uploaded_by_user_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `
-  ).run(
-    id,
-    category,
-    employeeId == null ? null : Number(employeeId),
-    String(originalName || "file").trim(),
-    String(mimeType || "application/octet-stream").trim(),
-    buffer.length,
-    buffer,
-    uploadedByUserId == null ? null : Number(uploadedByUserId)
-  );
+  const stored = persistSecureFile({ id, sourcePath, content });
+  try {
+    db.prepare(
+      `
+      INSERT INTO secure_files (
+        id, category, employee_id, original_name, mime_type, size_bytes,
+        content, storage_path, uploaded_by_user_id
+      ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
+      `
+    ).run(
+      id,
+      category,
+      employeeId == null ? null : Number(employeeId),
+      String(originalName || "file").trim(),
+      String(mimeType || "application/octet-stream").trim(),
+      stored.sizeBytes,
+      stored.relativePath,
+      uploadedByUserId == null ? null : Number(uploadedByUserId)
+    );
+  } catch (error) {
+    removeStoredFile(stored.relativePath);
+    throw error;
+  }
   return getSecureFileById(id);
 }
 
-export function getSecureFileById(id, { includeContent = false } = {}) {
-  const columns = includeContent
-    ? "id, category, employee_id, original_name, mime_type, size_bytes, content, uploaded_by_user_id, created_at"
-    : "id, category, employee_id, original_name, mime_type, size_bytes, uploaded_by_user_id, created_at";
+export function getSecureFileById(id, { includeReadPath = false } = {}) {
+  const columns =
+    "id, category, employee_id, original_name, mime_type, size_bytes, storage_path, uploaded_by_user_id, created_at";
   const row = db.prepare(`SELECT ${columns} FROM secure_files WHERE id = ?`).get(String(id || ""));
-  return mapSecureFile(row, { includeContent });
+  return mapSecureFile(row, { includeReadPath });
 }
 
 export function listEmployeeDocuments(employeeId) {
   return db
     .prepare(
       `
-      SELECT id, category, employee_id, original_name, mime_type, size_bytes, uploaded_by_user_id, created_at
+      SELECT id, category, employee_id, original_name, mime_type, size_bytes, storage_path, uploaded_by_user_id, created_at
       FROM secure_files
       WHERE employee_id = ? AND category = 'EMPLOYEE_PASSPORT'
       ORDER BY created_at DESC, original_name COLLATE NOCASE ASC
@@ -2452,7 +2560,7 @@ export function listAllEmployeeDocuments() {
   return db
     .prepare(
       `
-      SELECT id, category, employee_id, original_name, mime_type, size_bytes, uploaded_by_user_id, created_at
+      SELECT id, category, employee_id, original_name, mime_type, size_bytes, storage_path, uploaded_by_user_id, created_at
       FROM secure_files
       WHERE category = 'EMPLOYEE_PASSPORT'
       ORDER BY employee_id ASC, created_at DESC, original_name COLLATE NOCASE ASC
@@ -2463,9 +2571,20 @@ export function listAllEmployeeDocuments() {
 }
 
 export function deleteSecureFileById(id) {
-  const file = getSecureFileById(id);
+  const row = db
+    .prepare(
+      `
+      SELECT id, category, employee_id, original_name, mime_type, size_bytes,
+             storage_path, uploaded_by_user_id, created_at
+      FROM secure_files
+      WHERE id = ?
+      `
+    )
+    .get(String(id || ""));
+  const file = mapSecureFile(row);
   if (!file) return null;
   db.prepare("DELETE FROM secure_files WHERE id = ?").run(file.id);
+  removeStoredFile(row.storage_path);
   return file;
 }
 

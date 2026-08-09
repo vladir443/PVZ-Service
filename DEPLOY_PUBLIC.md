@@ -19,6 +19,7 @@ In Railway service -> `Variables`, set:
 
 - `PORT=3000`
 - `DATABASE_PATH=/data/grafik.db`
+- `FILE_STORAGE_PATH=/data/files`
 - `TELEGRAM_BOT_TOKEN=<your_bot_token>`
 - `ADMIN_TELEGRAM_IDS=<your_telegram_id>` (optional, comma-separated for multiple admins)
 

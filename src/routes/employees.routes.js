@@ -1,5 +1,6 @@
 import express from "express";
 import multer from "multer";
+import crypto from "node:crypto";
 import { z } from "zod";
 import {
   createSecureFile,
@@ -22,6 +23,10 @@ import {
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
 import { setAuthCookies } from "../lib/auth-cookies.js";
+import {
+  removeTemporaryUpload,
+  secureUploadTempDirectory
+} from "../services/file-storage.js";
 
 const router = express.Router();
 
@@ -32,7 +37,10 @@ const passportMimeTypes = new Set([
   "image/webp"
 ]);
 const passportUpload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, secureUploadTempDirectory),
+    filename: (_req, _file, callback) => callback(null, `${crypto.randomUUID()}.upload`)
+  }),
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, callback) => {
     callback(
@@ -44,7 +52,10 @@ const passportUpload = multer({
   }
 });
 const employeePhotoUpload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, secureUploadTempDirectory),
+    filename: (_req, _file, callback) => callback(null, `${crypto.randomUUID()}.upload`)
+  }),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, callback) => {
     const allowed = ["image/jpeg", "image/png", "image/webp"].includes(
@@ -88,7 +99,7 @@ function receiveEmployeePhoto(req, res, next) {
 router.get("/:id/photo", requireAuth, (req, res, next) => {
   try {
     const employeeId = Number(req.params.id);
-    const file = getSecureFileById(req.query.file, { includeContent: true });
+    const file = getSecureFileById(req.query.file, { includeReadPath: true });
     if (
       !Number.isInteger(employeeId) ||
       !file ||
@@ -101,7 +112,7 @@ router.get("/:id/photo", requireAuth, (req, res, next) => {
     res.setHeader("Content-Length", String(file.sizeBytes));
     res.setHeader("Content-Disposition", "inline");
     res.setHeader("Cache-Control", "private, max-age=86400");
-    return res.send(file.content);
+    return res.sendFile(file.readPath);
   } catch (error) {
     return next(error);
   }
@@ -322,8 +333,11 @@ router.get("/:id/documents", (req, res, next) => {
 router.post("/:id/documents", receivePassportFile, (req, res, next) => {
   try {
     const employee = getDocumentTarget(req, res);
-    if (!employee) return;
-    if (!req.file?.buffer?.length) {
+    if (!employee) {
+      removeTemporaryUpload(req.file?.path);
+      return;
+    }
+    if (!req.file?.path || !req.file.size) {
       return res.status(400).json({ error: "ValidationError", message: "Выберите документ" });
     }
     const document = createSecureFile({
@@ -331,7 +345,7 @@ router.post("/:id/documents", receivePassportFile, (req, res, next) => {
       employeeId: employee.id,
       originalName: decodeUploadFileName(req.file.originalname),
       mimeType: req.file.mimetype,
-      content: req.file.buffer,
+      sourcePath: req.file.path,
       uploadedByUserId: req.user.id
     });
     logAuditEvent({
@@ -349,6 +363,7 @@ router.post("/:id/documents", receivePassportFile, (req, res, next) => {
     });
     return res.status(201).json({ document });
   } catch (error) {
+    removeTemporaryUpload(req.file?.path);
     return next(error);
   }
 });
@@ -357,7 +372,7 @@ router.get("/:id/documents/:fileId", (req, res, next) => {
   try {
     const employee = getDocumentTarget(req, res);
     if (!employee) return;
-    const file = getSecureFileById(req.params.fileId, { includeContent: true });
+    const file = getSecureFileById(req.params.fileId, { includeReadPath: true });
     if (!file || file.category !== "EMPLOYEE_PASSPORT" || file.employeeId !== employee.id) {
       return res.status(404).json({ error: "NotFound", message: "Документ не найден" });
     }
@@ -370,7 +385,7 @@ router.get("/:id/documents/:fileId", (req, res, next) => {
       `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(safeName)}`
     );
     res.setHeader("Cache-Control", "private, no-store");
-    return res.send(file.content);
+    return res.sendFile(file.readPath);
   } catch (error) {
     return next(error);
   }
@@ -379,8 +394,11 @@ router.get("/:id/documents/:fileId", (req, res, next) => {
 router.post("/:id/photo", receiveEmployeePhoto, (req, res, next) => {
   try {
     const employee = getDocumentTarget(req, res);
-    if (!employee) return;
-    if (!req.file?.buffer?.length) {
+    if (!employee) {
+      removeTemporaryUpload(req.file?.path);
+      return;
+    }
+    if (!req.file?.path || !req.file.size) {
       return res.status(400).json({ error: "ValidationError", message: "Выберите фотографию" });
     }
     const previousPhotoMatch = String(employee.avatarUrl || "").match(/[?&]file=([0-9a-f-]{36})/i);
@@ -389,7 +407,7 @@ router.post("/:id/photo", receiveEmployeePhoto, (req, res, next) => {
       employeeId: employee.id,
       originalName: decodeUploadFileName(req.file.originalname),
       mimeType: req.file.mimetype,
-      content: req.file.buffer,
+      sourcePath: req.file.path,
       uploadedByUserId: req.user.id
     });
     const avatarUrl = `/api/employees/${employee.id}/photo?file=${photo.id}`;
@@ -410,6 +428,7 @@ router.post("/:id/photo", receiveEmployeePhoto, (req, res, next) => {
     });
     return res.status(201).json({ employee: updatedEmployee, photo });
   } catch (error) {
+    removeTemporaryUpload(req.file?.path);
     return next(error);
   }
 });

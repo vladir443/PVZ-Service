@@ -30,7 +30,13 @@ app.use(
   })
 );
 app.use((req, res, next) => {
-  res.setHeader("Cache-Control", req.path.startsWith("/api") ? "no-store" : "no-cache");
+  if (req.path.startsWith("/api")) {
+    res.setHeader("Cache-Control", "no-store");
+  } else if (/\.(?:css|js)$/i.test(req.path)) {
+    res.setHeader("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400");
+  } else {
+    res.setHeader("Cache-Control", "no-cache");
+  }
   next();
 });
 app.use(express.static(publicDir));
