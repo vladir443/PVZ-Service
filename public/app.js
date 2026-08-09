@@ -2566,7 +2566,7 @@ const tg = window.Telegram?.WebApp;
         const securityLogsSection = document.getElementById("securityLogsSection");
         let activeSecurityLogsScope = "PERSONAL";
         let securityLogsCache = [];
-        
+
 
         const normalizePinDigits = (value) => String(value || "").replace(/\D/g, "").slice(0, 4);
         const isPinLengthValid = (pin) => /^\d{4}$/.test(String(pin || ""));
@@ -7210,4 +7210,3 @@ const tg = window.Telegram?.WebApp;
       }
 
       initApp().finally(scheduleInterfaceIconPreload);
-    
