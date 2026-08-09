@@ -69,6 +69,22 @@ runMigration("20260809_001_auth_rate_limits", () => {
   `);
 });
 
+runMigration("20260809_002_pin_recovery_tokens", () => {
+  db.exec(`
+    CREATE TABLE pin_recovery_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      session_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      consumed_at TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX idx_pin_recovery_tokens_user_session
+      ON pin_recovery_tokens(user_id, session_id, created_at);
+  `);
+});
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3853,6 +3869,105 @@ export function changePinForUser({ telegramId, currentPin, newPin }) {
   ).run(hash, salt, normalizedNewPin.length, user.id);
 
   return { ok: true, state: getPinStateByTelegramId(telegramId) };
+}
+
+function hashRecoveryToken(token) {
+  return crypto.createHash("sha256").update(String(token || "")).digest("hex");
+}
+
+export function createPinRecoveryToken({ userId, sessionId, ttlMinutes = 10 }) {
+  const safeUserId = Number(userId);
+  const safeSessionId = String(sessionId || "").trim();
+  if (!safeUserId || !safeSessionId) return { ok: false, reason: "invalid_session" };
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(
+    Date.now() + Math.max(1, Math.min(30, Number(ttlMinutes) || 10)) * 60 * 1000
+  ).toISOString();
+  db.transaction(() => {
+    db.prepare(
+      `
+      UPDATE pin_recovery_tokens
+      SET consumed_at = datetime('now')
+      WHERE user_id = ? AND session_id = ? AND consumed_at = ''
+      `
+    ).run(safeUserId, safeSessionId);
+    db.prepare(
+      `
+      INSERT INTO pin_recovery_tokens (user_id, session_id, token_hash, expires_at)
+      VALUES (?, ?, ?, ?)
+      `
+    ).run(safeUserId, safeSessionId, hashRecoveryToken(token), expiresAt);
+  })();
+  return { ok: true, token, expiresAt };
+}
+
+export function completePinRecovery({ userId, telegramId, sessionId, token, newPin }) {
+  const safeUserId = Number(userId);
+  const safeSessionId = String(sessionId || "").trim();
+  const safeTokenHash = hashRecoveryToken(token);
+  const normalizedPin = normalizePin(newPin);
+  if (!safeUserId || !safeSessionId || !token || !isValidPinFormat(normalizedPin)) {
+    return { ok: false, reason: "invalid_request" };
+  }
+
+  return db.transaction(() => {
+    const recovery = db.prepare(
+      `
+      SELECT id, token_hash, expires_at
+      FROM pin_recovery_tokens
+      WHERE user_id = ? AND session_id = ? AND consumed_at = ''
+      ORDER BY id DESC
+      LIMIT 1
+      `
+    ).get(safeUserId, safeSessionId);
+    if (!recovery) return { ok: false, reason: "not_found" };
+    if (new Date(recovery.expires_at).getTime() < Date.now()) {
+      return { ok: false, reason: "expired" };
+    }
+
+    let tokenMatches = false;
+    try {
+      tokenMatches = crypto.timingSafeEqual(
+        Buffer.from(safeTokenHash, "hex"),
+        Buffer.from(recovery.token_hash, "hex")
+      );
+    } catch {
+      tokenMatches = false;
+    }
+    if (!tokenMatches) return { ok: false, reason: "invalid_token" };
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = createPinHash(normalizedPin, salt);
+    db.prepare(
+      `
+      INSERT INTO security_pin_settings (
+        user_id, pin_hash, pin_salt, pin_length, is_enabled,
+        failed_attempts, lock_until, updated_at
+      )
+      VALUES (?, ?, ?, ?, 1, 0, '', datetime('now'))
+      ON CONFLICT(user_id) DO UPDATE SET
+        pin_hash = excluded.pin_hash,
+        pin_salt = excluded.pin_salt,
+        pin_length = excluded.pin_length,
+        is_enabled = 1,
+        failed_attempts = 0,
+        lock_until = '',
+        updated_at = datetime('now')
+      `
+    ).run(safeUserId, hash, salt, normalizedPin.length);
+    db.prepare(
+      `
+      UPDATE user_sessions
+      SET pin_verified = CASE WHEN session_id = ? THEN 1 ELSE 0 END
+      WHERE user_id = ? AND (revoked_at IS NULL OR revoked_at = '')
+      `
+    ).run(safeSessionId, safeUserId);
+    db.prepare("UPDATE pin_recovery_tokens SET consumed_at = datetime('now') WHERE id = ?")
+      .run(recovery.id);
+
+    return { ok: true, state: getPinStateByTelegramId(telegramId) };
+  })();
 }
 
 export function resetPinForTelegramId({ telegramId }) {

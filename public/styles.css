@@ -4393,6 +4393,61 @@
         filter: brightness(0) saturate(100%) invert(36%) sepia(67%) saturate(1655%) hue-rotate(204deg) brightness(96%) contrast(92%);
       }
 
+      .pin-recovery-card {
+        max-width: 480px;
+      }
+
+      .pin-recovery-progress {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .pin-recovery-code-wrap {
+        margin-top: 26px;
+      }
+
+      .pin-recovery-code-input {
+        width: 100%;
+        height: 62px;
+        border: 1px solid #cbd7e7;
+        border-radius: 16px;
+        background: #fbfdff;
+        color: #0f172a;
+        font-size: 28px;
+        font-weight: 750;
+        letter-spacing: 0.32em;
+        text-align: center;
+        outline: none;
+      }
+
+      .pin-recovery-code-input:focus {
+        border-color: #3979db;
+        box-shadow: 0 0 0 4px rgba(57, 121, 219, 0.12);
+      }
+
+      .pin-recovery-main-btn {
+        width: 100%;
+        margin-top: 14px;
+      }
+
+      .pin-recovery-resend {
+        width: 100%;
+        justify-content: center;
+        margin-top: 8px;
+        font-size: 14px;
+      }
+
+      body.theme-dark .pin-recovery-progress {
+        color: #9fb0ca;
+      }
+
+      body.theme-dark .pin-recovery-code-input {
+        border-color: #344967;
+        background: #101d31;
+        color: #f4f7fb;
+      }
+
       @media (max-width: 700px) {
         .pin-gate-overlay {
           place-items: stretch;

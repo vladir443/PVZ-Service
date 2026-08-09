@@ -39,3 +39,47 @@ test("email code cooldown is persisted in SQLite", () => {
   assert.equal(database.reserveEmailCodeRequest({ ...request, nowMs: nowMs + 1000 }).ok, false);
   assert.equal(database.reserveEmailCodeRequest({ ...request, nowMs: nowMs + 61_000 }).ok, true);
 });
+
+test("PIN recovery token is bound to one session and can only be used once", () => {
+  const authId = `email:recovery-${Date.now()}@example.com`;
+  const user = database.createUser({
+    telegramId: authId,
+    fullName: "Recovery Test",
+    role: "PARTICIPANT"
+  });
+  database.enablePinForUser({ telegramId: authId, pin: "1111" });
+  const currentSession = database.createUserSession({ telegramId: authId, deviceName: "current" });
+  const otherSession = database.createUserSession({ telegramId: authId, deviceName: "other" });
+  const recovery = database.createPinRecoveryToken({
+    userId: user.id,
+    sessionId: currentSession.session_id
+  });
+
+  assert.equal(recovery.ok, true);
+  const completed = database.completePinRecovery({
+    userId: user.id,
+    telegramId: authId,
+    sessionId: currentSession.session_id,
+    token: recovery.token,
+    newPin: "2468"
+  });
+  assert.equal(completed.ok, true);
+  assert.equal(database.verifyPinForUser({ telegramId: authId, pin: "2468" }).ok, true);
+  assert.equal(
+    database.completePinRecovery({
+      userId: user.id,
+      telegramId: authId,
+      sessionId: currentSession.session_id,
+      token: recovery.token,
+      newPin: "1357"
+    }).ok,
+    false
+  );
+
+  const sessions = database.listActiveSessionsByUserId({
+    userId: user.id,
+    currentSessionId: currentSession.session_id
+  });
+  assert.equal(sessions.find((session) => session.id === currentSession.session_id)?.pinVerified, true);
+  assert.equal(sessions.find((session) => session.id === otherSession.session_id)?.pinVerified, false);
+});

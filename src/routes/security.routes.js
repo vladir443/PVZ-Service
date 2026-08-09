@@ -2,26 +2,27 @@ import express from "express";
 import { z } from "zod";
 import {
   changePinForUser,
+  completePinRecovery,
+  createEmailLoginCode,
+  createPinRecoveryToken,
   disablePinForUser,
   enablePinForUser,
-  getEmployeeByTelegramId,
   getPinPolicy,
   getPinStateByTelegramId,
-  applyPreparedRecoveryPin,
-  prepareRecoveryPinForTelegramId,
   listActiveSessionsByUserId,
   listAuditLogsForViewer,
-  listEmployees,
   logAuditEvent,
+  reserveEmailCodeRequest,
   resetPinForTelegramId,
   revokeOtherSessions,
   revokeSession,
   setSessionPinVerified,
+  verifyEmailLoginCode,
   verifyPinForUser
 } from "../db.js";
 import { requireAuthAllowUnverifiedPin, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
-import { env } from "../config/env.js";
+import { sendEmailCode } from "../services/email.js";
 
 const router = express.Router();
 router.use(requireAuthAllowUnverifiedPin);
@@ -51,51 +52,19 @@ const pinDisableSchema = z.object({
   currentPin: z.string().trim().regex(/^\d{4}$/)
 });
 
+const pinRecoveryCodeSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/)
+});
+
+const pinRecoveryCompleteSchema = z.object({
+  recoveryToken: z.string().trim().length(64),
+  newPin: z.string().trim().regex(/^\d{4}$/)
+});
+
 const logQuerySchema = z.object({
   scope: z.enum(["PERSONAL", "SYSTEM"]).default("PERSONAL"),
   limit: z.coerce.number().int().min(1).max(200).optional().default(50)
 });
-
-function formatRecoveryContactLine(label, value) {
-  const normalized = String(value || "").trim();
-  return `${label}: ${normalized || "не указан"}`;
-}
-
-function formatMskDateTime(date = new Date()) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Europe/Moscow",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  }).format(date);
-}
-
-async function sendTelegramMessage({ telegramId, text }) {
-  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
-  const chatId = String(telegramId || "").trim();
-  if (!token || !chatId) return false;
-
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: String(text || ""),
-      disable_web_page_preview: true
-    })
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`Telegram send failed: ${response.status} ${body}`);
-  }
-
-  const data = await response.json().catch(() => ({}));
-  return !!data?.ok;
-}
 
 router.get("/state", (req, res) => {
   const pinState = getPinStateByTelegramId(req.user.telegramId);
@@ -282,38 +251,37 @@ router.post("/pin/disable", requirePinVerified, (req, res, next) => {
 
 router.post("/pin/recovery/request", async (req, res, next) => {
   try {
-    const ownerEmployee = listEmployees().find((employee) => employee.isProtected);
-    const configuredAdminIds = String(env.ADMIN_TELEGRAM_IDS || "")
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value) => /^\d+$/.test(value));
-    const ownerTelegramId = [
-      ownerEmployee?.telegramId,
-      ...configuredAdminIds
-    ]
-      .map((value) => String(value || "").trim())
-      .find((value) => /^\d+$/.test(value));
-
-    if (!ownerTelegramId) {
+    const email = String(req.employee?.email || "").trim().toLowerCase();
+    if (!email) {
       return res.status(409).json({
-        error: "OwnerTelegramNotLinked",
-        message: "У владельца не привязан Telegram ID для восстановления PIN"
+        error: "EmailNotLinked",
+        message: "В профиле сотрудника не указана почта для восстановления PIN"
       });
     }
-
-    const recoveryResult = prepareRecoveryPinForTelegramId({
-      telegramId: req.user.telegramId,
-      pinLength: 4
+    const reservation = reserveEmailCodeRequest({
+      email,
+      ipAddress: req.ip || ""
     });
-
-    if (!recoveryResult.ok) {
-      return res.status(404).json({
-        error: "NotFound",
-        message: "Пользователь не найден"
+    if (!reservation.ok) {
+      res.setHeader("Retry-After", String(reservation.retryAfterSeconds));
+      return res.status(429).json({
+        error: "TooManyRequests",
+        message: `Новый код можно запросить через ${reservation.retryAfterSeconds} сек.`
       });
     }
-
-    const employee = getEmployeeByTelegramId(req.user.telegramId);
+    const codeResult = createEmailLoginCode({ email, ttlMinutes: 10 });
+    if (!codeResult.ok) {
+      return res.status(400).json({ error: "ValidationError", message: "Некорректная почта" });
+    }
+    try {
+      await sendEmailCode({ email, code: codeResult.code, purpose: "pin_recovery" });
+    } catch (error) {
+      console.error("[email] PIN recovery delivery failed:", error?.message || error);
+      return res.status(502).json({
+        error: "EmailDeliveryFailed",
+        message: "Не удалось отправить письмо. Попробуйте через минуту"
+      });
+    }
 
     logAuditEvent({
       scope: "SYSTEM",
@@ -326,61 +294,87 @@ router.post("/pin/recovery/request", async (req, res, next) => {
       sessionId: req.session?.id || "",
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
-      meta: {
-        recoveryPinLength: 4
-      },
-      systemView: "ALL_ADMINS"
+      meta: { delivery: "email" },
+      systemView: "TARGET_USER"
     });
-
-    const message = [
-      "Восстановление PIN-кода",
-      `Пользователь: ${req.user.fullName || "Сотрудник"}`,
-      `ID пользователя: ${req.user.telegramId}`,
-      formatRecoveryContactLine("Телефон", employee?.phone),
-      formatRecoveryContactLine("TG", employee?.telegramContact),
-      formatRecoveryContactLine("VK", employee?.vkContact),
-      `Новый PIN: ${recoveryResult.pin}`,
-      `Время: ${formatMskDateTime()}`
-    ].join("\n");
-
-    await sendTelegramMessage({
-      telegramId: ownerTelegramId,
-      text: message
-    });
-
-    const appliedRecovery = applyPreparedRecoveryPin(recoveryResult);
-    if (!appliedRecovery.ok) {
-      throw new Error("Не удалось применить новый PIN");
-    }
-
     return res.json({
       ok: true,
-      message: "Новый PIN отправлен владельцу."
+      maskedEmail: email.replace(/^(.{1,2}).*(@.*)$/, "$1***$2"),
+      expiresAt: codeResult.record?.expiresAt || "",
+      message: "Код восстановления отправлен на почту"
     });
   } catch (error) {
     return next(error);
   }
 });
 
-router.post("/pin/recovery/request-legacy-disabled", (req, res) => {
-  logAuditEvent({
-    scope: "SYSTEM",
-    eventType: "PIN_RECOVERY_REQUESTED",
-    actorUser: req.user,
-    actorTelegramId: req.user.telegramId,
-    actorRole: req.user.role,
-    targetUserId: req.user.id,
-    targetTelegramId: req.user.telegramId,
-    sessionId: req.session?.id || "",
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-    meta: {},
-    systemView: "ALL_ADMINS"
-  });
-  return res.json({
-    ok: true,
-    message: "Запрос на восстановление отправлен. Обратитесь к главному администратору."
-  });
+router.post("/pin/recovery/verify-code", (req, res, next) => {
+  try {
+    const parsed = pinRecoveryCodeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "ValidationError", message: "Введите 6 цифр из письма" });
+    }
+    const email = String(req.employee?.email || "").trim().toLowerCase();
+    const verification = verifyEmailLoginCode({ email, code: parsed.data.code });
+    if (!verification.ok) {
+      return res.status(401).json({
+        error: "InvalidEmailCode",
+        message: verification.reason === "expired"
+          ? "Код истёк. Запросите новый код"
+          : "Неверный код из письма"
+      });
+    }
+    const recovery = createPinRecoveryToken({
+      userId: req.user.id,
+      sessionId: req.session.id,
+      ttlMinutes: 10
+    });
+    if (!recovery.ok) throw new Error("Не удалось подтвердить восстановление PIN");
+    return res.json({ ok: true, recoveryToken: recovery.token, expiresAt: recovery.expiresAt });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/pin/recovery/complete", (req, res, next) => {
+  try {
+    const parsed = pinRecoveryCompleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "ValidationError", message: "PIN должен состоять из 4 цифр" });
+    }
+    const result = completePinRecovery({
+      userId: req.user.id,
+      telegramId: req.user.telegramId,
+      sessionId: req.session.id,
+      token: parsed.data.recoveryToken,
+      newPin: parsed.data.newPin
+    });
+    if (!result.ok) {
+      return res.status(401).json({
+        error: "InvalidRecoveryToken",
+        message: result.reason === "expired"
+          ? "Подтверждение истекло. Запросите новый код"
+          : "Не удалось подтвердить восстановление PIN"
+      });
+    }
+    logAuditEvent({
+      scope: "PERSONAL",
+      eventType: "PIN_RECOVERED_EMAIL",
+      actorUser: req.user,
+      actorTelegramId: req.user.telegramId,
+      actorRole: req.user.role,
+      targetUserId: req.user.id,
+      targetTelegramId: req.user.telegramId,
+      sessionId: req.session.id,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: { delivery: "email" },
+      systemView: "TARGET_USER"
+    });
+    return res.json({ ok: true, pinState: result.state, message: "Новый PIN сохранён" });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.post(

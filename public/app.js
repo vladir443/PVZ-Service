@@ -1282,6 +1282,199 @@ const tg = window.Telegram?.WebApp;
         render();
       }
 
+      function renderPinRecovery(maskedEmail = "") {
+        clearPinKeyboard();
+        setAppTitle("");
+        let step = "code";
+        let recoveryToken = "";
+        let firstPin = "";
+        let pinValue = "";
+        let busy = false;
+        let message = "";
+        let messageClass = "";
+
+        const recoveryMeta = () => {
+          if (step === "new") {
+            return { title: "Новый PIN", subtitle: "Придумайте код из 4 цифр", progress: "Шаг 2 из 3" };
+          }
+          return { title: "Повторите PIN", subtitle: "Введите новый PIN ещё раз", progress: "Шаг 3 из 3" };
+        };
+
+        const showError = (text) => {
+          message = String(text || "Ошибка");
+          messageClass = "error";
+          render();
+        };
+
+        const completeRecovery = async () => {
+          busy = true;
+          render();
+          try {
+            const data = await api("/api/security/pin/recovery/complete", {
+              method: "POST",
+              body: JSON.stringify({ recoveryToken, newPin: firstPin })
+            });
+            state.security.pinState = data?.pinState || null;
+            await bootstrapAfterAuth();
+          } catch (error) {
+            busy = false;
+            pinValue = "";
+            firstPin = "";
+            step = "new";
+            showError(error?.message || "Не удалось сохранить новый PIN");
+          }
+        };
+
+        const acceptPinDigit = (digit) => {
+          if (busy || !/^\d$/.test(String(digit || "")) || pinValue.length >= 4) return;
+          message = "";
+          messageClass = "";
+          pinValue += digit;
+          render();
+          if (pinValue.length !== 4) return;
+          window.setTimeout(async () => {
+            if (step === "new") {
+              firstPin = pinValue;
+              pinValue = "";
+              step = "repeat";
+              render();
+              return;
+            }
+            if (pinValue !== firstPin) {
+              pinValue = "";
+              firstPin = "";
+              step = "new";
+              showError("PIN-коды не совпадают. Введите новый PIN заново");
+              return;
+            }
+            await completeRecovery();
+          }, 180);
+        };
+
+        const bindRecoveryKeyboard = () => {
+          bindPinKeyboard({
+            onDigit: (digit) => acceptPinDigit(digit),
+            onBackspace: () => {
+              if (busy) return;
+              pinValue = pinValue.slice(0, -1);
+              render();
+            }
+          });
+        };
+
+        const render = () => {
+          clearPinKeyboard();
+          if (step === "code") {
+            screen.innerHTML = `
+              <div class="pin-gate-overlay">
+                <div class="pin-gate-card pin-recovery-card">
+                  <div class="pin-gate-head">
+                    <span class="pin-recovery-progress">Шаг 1 из 3</span>
+                    <button id="closePinRecoveryBtn" class="open-arrow-btn" type="button" aria-label="Назад">
+                      <img src="/icons/back-arrow.png" alt="Назад" />
+                    </button>
+                  </div>
+                  <div class="pin-gate-shield"><img src="/icons/pin-protection.png" alt="Защита" /></div>
+                  <h3 class="pin-gate-title">Код из письма</h3>
+                  <div class="pin-gate-subtitle">Отправили 6-значный код на ${escapeHtml(maskedEmail || "вашу почту")}</div>
+                  <div class="pin-recovery-code-wrap">
+                    <input id="pinRecoveryCodeInput" class="pin-recovery-code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+                  </div>
+                  <button id="verifyPinRecoveryCodeBtn" class="button pin-primary-btn pin-recovery-main-btn" type="button" ${busy ? "disabled" : ""}>Продолжить</button>
+                  <button id="resendPinRecoveryCodeBtn" class="pin-gate-recovery-link pin-recovery-resend" type="button" ${busy ? "disabled" : ""}>Отправить код повторно</button>
+                  <p class="status ${messageClass} mt12" style="text-align:center;">${escapeHtml(message)}</p>
+                </div>
+              </div>`;
+            const input = document.getElementById("pinRecoveryCodeInput");
+            input?.addEventListener("input", () => {
+              input.value = onlyDigits(input.value).slice(0, 6);
+            });
+            input?.addEventListener("keydown", (event) => {
+              if (event.key === "Enter") document.getElementById("verifyPinRecoveryCodeBtn")?.click();
+            });
+            input?.focus();
+            document.getElementById("verifyPinRecoveryCodeBtn")?.addEventListener("click", async () => {
+              const code = onlyDigits(input?.value || "");
+              if (code.length !== 6) {
+                showError("Введите 6 цифр из письма");
+                return;
+              }
+              busy = true;
+              message = "Проверяем код…";
+              messageClass = "";
+              render();
+              try {
+                const data = await api("/api/security/pin/recovery/verify-code", {
+                  method: "POST",
+                  body: JSON.stringify({ code })
+                });
+                recoveryToken = String(data?.recoveryToken || "");
+                busy = false;
+                message = "";
+                step = "new";
+                render();
+              } catch (error) {
+                busy = false;
+                showError(error?.message || "Неверный код из письма");
+              }
+            });
+            document.getElementById("resendPinRecoveryCodeBtn")?.addEventListener("click", async () => {
+              busy = true;
+              message = "Отправляем новый код…";
+              messageClass = "";
+              render();
+              try {
+                const data = await api("/api/security/pin/recovery/request", { method: "POST" });
+                maskedEmail = String(data?.maskedEmail || maskedEmail);
+                busy = false;
+                message = "Новый код отправлен";
+                messageClass = "ok";
+                render();
+              } catch (error) {
+                busy = false;
+                showError(error?.message || "Не удалось отправить код");
+              }
+            });
+            document.getElementById("closePinRecoveryBtn")?.addEventListener("click", () => renderPinGate(state.security.pinState));
+            return;
+          }
+
+          const meta = recoveryMeta();
+          screen.innerHTML = `
+            <div class="pin-gate-overlay">
+              <div class="pin-gate-card pin-recovery-card">
+                <div class="pin-gate-head">
+                  <span class="pin-recovery-progress">${meta.progress}</span>
+                  <button id="closePinRecoveryBtn" class="open-arrow-btn" type="button" aria-label="Назад"><img src="/icons/back-arrow.png" alt="Назад" /></button>
+                </div>
+                <div class="pin-gate-shield"><img src="/icons/pin-protection.png" alt="Защита" /></div>
+                <h3 class="pin-gate-title">${meta.title}</h3>
+                <div class="pin-gate-subtitle">${meta.subtitle}</div>
+                <div class="pin-gate-dots">${Array.from({ length: 4 }).map((_, index) => `<span class="pin-gate-dot ${index < pinValue.length ? "filled" : ""}"></span>`).join("")}</div>
+                <div class="pin-gate-keypad">
+                  ${[1,2,3,4,5,6,7,8,9].map((digit) => `<button class="pin-gate-key" data-recovery-pin-key="${digit}" type="button" ${busy ? "disabled" : ""}>${digit}</button>`).join("")}
+                  <div class="pin-gate-spacer" aria-hidden="true"></div>
+                  <button class="pin-gate-key" data-recovery-pin-key="0" type="button" ${busy ? "disabled" : ""}>0</button>
+                  <button class="pin-gate-key" id="pinRecoveryBackspaceBtn" type="button" aria-label="Удалить символ" ${busy ? "disabled" : ""}><img src="/icons/pin-delete.png" alt="Удалить" /></button>
+                </div>
+                <p class="status ${messageClass} mt12" style="text-align:center;">${escapeHtml(message)}</p>
+              </div>
+            </div>`;
+          for (const button of screen.querySelectorAll("[data-recovery-pin-key]")) {
+            button.addEventListener("click", () => acceptPinDigit(button.dataset.recoveryPinKey));
+          }
+          document.getElementById("pinRecoveryBackspaceBtn")?.addEventListener("click", () => {
+            if (busy) return;
+            pinValue = pinValue.slice(0, -1);
+            render();
+          });
+          document.getElementById("closePinRecoveryBtn")?.addEventListener("click", () => renderPinGate(state.security.pinState));
+          bindRecoveryKeyboard();
+        };
+
+        render();
+      }
+
       function renderPinGate(pinState = null) {
         setAppTitle("");
         const pinLength = 4;
@@ -1426,10 +1619,13 @@ const tg = window.Telegram?.WebApp;
         });
         document.getElementById("pinRecoveryRequestBtn")?.addEventListener("click", async () => {
           try {
+            setKeypadDisabled(true);
+            status.className = "status";
+            status.textContent = "Отправляем код на почту…";
             const data = await api("/api/security/pin/recovery/request", { method: "POST" });
-            status.className = "status ok";
-            status.textContent = String(data?.message || "Новый PIN отправлен владельцу.");
+            renderPinRecovery(String(data?.maskedEmail || ""));
           } catch (error) {
+            setKeypadDisabled(false);
             status.className = "status error";
             status.textContent = String(error?.message || "Ошибка");
           }
@@ -3444,9 +3640,15 @@ const tg = window.Telegram?.WebApp;
           },
           PIN_RECOVERY_REQUESTED: {
             title: "Запрошено восстановление PIN",
-            description: "Пользователь запросил новый PIN-код.",
+            description: "Код восстановления отправлен на почту пользователя.",
             badge: "PIN",
             tone: "warning"
+          },
+          PIN_RECOVERED_EMAIL: {
+            title: "PIN восстановлен",
+            description: "Пользователь подтвердил почту и установил новый PIN-код.",
+            badge: "PIN",
+            tone: "ok"
           },
           PIN_RECOVERY_RESET_BY_SUPERADMIN: {
             title: "PIN сброшен главным админом",
