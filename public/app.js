@@ -1851,6 +1851,10 @@ const tg = window.Telegram?.WebApp;
         const closePhotoViewerButton = document.getElementById("closeMyFinancePhotoViewer");
         let cachedFinanceData = null;
         monthButton.textContent = formatMonthYear(selectedMonth);
+        const shortFinanceDate = (isoDate) => {
+          const [year, month, day] = String(isoDate || "").split("-");
+          return year && month && day ? `${day}.${month}.${year.slice(-2)}` : "";
+        };
 
         const closeFinancePhotoViewer = () => {
           photoViewer.classList.add("hidden");
@@ -1967,6 +1971,19 @@ const tg = window.Telegram?.WebApp;
               : cachedFinanceData;
             if (!data) return;
             cachedFinanceData = data;
+            const periodFrom = String(data.period?.from || "");
+            const periodTo = String(data.period?.to || "");
+            const todayDate = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000)
+              .toISOString()
+              .slice(0, 10);
+            status.className = "status finance-report-period mt12";
+            status.textContent = periodTo
+              ? `Статистика с ${shortFinanceDate(periodFrom)} ${
+                  periodTo === todayDate
+                    ? "до сегодняшнего дня"
+                    : `до ${shortFinanceDate(periodTo)}`
+                }`
+              : "За выбранный период начислений пока нет";
             const summary = data.summary || {};
             const shifts = Array.isArray(data.shifts) ? data.shifts : [];
             const shiftDetails = shifts
@@ -2073,7 +2090,6 @@ const tg = window.Telegram?.WebApp;
                 ${sections.map(sectionHtml).join("")}
               </div>
             `;
-            status.textContent = "";
             for (const button of content.querySelectorAll("[data-my-finance-section]")) {
               button.addEventListener("click", () => {
                 const key = String(button.dataset.myFinanceSection || "");
@@ -2126,6 +2142,7 @@ const tg = window.Telegram?.WebApp;
           current: { shifts: 0, violations: 0, bonuses: 0, income: 0 },
           previous: { shifts: 0, violations: 0, bonuses: 0, income: 0 }
         };
+        let profileStatsPeriod = "";
         try {
           const currentMonth = monthNow();
           const [year, month] = currentMonth.split("-").map(Number);
@@ -2133,15 +2150,22 @@ const tg = window.Telegram?.WebApp;
           const previousMonth = `${previousDate.getFullYear()}-${String(
             previousDate.getMonth() + 1
           ).padStart(2, "0")}`;
+          const currentDay = Number(todayIso.slice(-2));
+          const previousMonthLastDay = new Date(year, month - 1, 0).getDate();
+          const previousCutoff = `${previousMonth}-${String(
+            Math.min(currentDay, previousMonthLastDay)
+          ).padStart(2, "0")}`;
           const [currentFinance, previousFinance] = await Promise.all([
             api(`/api/schedule/me/finances?month=${currentMonth}`),
             api(`/api/schedule/me/finances?month=${previousMonth}`)
           ]);
-          const getStats = (finance) => {
-            const shifts = Array.isArray(finance?.shifts) ? finance.shifts : [];
+          const getStats = (finance, cutoffDate) => {
+            const shifts = (Array.isArray(finance?.shifts) ? finance.shifts : []).filter(
+              (shift) => !cutoffDate || String(shift.date || "") <= cutoffDate
+            );
             return {
-              shifts: Number(finance?.summary?.shiftCount || 0),
-              income: Number(finance?.summary?.accrued || 0),
+              shifts: shifts.length,
+              income: shifts.reduce((sum, shift) => sum + Number(shift.accrued || 0), 0),
               violations: shifts.reduce(
                 (sum, shift) => sum + (Array.isArray(shift.deductionItems) ? shift.deductionItems.length : 0),
                 0
@@ -2153,9 +2177,13 @@ const tg = window.Telegram?.WebApp;
             };
           };
           profileStats = {
-            current: getStats(currentFinance),
-            previous: getStats(previousFinance)
+            current: getStats(currentFinance, todayIso),
+            previous: getStats(previousFinance, previousCutoff)
           };
+          const [currentYear, currentMonthNumber] = currentMonth.split("-");
+          profileStatsPeriod = `Статистика с 01.${currentMonthNumber}.${currentYear.slice(
+            -2
+          )} до сегодняшнего дня`;
         } catch {}
         const statTrend = (current, previous, lowerIsBetter = false) => {
           const currentValue = Number(current || 0);
@@ -2212,6 +2240,7 @@ const tg = window.Telegram?.WebApp;
           <div class="profile-dashboard-grid mt12">
             <div class="panel profile-stats-panel">
               <h3 class="panel-title profile-section-title">Моя статистика</h3>
+              ${profileStatsPeriod ? `<div class="profile-stats-period">${escapeHtml(profileStatsPeriod)}</div>` : ""}
               <div class="profile-stats-grid mt12">
                 <div class="profile-stat-card">
                   <div class="profile-stat-label">Смены</div>

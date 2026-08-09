@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "check": "node --check public/app.js && node --check src/index.js && node --check src/db.js && node --check src/routes/schedule.routes.js && node --check src/routes/employees.routes.js && node --check src/services/file-storage.js && node --check src/services/file-signature.js && node --check scripts/backup-data.js",
+    "check": "node --check public/app.js && node --check src/index.js && node --check src/db.js && node --check src/routes/schedule.routes.js && node --check src/routes/employees.routes.js && node --check src/services/file-storage.js && node --check src/services/file-signature.js && node --check src/lib/reporting-period.js && node --check scripts/backup-data.js",
     "lint": "eslint .",
     "test": "node --test",
     "verify": "npm run check && npm run lint && npm test",

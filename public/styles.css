@@ -1306,6 +1306,23 @@
         gap: 10px;
       }
 
+      .profile-stats-period,
+      .finance-report-period {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      .profile-stats-period {
+        margin-top: 5px;
+      }
+
+      body.theme-dark .profile-stats-period,
+      body.theme-dark .finance-report-period {
+        color: #9fb0ca;
+      }
+
       .profile-stats-panel,
       .profile-settings-block {
         display: flex;

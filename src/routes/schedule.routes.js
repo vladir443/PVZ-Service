@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAuth, requirePosition, requireRole } from "../middleware/auth.js";
 import { Role } from "../lib/roles.js";
 import { calculateShiftRates, timeToMinutes } from "../lib/schedule-rates.js";
+import { getMoscowIsoDate, getReportPeriod } from "../lib/reporting-period.js";
 import {
   removeTemporaryUpload,
   secureUploadTempDirectory
@@ -459,6 +460,7 @@ router.get("/me/finances", (req, res, next) => {
       });
     }
 
+    const reportPeriod = getReportPeriod(parsed.data.month, getMoscowIsoDate());
     const locations = listLocations();
     const shifts = [];
     for (const location of locations) {
@@ -480,6 +482,7 @@ router.get("/me/finances", (req, res, next) => {
       );
 
       for (const row of schedule?.shifts || []) {
+        if (!reportPeriod.to || String(row.date) > reportPeriod.to) continue;
         const executor1 = normalizeFinanceEmployeeName(row.executor1);
         const executor2 = normalizeFinanceEmployeeName(row.executor2);
         const slot = Number(row.executor1EmployeeId) === Number(req.employee.id)
@@ -588,6 +591,7 @@ router.get("/me/finances", (req, res, next) => {
 
     return res.json({
       month: parsed.data.month,
+      period: reportPeriod,
       employee: {
         id: req.employee.id,
         fullName: req.employee.fullName
