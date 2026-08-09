@@ -1469,6 +1469,28 @@
         background: linear-gradient(135deg, #123f7a 0%, #2868bd 100%);
         color: #ffffff;
         box-shadow: 0 12px 28px rgba(24, 76, 145, 0.18);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .personal-finance-balance-main {
+        min-width: 0;
+      }
+
+      .personal-finance-balance-period {
+        flex: 0 0 auto;
+        max-width: 280px;
+        padding: 10px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.35;
+        text-align: right;
       }
 
       .personal-finance-balance-label {
@@ -5436,6 +5458,16 @@
       }
 
       @media (max-width: 640px) {
+        .personal-finance-balance {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .personal-finance-balance-period {
+          width: 100%;
+          max-width: none;
+          text-align: left;
+        }
         .wrap { padding: 0; }
         .card {
           padding: 16px 14px;

@@ -1973,16 +1973,8 @@ const tg = window.Telegram?.WebApp;
             cachedFinanceData = data;
             const periodFrom = String(data.period?.from || "");
             const periodTo = String(data.period?.to || "");
-            const todayDate = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000)
-              .toISOString()
-              .slice(0, 10);
-            status.className = "status finance-report-period mt12";
-            status.textContent = periodTo
-              ? `Статистика с ${shortFinanceDate(periodFrom)} ${
-                  periodTo === todayDate
-                    ? "до сегодняшнего дня"
-                    : `до ${shortFinanceDate(periodTo)}`
-                }`
+            const financePeriodText = periodTo
+              ? `Статистика с ${shortFinanceDate(periodFrom)} до ${shortFinanceDate(periodTo)}`
               : "За выбранный период начислений пока нет";
             const summary = data.summary || {};
             const shifts = Array.isArray(data.shifts) ? data.shifts : [];
@@ -2079,17 +2071,21 @@ const tg = window.Telegram?.WebApp;
 
             content.innerHTML = `
               <div class="personal-finance-balance">
-                <div class="personal-finance-balance-label">Текущий баланс</div>
-                <div class="personal-finance-balance-value">${formatPayoutBalance(summary.balance)}</div>
-                <div class="personal-finance-balance-note">
-                  Начислено за месяц: ${formatMoneyUnsigned(summary.accrued)}
-                  <br />Зарплата + доплаты − удержания − выплачено
+                <div class="personal-finance-balance-main">
+                  <div class="personal-finance-balance-label">Текущий баланс</div>
+                  <div class="personal-finance-balance-value">${formatPayoutBalance(summary.balance)}</div>
+                  <div class="personal-finance-balance-note">
+                    Начислено за месяц: ${formatMoneyUnsigned(summary.accrued)}
+                    <br />Зарплата + доплаты − удержания − выплачено
+                  </div>
                 </div>
+                <div class="personal-finance-balance-period">${escapeHtml(financePeriodText)}</div>
               </div>
               <div class="personal-finance-sections">
                 ${sections.map(sectionHtml).join("")}
               </div>
             `;
+            status.textContent = "";
             for (const button of content.querySelectorAll("[data-my-finance-section]")) {
               button.addEventListener("click", () => {
                 const key = String(button.dataset.myFinanceSection || "");
@@ -2183,7 +2179,7 @@ const tg = window.Telegram?.WebApp;
           const [currentYear, currentMonthNumber] = currentMonth.split("-");
           profileStatsPeriod = `Статистика с 01.${currentMonthNumber}.${currentYear.slice(
             -2
-          )} до сегодняшнего дня`;
+          )} до ${todayIso.slice(8, 10)}.${todayIso.slice(5, 7)}.${todayIso.slice(2, 4)}`;
         } catch {}
         const statTrend = (current, previous, lowerIsBetter = false) => {
           const currentValue = Number(current || 0);
