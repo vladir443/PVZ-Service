@@ -523,7 +523,8 @@ const tg = window.Telegram?.WebApp;
         state.scheduleHeaderCleanup?.();
         state.scheduleHeaderCleanup = null;
         document.body.classList.remove("schedule-table-view");
-        const employeesLocked = !canManageEmployees();
+        const showEmployeesTab = canManageEmployees();
+        bottomNav.classList.toggle("three-tabs", !showEmployeesTab);
         bottomNav.innerHTML = `
           <button class="bottom-nav-btn ${active === "home" ? "active" : ""}" data-tab="home">
             <img class="bottom-nav-icon" src="/icons/nav-home.png" alt="Главная" />
@@ -533,10 +534,14 @@ const tg = window.Telegram?.WebApp;
             <img class="bottom-nav-icon" src="/icons/nav-schedule.png" alt="График" />
             <span class="bottom-nav-label">График</span>
           </button>
-          <button class="bottom-nav-btn ${active === "employees" ? "active" : ""} ${employeesLocked ? "disabled" : ""}" data-tab="employees" ${employeesLocked ? "aria-disabled='true'" : ""}>
-            <img class="bottom-nav-icon employees" src="/icons/nav-employees.png" alt="Сотрудники" />
-            <span class="bottom-nav-label">Сотрудники</span>
-          </button>
+          ${
+            showEmployeesTab
+              ? `<button class="bottom-nav-btn ${active === "employees" ? "active" : ""}" data-tab="employees">
+                  <img class="bottom-nav-icon employees" src="/icons/nav-employees.png" alt="Сотрудники" />
+                  <span class="bottom-nav-label">Сотрудники</span>
+                </button>`
+              : ""
+          }
           <button class="bottom-nav-btn ${active === "profile" ? "active" : ""}" data-tab="profile">
             <img class="bottom-nav-icon" src="/icons/nav-profile.png" alt="Профиль" />
             <span class="bottom-nav-label">Профиль</span>
