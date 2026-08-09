@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { isReminderDue } from "../lib/reminder-time.js";
 import {
   hasShiftReminderLog,
   insertShiftReminderLog,
@@ -11,7 +12,6 @@ const REMINDER_POINTS = [
 ];
 
 const POLL_INTERVAL_MS = 60 * 1000;
-const REMINDER_WINDOW_MS = 60 * 1000;
 const MSK_OFFSET_HOURS = 3;
 
 function toMskDateString(date = new Date()) {
@@ -123,9 +123,11 @@ async function processShiftRemindersTick() {
     if (nowMs >= shiftStartMs) continue;
 
     for (const point of REMINDER_POINTS) {
-      const triggerMs = shiftStartMs - point.hoursBefore * 60 * 60 * 1000;
-      const deltaMs = nowMs - triggerMs;
-      const shouldSendBySchedule = deltaMs >= 0 && deltaMs < REMINDER_WINDOW_MS;
+      const shouldSendBySchedule = isReminderDue({
+        nowMs,
+        shiftStartMs,
+        hoursBefore: point.hoursBefore
+      });
       if (!shouldSendBySchedule) continue;
 
       const reminderCode = point.code;

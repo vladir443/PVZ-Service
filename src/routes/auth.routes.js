@@ -15,6 +15,7 @@ import {
   logAuditEvent,
   linkPersonalDataConsentToAuthSession,
   migratePhoneUserToEmail,
+  reserveEmailCodeRequest,
   revokeSession,
   updateUserReminderSettings,
   updateEmployeeAvatarById,
@@ -49,50 +50,6 @@ const requestCodeSchema = z.object({
   platform: z.string().max(60).optional().default("")
 });
 
-const codeRequestBuckets = new Map();
-const CODE_REQUEST_WINDOW_MS = 15 * 60 * 1000;
-const CODE_REQUEST_COOLDOWN_MS = 60 * 1000;
-
-function normalizeRateLimitPart(value) {
-  return String(value || "").replace(/[^\dA-Za-z:._-]/g, "").slice(0, 120);
-}
-
-function reserveCodeRequest({ email, ipAddress }) {
-  const now = Date.now();
-  const emailKey = `email:${normalizeRateLimitPart(email)}`;
-  const ipKey = `ip:${normalizeRateLimitPart(ipAddress)}`;
-  const checks = [
-    { key: emailKey, max: 5 },
-    { key: ipKey, max: 12 }
-  ].filter((item) => item.key.split(":")[1]);
-
-  for (const { key, max } of checks) {
-    const recent = (codeRequestBuckets.get(key) || []).filter(
-      (timestamp) => now - timestamp < CODE_REQUEST_WINDOW_MS
-    );
-    codeRequestBuckets.set(key, recent);
-    const lastRequestAt = recent.at(-1) || 0;
-    if (now - lastRequestAt < CODE_REQUEST_COOLDOWN_MS) {
-      return { ok: false, retryAfterSeconds: Math.ceil((CODE_REQUEST_COOLDOWN_MS - (now - lastRequestAt)) / 1000) };
-    }
-    if (recent.length >= max) {
-      return { ok: false, retryAfterSeconds: Math.ceil((CODE_REQUEST_WINDOW_MS - (now - recent[0])) / 1000) };
-    }
-  }
-
-  for (const { key } of checks) {
-    codeRequestBuckets.set(key, [...(codeRequestBuckets.get(key) || []), now]);
-  }
-  if (codeRequestBuckets.size > 2000) {
-    for (const [key, timestamps] of codeRequestBuckets) {
-      if (!timestamps.some((timestamp) => now - timestamp < CODE_REQUEST_WINDOW_MS)) {
-        codeRequestBuckets.delete(key);
-      }
-    }
-  }
-  return { ok: true, retryAfterSeconds: 0 };
-}
-
 router.post("/request-code", async (req, res, next) => {
   try {
     const parsed = requestCodeSchema.safeParse(req.body);
@@ -124,7 +81,7 @@ router.post("/request-code", async (req, res, next) => {
       });
     }
 
-    const codeReservation = reserveCodeRequest({
+    const codeReservation = reserveEmailCodeRequest({
       email,
       ipAddress: req.ip || ""
     });

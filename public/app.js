@@ -6479,7 +6479,7 @@ const tg = window.Telegram?.WebApp;
           const financeHistoryList = document.getElementById("financeHistoryList");
           const canMarkPaid = editable;
           let financeShifts = shifts;
-          let financePayments = payments;
+          let financePayments = [];
           const expandedFinance = new Set();
 
           financeFromInput.min = monthBounds.start;

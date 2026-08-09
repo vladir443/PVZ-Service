@@ -1,51 +1,56 @@
-# Grafik PVZ Telegram App
+# PVZ Group
 
-Минимальный backend + стартовая Telegram Mini App страница с ролями:
-- `ADMIN`
-- `EMPLOYEE`
+Сайт управления сотрудниками, графиками и финансами пунктов выдачи заказов.
 
-## Что уже сделано
-- Сервер API на `Express`.
-- База SQLite с таблицей `users`.
-- Роуты логина и ролей.
-- Страница Mini App на `/`.
-- Скрипты запуска/остановки с `ngrok`.
+## Стек
 
-## Что нужно от тебя (один раз)
-1. Зарегистрируйся в ngrok: https://dashboard.ngrok.com/signup
-2. Скопируй токен: https://dashboard.ngrok.com/get-started/your-authtoken
-3. Выполни в PowerShell:
+- Node.js и Express
+- SQLite (`better-sqlite3`)
+- HTML, CSS и JavaScript без frontend-фреймворка
+- Авторизация по электронной почте и PIN-коду
+- Хранение документов и фотографий вне базы данных
+
+## Локальный запуск
 
 ```powershell
-& "C:\Users\husht\AppData\Local\Microsoft\WinGet\Packages\Ngrok.Ngrok_Microsoft.Winget.Source_8wekyb3d8bbwe\ngrok.exe" config add-authtoken <ТВОЙ_NGROK_TOKEN>
+npm ci
+Copy-Item .env.example .env
+npm start
 ```
 
-Если ngrok блокируется по IP/политике, скрипт автоматически переключится на `cloudflared`, а при нестабильности Cloudflare — на `localhost.run`.
+По умолчанию сайт доступен по адресу `http://localhost:3000`.
 
-## Запуск (каждый раз)
+## Проверка
+
 ```powershell
-cd "C:\Users\husht\OneDrive\Рабочий стол\grafik"
-powershell -ExecutionPolicy Bypass -File .\scripts\start-miniapp.ps1
+npm run verify
 ```
 
-Скрипт выведет:
-- `Backend: http://localhost:3000`
-- `Tunnel: ngrok` или `Tunnel: cloudflared` или `Tunnel: localhost.run`
-- `Mini App URL: https://...ngrok...`
+Команда проверяет синтаксис, запускает ESLint и автоматические тесты.
 
-Именно `Mini App URL` вставляй в `@BotFather` для Mini App.
+## Миграции
 
-## Остановка
+Миграции выполняются автоматически при запуске и записываются в таблицу
+`schema_migrations`. Повторно уже применённая миграция не запускается.
+
+## Резервная копия
+
 ```powershell
-cd "C:\Users\husht\OneDrive\Рабочий стол\grafik"
-powershell -ExecutionPolicy Bypass -File .\scripts\stop-miniapp.ps1
+npm run backup
 ```
 
-## API (роли)
-1. `POST /api/auth/login`
-2. `GET /api/auth/me` (header `x-telegram-id`)
-3. `GET /api/admin/users` (только `ADMIN`)
-4. `PATCH /api/admin/users/:telegramId/role` (только `ADMIN`)
+В каталоге `BACKUP_PATH` создаётся отдельная папка с:
 
-Если `ADMIN_TELEGRAM_IDS` пустой, первый вошедший пользователь получает роль `ADMIN`.
-Последнего администратора нельзя понизить до `EMPLOYEE`.
+- согласованной копией `grafik.db` через SQLite Backup API;
+- документами и фотографиями из `FILE_STORAGE_PATH`;
+- файлом `manifest.json` с датой создания и числом файлов.
+
+На Amvera рекомендуется ежедневно запускать эту команду внешним планировщиком и
+копировать результат за пределы основного volume. Резервная копия на том же volume
+защищает от ошибки приложения, но не от потери самого хранилища.
+
+## Развёртывание
+
+Приложению нужен постоянный volume `/data`. Основные переменные окружения описаны
+в `.env.example`. База хранится в `/data/grafik.db`, файлы в `/data/files`, а локальные
+резервные копии в `/data/backups`.

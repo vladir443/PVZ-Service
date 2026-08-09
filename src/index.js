@@ -1,6 +1,7 @@
 import cors from "cors";
 import compression from "compression";
 import express from "express";
+import helmet from "helmet";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "./config/env.js";
@@ -18,8 +19,65 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.resolve(__dirname, "../public");
 const iconsDir = path.join(publicDir, "icons");
+const allowedOrigins = new Set(
+  [
+    env.PUBLIC_APP_URL,
+    ...String(env.CORS_ORIGINS || "").split(","),
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        return new URL(value).origin;
+      } catch {
+        return "";
+      }
+    })
+    .filter(Boolean)
+);
 
-app.use(cors());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'"],
+        frameSrc: ["'self'", "blob:"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: null
+      }
+    },
+    crossOriginEmbedderPolicy: false
+  })
+);
+app.use((req, res, next) => {
+  const origin = String(req.headers.origin || "").trim();
+  if (req.path.startsWith("/api") && origin && !allowedOrigins.has(origin)) {
+    return res.status(403).json({
+      error: "ForbiddenOrigin",
+      message: "Запрос с этого сайта запрещён"
+    });
+  }
+  return next();
+});
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      callback(null, !origin || allowedOrigins.has(origin));
+    },
+    credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept", "X-Requested-With"]
+  })
+);
 app.use(compression());
 app.use(express.json());
 app.use(

@@ -37,6 +37,37 @@ const resolvedDatabasePath = prepareDatabasePath(env.DATABASE_PATH);
 const db = new Database(resolvedDatabasePath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
+db.pragma("busy_timeout = 5000");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    id TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+function runMigration(id, migrate) {
+  const existing = db.prepare("SELECT id FROM schema_migrations WHERE id = ?").get(id);
+  if (existing) return false;
+  db.transaction(() => {
+    migrate();
+    db.prepare("INSERT INTO schema_migrations (id) VALUES (?)").run(id);
+  })();
+  console.log(`[db] Applied migration ${id}`);
+  return true;
+}
+
+runMigration("20260809_001_auth_rate_limits", () => {
+  db.exec(`
+    CREATE TABLE auth_rate_limit_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rate_key TEXT NOT NULL,
+      requested_at_ms INTEGER NOT NULL
+    );
+    CREATE INDEX idx_auth_rate_limit_events_key_time
+      ON auth_rate_limit_events(rate_key, requested_at_ms);
+  `);
+});
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -647,6 +678,61 @@ export function authIdFromPhone(phone) {
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+const AUTH_CODE_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_CODE_COOLDOWN_MS = 60 * 1000;
+
+function normalizeRateLimitPart(value) {
+  return String(value || "").replace(/[^\dA-Za-z:._@-]/g, "").slice(0, 160);
+}
+
+export function reserveEmailCodeRequest({ email, ipAddress, nowMs = Date.now() }) {
+  const safeNowMs = Math.max(0, Math.trunc(Number(nowMs) || Date.now()));
+  const checks = [
+    { key: `email:${normalizeRateLimitPart(normalizeEmail(email))}`, max: 5 },
+    { key: `ip:${normalizeRateLimitPart(ipAddress)}`, max: 12 }
+  ].filter(({ key }) => key.split(":").slice(1).join(":"));
+
+  return db.transaction(() => {
+    const cutoff = safeNowMs - AUTH_CODE_WINDOW_MS;
+    db.prepare("DELETE FROM auth_rate_limit_events WHERE requested_at_ms < ?").run(cutoff);
+    const getWindow = db.prepare(
+      `
+      SELECT COUNT(*) AS count, MIN(requested_at_ms) AS first_at, MAX(requested_at_ms) AS last_at
+      FROM auth_rate_limit_events
+      WHERE rate_key = ? AND requested_at_ms >= ?
+      `
+    );
+
+    for (const { key, max } of checks) {
+      const window = getWindow.get(key, cutoff);
+      const lastAt = Number(window.last_at || 0);
+      if (lastAt && safeNowMs - lastAt < AUTH_CODE_COOLDOWN_MS) {
+        return {
+          ok: false,
+          retryAfterSeconds: Math.ceil(
+            (AUTH_CODE_COOLDOWN_MS - (safeNowMs - lastAt)) / 1000
+          )
+        };
+      }
+      if (Number(window.count || 0) >= max) {
+        return {
+          ok: false,
+          retryAfterSeconds: Math.max(
+            1,
+            Math.ceil((AUTH_CODE_WINDOW_MS - (safeNowMs - Number(window.first_at))) / 1000)
+          )
+        };
+      }
+    }
+
+    const insert = db.prepare(
+      "INSERT INTO auth_rate_limit_events (rate_key, requested_at_ms) VALUES (?, ?)"
+    );
+    for (const { key } of checks) insert.run(key, safeNowMs);
+    return { ok: true, retryAfterSeconds: 0 };
+  })();
 }
 
 export function authIdFromEmail(email) {
@@ -2193,6 +2279,13 @@ export function getEmployeeLocations(employeeId) {
 
 export function getEmployeeLocationCodes(employeeId) {
   return getEmployeeLocations(employeeId).map((location) => location.code);
+}
+
+export function runDatabaseTransaction(work) {
+  if (typeof work !== "function") {
+    throw new TypeError("Transaction work must be a function");
+  }
+  return db.transaction(work)();
 }
 
 export function replaceEmployeeLocations(employeeId, locationCodes) {

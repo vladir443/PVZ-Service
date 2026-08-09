@@ -16,6 +16,7 @@ import {
   logAuditEvent,
   migratePhoneUserToEmail,
   replaceEmployeeLocations,
+  runDatabaseTransaction,
   updateEmployeeAvatarById,
   updateUserRole,
   updateEmployeeById
@@ -27,6 +28,7 @@ import {
   removeTemporaryUpload,
   secureUploadTempDirectory
 } from "../services/file-storage.js";
+import { validateUploadedFileSignature } from "../services/file-signature.js";
 
 const router = express.Router();
 
@@ -78,7 +80,15 @@ function decodeUploadFileName(value) {
 
 function receivePassportFile(req, res, next) {
   passportUpload.single("file")(req, res, (error) => {
-    if (!error) return next();
+    if (!error) {
+      const validation = validateUploadedFileSignature(req.file, passportMimeTypes);
+      if (validation.ok) {
+        req.file.mimetype = validation.mimeType;
+        return next();
+      }
+      removeTemporaryUpload(req.file?.path);
+      return res.status(400).json({ error: "UploadError", message: validation.message });
+    }
     const message = error.code === "LIMIT_FILE_SIZE"
       ? "Файл паспорта должен быть не больше 10 МБ"
       : error.message || "Не удалось загрузить документ";
@@ -88,7 +98,18 @@ function receivePassportFile(req, res, next) {
 
 function receiveEmployeePhoto(req, res, next) {
   employeePhotoUpload.single("file")(req, res, (error) => {
-    if (!error) return next();
+    if (!error) {
+      const validation = validateUploadedFileSignature(
+        req.file,
+        new Set(["image/jpeg", "image/png", "image/webp"])
+      );
+      if (validation.ok) {
+        req.file.mimetype = validation.mimeType;
+        return next();
+      }
+      removeTemporaryUpload(req.file?.path);
+      return res.status(400).json({ error: "UploadError", message: validation.message });
+    }
     const message = error.code === "LIMIT_FILE_SIZE"
       ? "Фотография сотрудника должна быть не больше 5 МБ"
       : error.message || "Не удалось загрузить фотографию";
@@ -267,21 +288,27 @@ router.post("/", (req, res, next) => {
       });
     }
 
-    const employee = createEmployee({
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      telegramId: parsed.data.telegramId,
-      avatarUrl: parsed.data.avatarUrl,
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      telegramContact: parsed.data.telegramContact,
-      vkContact: parsed.data.vkContact,
-      position: parsed.data.position,
-      reliability: parsed.data.reliability,
-      accessRole: parsed.data.accessRole
+    const employee = runDatabaseTransaction(() => {
+      const created = createEmployee({
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName,
+        telegramId: parsed.data.telegramId,
+        avatarUrl: parsed.data.avatarUrl,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        telegramContact: parsed.data.telegramContact,
+        vkContact: parsed.data.vkContact,
+        position: parsed.data.position,
+        reliability: parsed.data.reliability,
+        accessRole: parsed.data.accessRole
+      });
+      created.locations = replaceEmployeeLocations(
+        created.id,
+        locationsValidation.locationCodes
+      );
+      created.locationCodes = created.locations.map((location) => location.code);
+      return created;
     });
-    employee.locations = replaceEmployeeLocations(employee.id, locationsValidation.locationCodes);
-    employee.locationCodes = employee.locations.map((location) => location.code);
 
     logAuditEvent({
       scope: "SYSTEM",
@@ -530,19 +557,48 @@ router.put("/:id", (req, res, next) => {
       });
     }
 
-    const result = updateEmployeeById({
-      id,
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      telegramId: parsed.data.telegramId,
-      avatarUrl: parsed.data.avatarUrl || targetEmployee.avatarUrl || "",
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      telegramContact: parsed.data.telegramContact,
-      vkContact: parsed.data.vkContact,
-      position: parsed.data.position,
-      reliability: parsed.data.reliability,
-      accessRole: requestedRole
+    let authMigration = null;
+    const result = runDatabaseTransaction(() => {
+      const updated = updateEmployeeById({
+        id,
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName,
+        telegramId: parsed.data.telegramId,
+        avatarUrl: parsed.data.avatarUrl || targetEmployee.avatarUrl || "",
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        telegramContact: parsed.data.telegramContact,
+        vkContact: parsed.data.vkContact,
+        position: parsed.data.position,
+        reliability: parsed.data.reliability,
+        accessRole: requestedRole
+      });
+      if (!updated.employee) return updated;
+
+      authMigration = migratePhoneUserToEmail({
+        phone: updated.employee.phone,
+        previousEmail: targetEmployee.email || "",
+        email: updated.employee.email
+      });
+      updated.employee.locations = replaceEmployeeLocations(
+        updated.employee.id,
+        locationsValidation.locationCodes
+      );
+      updated.employee.locationCodes = updated.employee.locations.map(
+        (location) => location.code
+      );
+
+      if (updated.employee.telegramId) {
+        const targetUser = getUserByTelegramId(updated.employee.telegramId);
+        if (targetUser && targetUser.role !== Role.SUPERADMIN) {
+          updateUserRole({
+            telegramId: updated.employee.telegramId,
+            role: requestedRole,
+            isSuperAdmin: false
+          });
+        }
+      }
+      return updated;
     });
 
     if (result.reason === "protected") {
@@ -558,28 +614,6 @@ router.put("/:id", (req, res, next) => {
         message: "Сотрудник не найден"
       });
     }
-    const authMigration = migratePhoneUserToEmail({
-      phone: result.employee.phone,
-      previousEmail: targetEmployee.email || "",
-      email: result.employee.email
-    });
-    result.employee.locations = replaceEmployeeLocations(
-      result.employee.id,
-      locationsValidation.locationCodes
-    );
-    result.employee.locationCodes = result.employee.locations.map((location) => location.code);
-
-    if (result.employee.telegramId) {
-      const targetUser = getUserByTelegramId(result.employee.telegramId);
-      if (targetUser && targetUser.role !== Role.SUPERADMIN) {
-        updateUserRole({
-          telegramId: result.employee.telegramId,
-          role: requestedRole,
-          isSuperAdmin: false
-        });
-      }
-    }
-
     logAuditEvent({
       scope: "SYSTEM",
       eventType: "EMPLOYEE_UPDATED",
