@@ -64,6 +64,8 @@ db.exec(`
     shift_date TEXT NOT NULL,
     executor1 TEXT NOT NULL DEFAULT '',
     executor2 TEXT NOT NULL DEFAULT '',
+    executor1_employee_id INTEGER,
+    executor2_employee_id INTEGER,
     executor1_start TEXT NOT NULL DEFAULT '',
     executor1_end TEXT NOT NULL DEFAULT '',
     executor2_start TEXT NOT NULL DEFAULT '',
@@ -79,13 +81,22 @@ db.exec(`
     deductions2 REAL NOT NULL DEFAULT 0,
     bonuses1 REAL NOT NULL DEFAULT 0,
     bonuses2 REAL NOT NULL DEFAULT 0,
+    daily_rate_cents INTEGER NOT NULL DEFAULT 0,
+    rate1_cents INTEGER NOT NULL DEFAULT 0,
+    rate2_cents INTEGER NOT NULL DEFAULT 0,
+    deductions1_cents INTEGER NOT NULL DEFAULT 0,
+    deductions2_cents INTEGER NOT NULL DEFAULT 0,
+    bonuses1_cents INTEGER NOT NULL DEFAULT 0,
+    bonuses2_cents INTEGER NOT NULL DEFAULT 0,
     deductions1_meta TEXT NOT NULL DEFAULT '[]',
     deductions2_meta TEXT NOT NULL DEFAULT '[]',
     bonuses1_meta TEXT NOT NULL DEFAULT '[]',
     bonuses2_meta TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(location_code, shift_date),
-    FOREIGN KEY(location_code) REFERENCES locations(code)
+    FOREIGN KEY(location_code) REFERENCES locations(code),
+    FOREIGN KEY(executor1_employee_id) REFERENCES employees(id) ON DELETE SET NULL,
+    FOREIGN KEY(executor2_employee_id) REFERENCES employees(id) ON DELETE SET NULL
   );
 `);
 
@@ -178,14 +189,17 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     location_code TEXT NOT NULL,
     employee_name TEXT NOT NULL,
+    employee_id INTEGER,
     payment_date TEXT NOT NULL,
     period_from TEXT NOT NULL DEFAULT '',
     period_to TEXT NOT NULL DEFAULT '',
     payment_type TEXT NOT NULL DEFAULT 'payout',
     amount REAL NOT NULL DEFAULT 0,
+    amount_cents INTEGER NOT NULL DEFAULT 0,
     created_by_telegram_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY(location_code) REFERENCES locations(code)
+    FOREIGN KEY(location_code) REFERENCES locations(code),
+    FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE SET NULL
   );
 `);
 
@@ -195,14 +209,20 @@ db.exec(`
     location_code TEXT NOT NULL,
     shift_date TEXT NOT NULL,
     employee_name TEXT NOT NULL,
+    employee_id INTEGER,
     salary_amount REAL NOT NULL DEFAULT 0,
     deductions_amount REAL NOT NULL DEFAULT 0,
     bonuses_amount REAL NOT NULL DEFAULT 0,
     paid_amount REAL NOT NULL DEFAULT 0,
+    salary_amount_cents INTEGER NOT NULL DEFAULT 0,
+    deductions_amount_cents INTEGER NOT NULL DEFAULT 0,
+    bonuses_amount_cents INTEGER NOT NULL DEFAULT 0,
+    paid_amount_cents INTEGER NOT NULL DEFAULT 0,
     created_by_telegram_id TEXT NOT NULL DEFAULT '',
     paid_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(location_code, shift_date, employee_name),
-    FOREIGN KEY(location_code) REFERENCES locations(code)
+    FOREIGN KEY(location_code) REFERENCES locations(code),
+    FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE SET NULL
   );
 `);
 
@@ -246,6 +266,7 @@ db.exec(`
     pin_verified INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL DEFAULT '',
     revoked_at TEXT NOT NULL DEFAULT '',
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
@@ -457,9 +478,98 @@ if (!hasColumn("finance_payments", "period_to")) {
 if (!hasColumn("finance_payments", "payment_type")) {
   db.exec("ALTER TABLE finance_payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'payout';");
 }
+
+const identityAndMoneyMigrations = [
+  ["shifts", "executor1_employee_id", "INTEGER"],
+  ["shifts", "executor2_employee_id", "INTEGER"],
+  ["shifts", "daily_rate_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["shifts", "rate1_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["shifts", "rate2_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["shifts", "deductions1_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["shifts", "deductions2_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["shifts", "bonuses1_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["shifts", "bonuses2_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["finance_payments", "employee_id", "INTEGER"],
+  ["finance_payments", "amount_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["finance_shift_payments", "employee_id", "INTEGER"],
+  ["finance_shift_payments", "salary_amount_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["finance_shift_payments", "deductions_amount_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["finance_shift_payments", "bonuses_amount_cents", "INTEGER NOT NULL DEFAULT 0"],
+  ["finance_shift_payments", "paid_amount_cents", "INTEGER NOT NULL DEFAULT 0"]
+];
+let moneyColumnsAdded = false;
+for (const [table, column, definition] of identityAndMoneyMigrations) {
+  if (!hasColumn(table, column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+    if (column.endsWith("_cents")) moneyColumnsAdded = true;
+  }
+}
+
+db.exec(`
+  UPDATE shifts
+  SET executor1_employee_id = (
+    SELECT id FROM employees WHERE lower(trim(full_name)) = lower(trim(shifts.executor1)) LIMIT 1
+  )
+  WHERE executor1_employee_id IS NULL AND trim(executor1) <> '';
+  UPDATE shifts
+  SET executor2_employee_id = (
+    SELECT id FROM employees WHERE lower(trim(full_name)) = lower(trim(shifts.executor2)) LIMIT 1
+  )
+  WHERE executor2_employee_id IS NULL AND trim(executor2) <> '';
+  UPDATE finance_payments
+  SET employee_id = (
+    SELECT id FROM employees WHERE lower(trim(full_name)) = lower(trim(finance_payments.employee_name)) LIMIT 1
+  )
+  WHERE employee_id IS NULL AND trim(employee_name) <> '';
+  UPDATE finance_shift_payments
+  SET employee_id = (
+    SELECT id FROM employees WHERE lower(trim(full_name)) = lower(trim(finance_shift_payments.employee_name)) LIMIT 1
+  )
+  WHERE employee_id IS NULL AND trim(employee_name) <> '';
+
+  CREATE INDEX IF NOT EXISTS idx_shifts_executor1_employee_date
+    ON shifts(executor1_employee_id, shift_date);
+  CREATE INDEX IF NOT EXISTS idx_shifts_executor2_employee_date
+    ON shifts(executor2_employee_id, shift_date);
+  CREATE INDEX IF NOT EXISTS idx_finance_payments_employee
+    ON finance_payments(employee_id, payment_date);
+  CREATE INDEX IF NOT EXISTS idx_finance_shift_payments_employee
+    ON finance_shift_payments(employee_id, shift_date);
+`);
+if (moneyColumnsAdded) {
+  db.exec(`
+    UPDATE shifts SET
+      daily_rate_cents = CAST(ROUND(COALESCE(daily_rate, 0) * 100) AS INTEGER),
+      rate1_cents = CAST(ROUND(COALESCE(rate1, 0) * 100) AS INTEGER),
+      rate2_cents = CAST(ROUND(COALESCE(rate2, 0) * 100) AS INTEGER),
+      deductions1_cents = CAST(ROUND(COALESCE(deductions1, 0) * 100) AS INTEGER),
+      deductions2_cents = CAST(ROUND(COALESCE(deductions2, 0) * 100) AS INTEGER),
+      bonuses1_cents = CAST(ROUND(COALESCE(bonuses1, 0) * 100) AS INTEGER),
+      bonuses2_cents = CAST(ROUND(COALESCE(bonuses2, 0) * 100) AS INTEGER);
+    UPDATE finance_payments
+      SET amount_cents = CAST(ROUND(COALESCE(amount, 0) * 100) AS INTEGER);
+    UPDATE finance_shift_payments SET
+      salary_amount_cents = CAST(ROUND(COALESCE(salary_amount, 0) * 100) AS INTEGER),
+      deductions_amount_cents = CAST(ROUND(COALESCE(deductions_amount, 0) * 100) AS INTEGER),
+      bonuses_amount_cents = CAST(ROUND(COALESCE(bonuses_amount, 0) * 100) AS INTEGER),
+      paid_amount_cents = CAST(ROUND(COALESCE(paid_amount, 0) * 100) AS INTEGER);
+  `);
+}
 if (!hasColumn("security_pin_settings", "pin_length")) {
   db.exec("ALTER TABLE security_pin_settings ADD COLUMN pin_length INTEGER NOT NULL DEFAULT 4;");
 }
+if (!hasColumn("user_sessions", "expires_at")) {
+  db.exec("ALTER TABLE user_sessions ADD COLUMN expires_at TEXT NOT NULL DEFAULT '';");
+}
+db.exec(`
+  UPDATE user_sessions
+  SET expires_at = datetime(created_at, '+${env.SESSION_TTL_DAYS} days')
+  WHERE expires_at IS NULL OR expires_at = '';
+`);
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_user_sessions_active
+    ON user_sessions(user_id, revoked_at, expires_at, last_active_at);
+`);
 
 const CORE_EMPLOYEE = {
   firstName: "Владимир",
@@ -922,6 +1032,39 @@ function normalizeEmployeeName(value) {
     .trim();
 }
 
+function toMoneyCents(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100);
+}
+
+function fromMoneyCents(value) {
+  return Number(value || 0) / 100;
+}
+
+function normalizeMoneyMeta(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    ...item,
+    amount: fromMoneyCents(toMoneyCents(item?.amount))
+  }));
+}
+
+function getEmployeeIdentityByName(name) {
+  const normalized = normalizeEmployeeName(name);
+  if (!normalized) return null;
+  return db
+    .prepare(
+      `
+      SELECT id, full_name
+      FROM employees
+      WHERE lower(trim(full_name)) = lower(trim(?))
+      LIMIT 1
+      `
+    )
+    .get(normalized);
+}
+
 export function getScheduleForMonth({ locationCode, month }) {
   const location = db
     .prepare(
@@ -946,11 +1089,16 @@ export function getScheduleForMonth({ locationCode, month }) {
     .prepare(
       `
       SELECT
-        shift_date, executor1, executor2,
+        shift_date, executor1, executor2, executor1_employee_id, executor2_employee_id,
         executor1_start, executor1_end, executor2_start, executor2_end,
-        daily_rate, rate1, rate2,
+        daily_rate_cents / 100.0 AS daily_rate,
+        rate1_cents / 100.0 AS rate1,
+        rate2_cents / 100.0 AS rate2,
         deductions, bonuses, deductions_meta, bonuses_meta,
-        deductions1, deductions2, bonuses1, bonuses2,
+        deductions1_cents / 100.0 AS deductions1,
+        deductions2_cents / 100.0 AS deductions2,
+        bonuses1_cents / 100.0 AS bonuses1,
+        bonuses2_cents / 100.0 AS bonuses2,
         deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta
       FROM shifts
       WHERE location_code = ?
@@ -965,6 +1113,8 @@ export function getScheduleForMonth({ locationCode, month }) {
     const existing = rowMap.get(day);
     return {
       date: day,
+      executor1EmployeeId: existing?.executor1_employee_id ?? null,
+      executor2EmployeeId: existing?.executor2_employee_id ?? null,
       executor1: existing?.executor1 ?? "",
       executor2: existing?.executor2 ?? "",
       executor1Start: existing?.executor1
@@ -1028,6 +1178,15 @@ export function upsertShift({
   bonuses1Meta = [],
   bonuses2Meta = []
 }) {
+  const executor1Identity = getEmployeeIdentityByName(executor1);
+  const executor2Identity = getEmployeeIdentityByName(executor2);
+  const normalizedDailyRate = fromMoneyCents(toMoneyCents(dailyRate));
+  const normalizedRate1 = fromMoneyCents(toMoneyCents(rate1));
+  const normalizedRate2 = fromMoneyCents(toMoneyCents(rate2));
+  const normalizedDeductions1 = fromMoneyCents(toMoneyCents(deductions1));
+  const normalizedDeductions2 = fromMoneyCents(toMoneyCents(deductions2));
+  const normalizedBonuses1 = fromMoneyCents(toMoneyCents(bonuses1));
+  const normalizedBonuses2 = fromMoneyCents(toMoneyCents(bonuses2));
   const locationExists = db
     .prepare(
       `
@@ -1085,21 +1244,49 @@ export function upsertShift({
     executor1End,
     executor2Start,
     executor2End,
-    dailyRate,
-    rate1,
-    rate2,
-    deductions1,
-    bonuses1,
-    JSON.stringify(Array.isArray(deductions1Meta) ? deductions1Meta : []),
-    JSON.stringify(Array.isArray(bonuses1Meta) ? bonuses1Meta : []),
-    deductions1,
-    deductions2,
-    bonuses1,
-    bonuses2,
-    JSON.stringify(Array.isArray(deductions1Meta) ? deductions1Meta : []),
-    JSON.stringify(Array.isArray(deductions2Meta) ? deductions2Meta : []),
-    JSON.stringify(Array.isArray(bonuses1Meta) ? bonuses1Meta : []),
-    JSON.stringify(Array.isArray(bonuses2Meta) ? bonuses2Meta : [])
+    normalizedDailyRate,
+    normalizedRate1,
+    normalizedRate2,
+    normalizedDeductions1,
+    normalizedBonuses1,
+    JSON.stringify(normalizeMoneyMeta(deductions1Meta)),
+    JSON.stringify(normalizeMoneyMeta(bonuses1Meta)),
+    normalizedDeductions1,
+    normalizedDeductions2,
+    normalizedBonuses1,
+    normalizedBonuses2,
+    JSON.stringify(normalizeMoneyMeta(deductions1Meta)),
+    JSON.stringify(normalizeMoneyMeta(deductions2Meta)),
+    JSON.stringify(normalizeMoneyMeta(bonuses1Meta)),
+    JSON.stringify(normalizeMoneyMeta(bonuses2Meta))
+  );
+
+  db.prepare(
+    `
+    UPDATE shifts
+    SET executor1_employee_id = ?,
+        executor2_employee_id = ?,
+        daily_rate_cents = ?,
+        rate1_cents = ?,
+        rate2_cents = ?,
+        deductions1_cents = ?,
+        deductions2_cents = ?,
+        bonuses1_cents = ?,
+        bonuses2_cents = ?
+    WHERE location_code = ? AND shift_date = ?
+    `
+  ).run(
+    executor1Identity?.id || null,
+    executor2Identity?.id || null,
+    toMoneyCents(normalizedDailyRate),
+    toMoneyCents(normalizedRate1),
+    toMoneyCents(normalizedRate2),
+    toMoneyCents(normalizedDeductions1),
+    toMoneyCents(normalizedDeductions2),
+    toMoneyCents(normalizedBonuses1),
+    toMoneyCents(normalizedBonuses2),
+    locationCode,
+    date
   );
 
   return db
@@ -1107,10 +1294,16 @@ export function upsertShift({
       `
       SELECT
         location_code, shift_date, executor1, executor2,
+        executor1_employee_id, executor2_employee_id,
         executor1_start, executor1_end, executor2_start, executor2_end,
-        daily_rate, rate1, rate2,
+        daily_rate_cents / 100.0 AS daily_rate,
+        rate1_cents / 100.0 AS rate1,
+        rate2_cents / 100.0 AS rate2,
         deductions, bonuses, deductions_meta, bonuses_meta,
-        deductions1, deductions2, bonuses1, bonuses2,
+        deductions1_cents / 100.0 AS deductions1,
+        deductions2_cents / 100.0 AS deductions2,
+        bonuses1_cents / 100.0 AS bonuses1,
+        bonuses2_cents / 100.0 AS bonuses2,
         deductions1_meta, deductions2_meta, bonuses1_meta, bonuses2_meta,
         updated_at
       FROM shifts
@@ -1131,8 +1324,10 @@ export function validateShiftExecutors({
   const e2 = normalizeEmployeeName(executor2);
   const e1Lower = e1.toLowerCase();
   const e2Lower = e2.toLowerCase();
+  const e1Id = getEmployeeIdentityByName(e1)?.id || null;
+  const e2Id = getEmployeeIdentityByName(e2)?.id || null;
 
-  if (e1 && e2 && e1Lower === e2Lower) {
+  if (e1 && e2 && ((e1Id && e1Id === e2Id) || e1Lower === e2Lower)) {
     return {
       ok: false,
       type: "same_shift_duplicate",
@@ -1152,7 +1347,9 @@ export function validateShiftExecutors({
         s.location_code,
         l.title AS location_title,
         s.executor1,
-        s.executor2
+        s.executor2,
+        s.executor1_employee_id,
+        s.executor2_employee_id
       FROM shifts s
       JOIN locations l ON l.code = s.location_code
       WHERE s.shift_date = ?
@@ -1166,7 +1363,7 @@ export function validateShiftExecutors({
     const rowExecutor2 = normalizeEmployeeName(row.executor2);
     const rowE1Lower = rowExecutor1.toLowerCase();
     const rowE2Lower = rowExecutor2.toLowerCase();
-    if (e1 && rowE1Lower === e1Lower) {
+    if (e1 && ((e1Id && Number(row.executor1_employee_id) === e1Id) || rowE1Lower === e1Lower)) {
       return {
         ok: false,
         type: "cross_location_conflict",
@@ -1176,7 +1373,7 @@ export function validateShiftExecutors({
         message: `${e1} уже назначен(а) как Исполнитель1 в этот день на другом пункте: ${row.location_title}`
       };
     }
-    if (e2 && rowE2Lower === e2Lower) {
+    if (e2 && ((e2Id && Number(row.executor2_employee_id) === e2Id) || rowE2Lower === e2Lower)) {
       return {
         ok: false,
         type: "cross_location_conflict",
@@ -1227,6 +1424,8 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         l.work_end,
         s.executor1,
         s.executor2,
+        s.executor1_employee_id,
+        s.executor2_employee_id,
         s.executor1_start,
         s.executor1_end,
         s.executor2_start,
@@ -1245,7 +1444,7 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
     const normalizedExecutor2 = normalizeEmployeeName(row.executor2);
     const rowExecutor1 = normalizedExecutor1.toLowerCase();
     const rowExecutor2 = normalizedExecutor2.toLowerCase();
-    if (rowExecutor1 && aliases.has(rowExecutor1)) {
+    if (Number(row.executor1_employee_id) === employee.id || (rowExecutor1 && aliases.has(rowExecutor1))) {
       assignments.push({
         locationCode: row.location_code,
         locationTitle: row.location_title,
@@ -1265,7 +1464,7 @@ export function getTodayAssignmentsForTelegramId({ telegramId, date }) {
         locationWorkEnd: row.work_end || "22:00"
       });
     }
-    if (rowExecutor2 && aliases.has(rowExecutor2)) {
+    if (Number(row.executor2_employee_id) === employee.id || (rowExecutor2 && aliases.has(rowExecutor2))) {
       assignments.push({
         locationCode: row.location_code,
         locationTitle: row.location_title,
@@ -1339,6 +1538,8 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
         s.shift_date,
         s.executor1,
         s.executor2,
+        s.executor1_employee_id,
+        s.executor2_employee_id,
         s.location_code,
         l.title AS location_title,
         l.work_start,
@@ -1363,8 +1564,8 @@ export function getUpcomingShiftDatesForTelegramId({ telegramId, fromDate, limit
     if (!shiftDate) continue;
     const e1 = normalizeEmployeeName(row.executor1).toLowerCase();
     const e2 = normalizeEmployeeName(row.executor2).toLowerCase();
-    const isE1 = e1 && aliases.has(e1);
-    const isE2 = e2 && aliases.has(e2);
+    const isE1 = Number(row.executor1_employee_id) === employee.id || (e1 && aliases.has(e1));
+    const isE2 = Number(row.executor2_employee_id) === employee.id || (e2 && aliases.has(e2));
     if (isE1 || isE2) {
       const key = `${shiftDate}:${row.location_code}`;
       if (seen.has(key)) continue;
@@ -1411,10 +1612,11 @@ export function listShiftPaymentsForMonth({ locationCode, month }) {
         id,
         shift_date,
         employee_name,
-        salary_amount,
-        deductions_amount,
-        bonuses_amount,
-        paid_amount,
+        employee_id,
+        salary_amount_cents / 100.0 AS salary_amount,
+        deductions_amount_cents / 100.0 AS deductions_amount,
+        bonuses_amount_cents / 100.0 AS bonuses_amount,
+        paid_amount_cents / 100.0 AS paid_amount,
         created_by_telegram_id,
         paid_at
       FROM finance_shift_payments
@@ -1429,6 +1631,7 @@ export function listShiftPaymentsForMonth({ locationCode, month }) {
       id: row.id,
       shiftDate: row.shift_date,
       employeeName: row.employee_name,
+      employeeId: row.employee_id == null ? null : Number(row.employee_id),
       salaryAmount: Number(row.salary_amount || 0),
       deductionsAmount: Number(row.deductions_amount || 0),
       bonusesAmount: Number(row.bonuses_amount || 0),
@@ -1446,11 +1649,17 @@ export function markShiftPaid({ locationCode, shiftDate, employeeName, createdBy
   if (!safeName) {
     throw new Error("Employee name is required");
   }
+  const employeeIdentity = getEmployeeIdentityByName(safeName);
+  if (!employeeIdentity) {
+    throw new Error("Employee was not found");
+  }
 
   const shift = db
     .prepare(
       `
-      SELECT executor1, executor2, rate1, rate2, deductions1, deductions2, bonuses1, bonuses2
+      SELECT executor1, executor2, executor1_employee_id, executor2_employee_id,
+             rate1_cents, rate2_cents, deductions1_cents, deductions2_cents,
+             bonuses1_cents, bonuses2_cents
       FROM shifts
       WHERE location_code = ?
         AND shift_date = ?
@@ -1462,19 +1671,22 @@ export function markShiftPaid({ locationCode, shiftDate, employeeName, createdBy
   let salaryAmount = 0;
   let deductionsAmount = 0;
   let bonusesAmount = 0;
-  if (String(shift.executor1 || "").trim() === safeName) {
-    salaryAmount = Number(shift.rate1 || 0);
-    deductionsAmount = Math.abs(Math.min(0, Number(shift.deductions1 || 0)));
-    bonusesAmount = Math.max(0, Number(shift.bonuses1 || 0));
-  } else if (String(shift.executor2 || "").trim() === safeName) {
-    salaryAmount = Number(shift.rate2 || 0);
-    deductionsAmount = Math.abs(Math.min(0, Number(shift.deductions2 || 0)));
-    bonusesAmount = Math.max(0, Number(shift.bonuses2 || 0));
+  if (Number(shift.executor1_employee_id) === employeeIdentity.id || String(shift.executor1 || "").trim() === safeName) {
+    salaryAmount = fromMoneyCents(shift.rate1_cents);
+    deductionsAmount = fromMoneyCents(Math.abs(Math.min(0, Number(shift.deductions1_cents || 0))));
+    bonusesAmount = fromMoneyCents(Math.max(0, Number(shift.bonuses1_cents || 0)));
+  } else if (Number(shift.executor2_employee_id) === employeeIdentity.id || String(shift.executor2 || "").trim() === safeName) {
+    salaryAmount = fromMoneyCents(shift.rate2_cents);
+    deductionsAmount = fromMoneyCents(Math.abs(Math.min(0, Number(shift.deductions2_cents || 0))));
+    bonusesAmount = fromMoneyCents(Math.max(0, Number(shift.bonuses2_cents || 0)));
   } else {
     return null;
   }
 
-  const paidAmount = Math.max(0, salaryAmount + bonusesAmount - deductionsAmount);
+  const paidAmount = fromMoneyCents(Math.max(
+    0,
+    toMoneyCents(salaryAmount) + toMoneyCents(bonusesAmount) - toMoneyCents(deductionsAmount)
+  ));
   db.prepare(
     `
     INSERT INTO finance_shift_payments (
@@ -1507,6 +1719,27 @@ export function markShiftPaid({ locationCode, shiftDate, employeeName, createdBy
     String(createdByTelegramId || "")
   );
 
+  db.prepare(
+    `
+    UPDATE finance_shift_payments
+    SET employee_id = ?,
+        salary_amount_cents = ?,
+        deductions_amount_cents = ?,
+        bonuses_amount_cents = ?,
+        paid_amount_cents = ?
+    WHERE location_code = ? AND shift_date = ? AND employee_name = ?
+    `
+  ).run(
+    employeeIdentity.id,
+    toMoneyCents(salaryAmount),
+    toMoneyCents(deductionsAmount),
+    toMoneyCents(bonusesAmount),
+    toMoneyCents(paidAmount),
+    locationCode,
+    safeDate,
+    safeName
+  );
+
   return db
     .prepare(
       `
@@ -1514,10 +1747,11 @@ export function markShiftPaid({ locationCode, shiftDate, employeeName, createdBy
         id,
         shift_date,
         employee_name,
-        salary_amount,
-        deductions_amount,
-        bonuses_amount,
-        paid_amount,
+        employee_id,
+        salary_amount_cents / 100.0 AS salary_amount,
+        deductions_amount_cents / 100.0 AS deductions_amount,
+        bonuses_amount_cents / 100.0 AS bonuses_amount,
+        paid_amount_cents / 100.0 AS paid_amount,
         created_by_telegram_id,
         paid_at
       FROM finance_shift_payments
@@ -1543,6 +1777,10 @@ export function markEmployeePeriodPaid({
   if (!safeName) {
     throw new Error("Employee name is required");
   }
+  const employeeIdentity = getEmployeeIdentityByName(safeName);
+  if (!employeeIdentity) {
+    throw new Error("Employee was not found");
+  }
   const { year, month: monthNum } = parseMonth(month);
   const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
   const safePeriod = String(period || "").toLowerCase();
@@ -1563,16 +1801,30 @@ export function markEmployeePeriodPaid({
       LEFT JOIN finance_shift_payments AS paid
         ON paid.location_code = shifts.location_code
        AND paid.shift_date = shifts.shift_date
-       AND paid.employee_name = ?
+       AND (paid.employee_id = ? OR (paid.employee_id IS NULL AND paid.employee_name = ?))
       WHERE shifts.location_code = ?
         AND shifts.shift_date >= ?
         AND shifts.shift_date <= ?
-        AND (shifts.executor1 = ? OR shifts.executor2 = ?)
+        AND (
+          shifts.executor1_employee_id = ? OR shifts.executor2_employee_id = ?
+          OR (shifts.executor1_employee_id IS NULL AND shifts.executor1 = ?)
+          OR (shifts.executor2_employee_id IS NULL AND shifts.executor2 = ?)
+        )
         AND paid.id IS NULL
       ORDER BY shifts.shift_date ASC
       `
     )
-    .all(safeName, locationCode, fromDate, toDate, safeName, safeName);
+    .all(
+      employeeIdentity.id,
+      safeName,
+      locationCode,
+      fromDate,
+      toDate,
+      employeeIdentity.id,
+      employeeIdentity.id,
+      safeName,
+      safeName
+    );
 
   const markAll = db.transaction(() =>
     unpaidShifts
@@ -1590,10 +1842,10 @@ export function markEmployeePeriodPaid({
 
   return {
     count: payments.length,
-    totalAmount: payments.reduce(
-      (sum, payment) => sum + Number(payment.paid_amount || 0),
+    totalAmount: fromMoneyCents(payments.reduce(
+      (sum, payment) => sum + toMoneyCents(payment.paid_amount),
       0
-    ),
+    )),
     periodFrom: fromDate,
     periodTo: toDate
   };
@@ -1606,7 +1858,7 @@ export function unmarkShiftPaid({ locationCode, paymentId }) {
   const existing = db
     .prepare(
       `
-      SELECT id, shift_date, employee_name, paid_amount
+      SELECT id, shift_date, employee_name, paid_amount_cents / 100.0 AS paid_amount
       FROM finance_shift_payments
       WHERE id = ?
         AND location_code = ?
@@ -1651,7 +1903,8 @@ export function listFinancePaymentsForMonth({ locationCode, month }) {
   const payments = db
     .prepare(
       `
-      SELECT id, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
+      SELECT id, employee_name, employee_id, payment_date, period_from, period_to, payment_type,
+             amount_cents / 100.0 AS amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE location_code = ?
         AND payment_date >= ?
@@ -1663,6 +1916,7 @@ export function listFinancePaymentsForMonth({ locationCode, month }) {
     .map((row) => ({
       id: row.id,
       employeeName: row.employee_name,
+      employeeId: row.employee_id == null ? null : Number(row.employee_id),
       paymentDate: row.payment_date,
       periodFrom: row.period_from || "",
       periodTo: row.period_to || "",
@@ -1699,7 +1953,7 @@ export function createFinancePayment({
   const safeDate = parseDate(paymentDate);
   const safePeriodFrom = parseDate(periodFrom);
   const safePeriodTo = parseDate(periodTo);
-  const safeAmount = Number(amount || 0);
+  const safeAmount = fromMoneyCents(toMoneyCents(amount));
   if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
     throw new Error("Payment amount must be positive");
   }
@@ -1710,30 +1964,39 @@ export function createFinancePayment({
   if (safeType !== "payout" && safeType !== "advance") {
     throw new Error("Payment type is invalid");
   }
+  const safeEmployeeName = String(employeeName || "").trim();
+  const employeeIdentity = getEmployeeIdentityByName(safeEmployeeName);
+  if (!employeeIdentity) {
+    throw new Error("Employee was not found");
+  }
 
   const info = db
     .prepare(
       `
       INSERT INTO finance_payments (
-        location_code, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        location_code, employee_name, employee_id, payment_date, period_from, period_to,
+        payment_type, amount, amount_cents, created_by_telegram_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `
     )
     .run(
       locationCode,
-      String(employeeName || "").trim(),
+      safeEmployeeName,
+      employeeIdentity.id,
       safeDate,
       safePeriodFrom,
       safePeriodTo,
       safeType,
       safeAmount,
+      toMoneyCents(safeAmount),
       String(createdByTelegramId || "")
     );
 
   return db
     .prepare(
       `
-      SELECT id, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
+      SELECT id, employee_name, employee_id, payment_date, period_from, period_to, payment_type,
+             amount_cents / 100.0 AS amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE id = ?
       `
@@ -1750,7 +2013,8 @@ export function deleteFinancePayment({ locationCode, paymentId }) {
   const existing = db
     .prepare(
       `
-      SELECT id, location_code, employee_name, payment_date, period_from, period_to, payment_type, amount, created_by_telegram_id, created_at
+      SELECT id, location_code, employee_name, employee_id, payment_date, period_from, period_to,
+             payment_type, amount_cents / 100.0 AS amount, created_by_telegram_id, created_at
       FROM finance_payments
       WHERE id = ?
         AND location_code = ?
@@ -1969,7 +2233,7 @@ export function updateEmployeeById({
   const current = db
     .prepare(
       `
-      SELECT is_protected
+      SELECT is_protected, full_name
       FROM employees
       WHERE id = ?
       `
@@ -1981,8 +2245,9 @@ export function updateEmployeeById({
   }
 
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
-  const result = db
-    .prepare(
+  const updateEmployeeAndSnapshots = db.transaction(() => {
+    const result = db
+      .prepare(
       `
       UPDATE employees
       SET
@@ -2001,7 +2266,7 @@ export function updateEmployeeById({
       WHERE id = ?
       `
     )
-    .run(
+      .run(
       fullName,
       firstName.trim(),
       lastName.trim(),
@@ -2015,7 +2280,17 @@ export function updateEmployeeById({
       reliability,
       toDbRole(accessRole),
       id
-    );
+      );
+
+    if (current.full_name !== fullName) {
+      db.prepare("UPDATE shifts SET executor1 = ? WHERE executor1_employee_id = ?").run(fullName, id);
+      db.prepare("UPDATE shifts SET executor2 = ? WHERE executor2_employee_id = ?").run(fullName, id);
+      db.prepare("UPDATE finance_payments SET employee_name = ? WHERE employee_id = ?").run(fullName, id);
+      db.prepare("UPDATE finance_shift_payments SET employee_name = ? WHERE employee_id = ?").run(fullName, id);
+    }
+    return result;
+  });
+  const result = updateEmployeeAndSnapshots();
 
   if (result.changes === 0) {
     return { employee: null, reason: "not_found" };
@@ -2196,6 +2471,7 @@ export function deleteSecureFileById(id) {
 
 export function employeeCanAccessAdjustmentFile({ employeeFullName, fileId }) {
   const name = String(employeeFullName || "").trim();
+  const employeeId = getEmployeeIdentityByName(name)?.id || null;
   const idPattern = `%\"${String(fileId || "").trim()}\"%`;
   if (!name || !fileId) return false;
   return !!db
@@ -2205,18 +2481,18 @@ export function employeeCanAccessAdjustmentFile({ employeeFullName, fileId }) {
       FROM shifts
       WHERE
         (
-          lower(trim(executor1)) = lower(trim(?))
+          (executor1_employee_id = ? OR (executor1_employee_id IS NULL AND lower(trim(executor1)) = lower(trim(?))))
           AND (deductions1_meta LIKE ? OR bonuses1_meta LIKE ?)
         )
         OR
         (
-          lower(trim(executor2)) = lower(trim(?))
+          (executor2_employee_id = ? OR (executor2_employee_id IS NULL AND lower(trim(executor2)) = lower(trim(?))))
           AND (deductions2_meta LIKE ? OR bonuses2_meta LIKE ?)
         )
       LIMIT 1
       `
     )
-    .get(name, idPattern, idPattern, name, idPattern, idPattern);
+    .get(employeeId, name, idPattern, idPattern, employeeId, name, idPattern, idPattern);
 }
 
 export function canLoginByEmployeeAccess({ telegramId, username }) {
@@ -2294,9 +2570,11 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
       FROM shifts s
       JOIN locations l ON l.code = s.location_code
       JOIN employees e
-        ON lower(trim(e.full_name)) = lower(trim(s.executor1))
+        ON e.id = s.executor1_employee_id
+        OR (s.executor1_employee_id IS NULL AND lower(trim(e.full_name)) = lower(trim(s.executor1)))
       LEFT JOIN employees c
-        ON lower(trim(c.full_name)) = lower(trim(s.executor2))
+        ON c.id = s.executor2_employee_id
+        OR (s.executor2_employee_id IS NULL AND lower(trim(c.full_name)) = lower(trim(s.executor2)))
       LEFT JOIN users u
         ON trim(u.telegram_id) = trim(e.telegram_id)
       WHERE s.shift_date >= ?
@@ -2330,9 +2608,11 @@ export function listShiftAssignmentsForReminderWindow({ fromDate, toDate }) {
       FROM shifts s
       JOIN locations l ON l.code = s.location_code
       JOIN employees e
-        ON lower(trim(e.full_name)) = lower(trim(s.executor2))
+        ON e.id = s.executor2_employee_id
+        OR (s.executor2_employee_id IS NULL AND lower(trim(e.full_name)) = lower(trim(s.executor2)))
       LEFT JOIN employees c
-        ON lower(trim(c.full_name)) = lower(trim(s.executor1))
+        ON c.id = s.executor1_employee_id
+        OR (s.executor1_employee_id IS NULL AND lower(trim(c.full_name)) = lower(trim(s.executor1)))
       LEFT JOIN users u
         ON trim(u.telegram_id) = trim(e.telegram_id)
       WHERE s.shift_date >= ?
@@ -3002,8 +3282,9 @@ export function createUserSession({
   db.prepare(
     `
     INSERT INTO user_sessions (
-      session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address, pin_verified, created_at, last_active_at, revoked_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), '')
+      session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address,
+      pin_verified, created_at, last_active_at, expires_at, revoked_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), '')
     `
   ).run(
     sessionId,
@@ -3013,13 +3294,15 @@ export function createUserSession({
     String(platform || "").trim().slice(0, 60),
     normalizeUserAgent(userAgent),
     normalizeIp(ipAddress),
-    pinState?.enabled ? 0 : 1
+    pinState?.enabled ? 0 : 1,
+    `+${env.SESSION_TTL_DAYS} days`
   );
 
   return db
     .prepare(
       `
-      SELECT id, session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address, pin_verified, created_at, last_active_at
+      SELECT id, session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address,
+             pin_verified, created_at, last_active_at, expires_at
       FROM user_sessions
       WHERE session_id = ?
       LIMIT 1
@@ -3048,6 +3331,7 @@ export function getActiveSessionWithUser({ telegramId, sessionId }) {
         s.pin_verified,
         s.created_at AS session_created_at,
         s.last_active_at,
+        s.expires_at,
         u.id,
         u.telegram_id,
         u.full_name,
@@ -3062,6 +3346,7 @@ export function getActiveSessionWithUser({ telegramId, sessionId }) {
       WHERE s.session_id = ?
         AND s.telegram_id = ?
         AND (s.revoked_at IS NULL OR s.revoked_at = '')
+        AND datetime(s.expires_at) > datetime('now')
       LIMIT 1
       `
     )
@@ -3082,7 +3367,8 @@ export function getActiveSessionWithUser({ telegramId, sessionId }) {
       ipAddress: row.ip_address,
       pinVerified: row.pin_verified === 1,
       createdAt: row.session_created_at,
-      lastActiveAt: row.last_active_at
+      lastActiveAt: row.last_active_at,
+      expiresAt: row.expires_at
     }
   };
 }
@@ -3094,6 +3380,7 @@ export function touchSession(sessionId) {
     SET last_active_at = datetime('now')
     WHERE session_id = ?
       AND (revoked_at IS NULL OR revoked_at = '')
+      AND datetime(expires_at) > datetime('now')
     `
   ).run(String(sessionId || "").trim());
 }
@@ -3105,6 +3392,7 @@ export function setSessionPinVerified({ sessionId, verified }) {
     SET pin_verified = ?, last_active_at = datetime('now')
     WHERE session_id = ?
       AND (revoked_at IS NULL OR revoked_at = '')
+      AND datetime(expires_at) > datetime('now')
     `
   ).run(verified ? 1 : 0, String(sessionId || "").trim());
 }
@@ -3143,10 +3431,12 @@ export function listActiveSessionsByUserId({ userId, currentSessionId = "" }) {
   const rows = db
     .prepare(
       `
-      SELECT session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address, pin_verified, created_at, last_active_at
+      SELECT session_id, user_id, telegram_id, device_name, platform, user_agent, ip_address,
+             pin_verified, created_at, last_active_at, expires_at
       FROM user_sessions
       WHERE user_id = ?
         AND (revoked_at IS NULL OR revoked_at = '')
+        AND datetime(expires_at) > datetime('now')
       ORDER BY datetime(last_active_at) DESC, id DESC
       `
     )
@@ -3162,6 +3452,7 @@ export function listActiveSessionsByUserId({ userId, currentSessionId = "" }) {
     pinVerified: row.pin_verified === 1,
     createdAt: row.created_at,
     lastActiveAt: row.last_active_at,
+    expiresAt: row.expires_at,
     isCurrent: current && row.session_id === current
   }));
 }
@@ -3381,7 +3672,7 @@ export function resetPinForTelegramId({ telegramId }) {
   return { ok: true };
 }
 
-export function issueRecoveryPinForTelegramId({ telegramId, pinLength = PIN_MIN_LENGTH }) {
+export function prepareRecoveryPinForTelegramId({ telegramId, pinLength = PIN_MIN_LENGTH }) {
   const user = getUserByTelegramId(telegramId);
   if (!user) return { ok: false, reason: "not_found" };
 
@@ -3390,7 +3681,24 @@ export function issueRecoveryPinForTelegramId({ telegramId, pinLength = PIN_MIN_
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = createPinHash(generatedPin, salt);
 
-  db.prepare(
+  return {
+    ok: true,
+    userId: user.id,
+    telegramId: user.telegramId,
+    pin: generatedPin,
+    pinLength: safeLength,
+    pinHash: hash,
+    pinSalt: salt
+  };
+}
+
+export function applyPreparedRecoveryPin(recovery) {
+  if (!recovery?.ok || !recovery.userId || !recovery.pinHash || !recovery.pinSalt) {
+    return { ok: false, reason: "invalid_recovery" };
+  }
+
+  const applyRecovery = db.transaction(() => {
+    db.prepare(
     `
     INSERT INTO security_pin_settings (user_id, pin_hash, pin_salt, pin_length, is_enabled, failed_attempts, lock_until, updated_at)
     VALUES (?, ?, ?, ?, 1, 0, '', datetime('now'))
@@ -3403,21 +3711,22 @@ export function issueRecoveryPinForTelegramId({ telegramId, pinLength = PIN_MIN_
       lock_until = '',
       updated_at = datetime('now')
     `
-  ).run(user.id, hash, salt, safeLength);
+    ).run(recovery.userId, recovery.pinHash, recovery.pinSalt, recovery.pinLength);
 
-  db.prepare(
+    db.prepare(
     `
     UPDATE user_sessions
     SET pin_verified = 0
     WHERE user_id = ?
       AND (revoked_at IS NULL OR revoked_at = '')
     `
-  ).run(user.id);
+    ).run(recovery.userId);
+  });
+  applyRecovery();
 
   return {
     ok: true,
-    pin: generatedPin,
-    state: getPinStateByTelegramId(telegramId)
+    state: getPinStateByTelegramId(recovery.telegramId)
   };
 }
 

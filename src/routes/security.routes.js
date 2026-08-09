@@ -7,7 +7,8 @@ import {
   getEmployeeByTelegramId,
   getPinPolicy,
   getPinStateByTelegramId,
-  issueRecoveryPinForTelegramId,
+  applyPreparedRecoveryPin,
+  prepareRecoveryPinForTelegramId,
   listActiveSessionsByUserId,
   listAuditLogsForViewer,
   listEmployees,
@@ -300,7 +301,7 @@ router.post("/pin/recovery/request", async (req, res, next) => {
       });
     }
 
-    const recoveryResult = issueRecoveryPinForTelegramId({
+    const recoveryResult = prepareRecoveryPinForTelegramId({
       telegramId: req.user.telegramId,
       pinLength: 4
     });
@@ -346,6 +347,11 @@ router.post("/pin/recovery/request", async (req, res, next) => {
       telegramId: ownerTelegramId,
       text: message
     });
+
+    const appliedRecovery = applyPreparedRecoveryPin(recoveryResult);
+    if (!appliedRecovery.ok) {
+      throw new Error("Не удалось применить новый PIN");
+    }
 
     return res.json({
       ok: true,

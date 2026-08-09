@@ -6,19 +6,16 @@ import {
   createEmailLoginCode,
   createPersonalDataConsent,
   createUserSession,
-  bindEmployeeTelegramId,
   createUser,
   getPinStateByTelegramId,
   getPersonalDataConsent,
   listActiveSessionsByUserId,
   getEmployeeByAuth,
   getUserByTelegramId,
-  isCoreAdminUsername,
   logAuditEvent,
   linkPersonalDataConsentToAuthSession,
   migratePhoneUserToEmail,
   revokeSession,
-  syncEmployeeTelegramProfile,
   updateUserReminderSettings,
   updateEmployeeAvatarById,
   updateUserProfile,
@@ -36,12 +33,9 @@ import { sendEmailCode } from "../services/email.js";
 const router = express.Router();
 
 const loginSchema = z.object({
-  email: z.string().email().max(254).optional().default(""),
-  emailCode: z.string().max(10).optional().default(""),
-  telegramId: z.string().max(64).optional().default(""),
+  email: z.string().email().max(254),
+  emailCode: z.string().regex(/^\d{6}$/),
   fullName: z.string().max(120).optional().default(""),
-  username: z.string().max(64).optional().default(""),
-  photoUrl: z.string().max(2000).optional().default(""),
   deviceName: z.string().max(120).optional().default(""),
   platform: z.string().max(60).optional().default(""),
   consentSessionId: z.string().max(128).optional().default("")
@@ -202,14 +196,12 @@ router.post("/login", async (req, res, next) => {
     const {
       email,
       emailCode,
-      username,
-      photoUrl,
       deviceName,
       platform,
       consentSessionId
     } = parsed.data;
     const emailAuthId = authIdFromEmail(email);
-    const telegramId = emailAuthId || String(parsed.data.telegramId || "").trim();
+    const telegramId = emailAuthId;
 
     if (!telegramId) {
       return res.status(400).json({
@@ -218,33 +210,31 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    if (emailAuthId) {
-      const consent = getPersonalDataConsent({
-        email,
-        consentSessionId,
-        documentVersion: PERSONAL_DATA_CONSENT_VERSION
+    const consent = getPersonalDataConsent({
+      email,
+      consentSessionId,
+      documentVersion: PERSONAL_DATA_CONSENT_VERSION
+    });
+    if (!consent) {
+      return res.status(400).json({
+        error: "ConsentRequired",
+        message: "Согласие не найдено. Запросите новый код на почту",
+        consentVersion: PERSONAL_DATA_CONSENT_VERSION,
+        consentUrl: PERSONAL_DATA_CONSENT_PATH
       });
-      if (!consent) {
-        return res.status(400).json({
-          error: "ConsentRequired",
-          message: "Согласие не найдено. Запросите новый код на почту",
-          consentVersion: PERSONAL_DATA_CONSENT_VERSION,
-          consentUrl: PERSONAL_DATA_CONSENT_PATH
-        });
-      }
-
-      const codeResult = verifyEmailLoginCode({ email, code: emailCode });
-      if (!codeResult.ok) {
-        return res.status(401).json({
-          error: "InvalidEmailCode",
-          message: codeResult.reason === "expired"
-            ? "Код истек. Запросите новый код"
-            : "Неверный код из письма"
-        });
-      }
     }
 
-    const employee = getEmployeeByAuth({ telegramId, username, email });
+    const codeResult = verifyEmailLoginCode({ email, code: emailCode });
+    if (!codeResult.ok) {
+      return res.status(401).json({
+        error: "InvalidEmailCode",
+        message: codeResult.reason === "expired"
+          ? "Код истек. Запросите новый код"
+          : "Неверный код из письма"
+      });
+    }
+
+    const employee = getEmployeeByAuth({ telegramId: "", username: "", email });
     if (!employee) {
       logAuditEvent({
         scope: "SYSTEM",
@@ -264,22 +254,15 @@ router.post("/login", async (req, res, next) => {
       });
     }
 
-    if (!emailAuthId) {
-      bindEmployeeTelegramId({ telegramId, username });
-      syncEmployeeTelegramProfile({ telegramId, username, photoUrl });
-    }
-
     const adminIds = getAdminTelegramIds();
     const isProtectedOwner =
       employee.isProtected &&
-      (emailAuthId || String(employee.telegramId || "").trim() === String(telegramId || "").trim());
-    const isSuperAdmin = isCoreAdminUsername(username) || isProtectedOwner;
+      String(employee.email || "").trim().toLowerCase() === String(email || "").trim().toLowerCase();
+    const isSuperAdmin = isProtectedOwner;
     const shouldBeAdmin =
       isSuperAdmin || adminIds.has(telegramId) || employee.accessRole === Role.ADMIN;
 
-    if (emailAuthId) {
-      migratePhoneUserToEmail({ phone: employee.phone, email: employee.email || email });
-    }
+    migratePhoneUserToEmail({ phone: employee.phone, email: employee.email || email });
     const existingUser = getUserByTelegramId(telegramId);
     const fullName = String(parsed.data.fullName || "").trim() || employee.fullName;
 

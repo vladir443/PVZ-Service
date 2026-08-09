@@ -1,6 +1,8 @@
 const AUTH_COOKIE_NAME = "pvz_auth_id";
 const SESSION_COOKIE_NAME = "pvz_session_id";
-const COOKIE_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
+import { env } from "../config/env.js";
+
+const COOKIE_MAX_AGE_MS = env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 function isSecureRequest(req) {
   const forwardedProto = String(req.header("x-forwarded-proto") || "")

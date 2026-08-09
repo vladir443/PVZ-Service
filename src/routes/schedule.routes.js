@@ -29,6 +29,15 @@ import {
 
 const router = express.Router();
 
+function moneyToCents(value) {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+}
+
+function centsToMoney(value) {
+  return Number(value || 0) / 100;
+}
+
 const adjustmentImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const adjustmentUpload = multer({
   storage: multer.memoryStorage(),
@@ -510,14 +519,25 @@ router.get("/me/finances", (req, res, next) => {
       });
       const paymentMap = new Map(
         (paymentData?.shiftPayments || [])
-          .filter((payment) => aliases.has(normalizeFinanceEmployeeName(payment.employeeName)))
+          .filter((payment) =>
+            Number(payment.employeeId) === Number(req.employee.id)
+            || (payment.employeeId == null && aliases.has(normalizeFinanceEmployeeName(payment.employeeName)))
+          )
           .map((payment) => [String(payment.shiftDate), payment])
       );
 
       for (const row of schedule?.shifts || []) {
         const executor1 = normalizeFinanceEmployeeName(row.executor1);
         const executor2 = normalizeFinanceEmployeeName(row.executor2);
-        const slot = aliases.has(executor1) ? 1 : aliases.has(executor2) ? 2 : 0;
+        const slot = Number(row.executor1EmployeeId) === Number(req.employee.id)
+          ? 1
+          : Number(row.executor2EmployeeId) === Number(req.employee.id)
+            ? 2
+            : aliases.has(executor1)
+              ? 1
+              : aliases.has(executor2)
+                ? 2
+                : 0;
         if (!slot) continue;
 
         const payment = paymentMap.get(String(row.date)) || null;
@@ -529,12 +549,16 @@ router.get("/me/finances", (req, res, next) => {
           0,
           Number(slot === 1 ? row.bonuses1 : row.bonuses2) || 0
         );
-        const salary = payment ? Number(payment.salaryAmount || 0) : currentSalary;
-        const deductions = payment
-          ? Number(payment.deductionsAmount || 0)
-          : currentDeductions;
-        const bonuses = payment ? Number(payment.bonusesAmount || 0) : currentBonuses;
-        const paid = payment ? Number(payment.paidAmount || 0) : 0;
+        const salaryCents = moneyToCents(payment ? payment.salaryAmount : currentSalary);
+        const deductionCents = moneyToCents(payment ? payment.deductionsAmount : currentDeductions);
+        const bonusCents = moneyToCents(payment ? payment.bonusesAmount : currentBonuses);
+        const paidCents = moneyToCents(payment ? payment.paidAmount : 0);
+        const salary = centsToMoney(salaryCents);
+        const deductions = centsToMoney(deductionCents);
+        const bonuses = centsToMoney(bonusCents);
+        const paid = centsToMoney(paidCents);
+        const accrued = centsToMoney(salaryCents + bonusCents - deductionCents);
+        const balance = centsToMoney(salaryCents + bonusCents - deductionCents - paidCents);
         const deductionMeta = slot === 1 ? row.deductions1Meta : row.deductions2Meta;
         const bonusMeta = slot === 1 ? row.bonuses1Meta : row.bonuses2Meta;
         const workStart = slot === 1 ? row.executor1Start : row.executor2Start;
@@ -553,9 +577,9 @@ router.get("/me/finances", (req, res, next) => {
           salary,
           deductions,
           bonuses,
-          accrued: salary + bonuses - deductions,
+          accrued,
           paid,
-          balance: salary + bonuses - deductions - paid,
+          balance,
           deductionItems: normalizeFinanceItems(
             deductionMeta,
             "Удержание",
@@ -579,15 +603,15 @@ router.get("/me/finances", (req, res, next) => {
         String(a.date).localeCompare(String(b.date)) ||
         String(a.locationTitle).localeCompare(String(b.locationTitle), "ru")
     );
-    const summary = shifts.reduce(
+    const summaryCents = shifts.reduce(
       (totals, shift) => ({
         shiftCount: totals.shiftCount + 1,
-        salary: totals.salary + shift.salary,
-        deductions: totals.deductions + shift.deductions,
-        bonuses: totals.bonuses + shift.bonuses,
-        accrued: totals.accrued + shift.accrued,
-        paid: totals.paid + shift.paid,
-        balance: totals.balance + shift.balance
+        salary: totals.salary + moneyToCents(shift.salary),
+        deductions: totals.deductions + moneyToCents(shift.deductions),
+        bonuses: totals.bonuses + moneyToCents(shift.bonuses),
+        accrued: totals.accrued + moneyToCents(shift.accrued),
+        paid: totals.paid + moneyToCents(shift.paid),
+        balance: totals.balance + moneyToCents(shift.balance)
       }),
       {
         shiftCount: 0,
@@ -599,6 +623,15 @@ router.get("/me/finances", (req, res, next) => {
         balance: 0
       }
     );
+    const summary = {
+      shiftCount: summaryCents.shiftCount,
+      salary: centsToMoney(summaryCents.salary),
+      deductions: centsToMoney(summaryCents.deductions),
+      bonuses: centsToMoney(summaryCents.bonuses),
+      accrued: centsToMoney(summaryCents.accrued),
+      paid: centsToMoney(summaryCents.paid),
+      balance: centsToMoney(summaryCents.balance)
+    };
 
     return res.json({
       month: parsed.data.month,
