@@ -2900,6 +2900,36 @@
         white-space: nowrap;
       }
 
+      .schedule-bulk-rate {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        width: min(680px, 100%);
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+      }
+
+      .schedule-bulk-rate-field {
+        display: grid;
+        flex: 1 1 220px;
+        gap: 6px;
+        min-width: 0;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .schedule-bulk-rate-field input {
+        width: 100%;
+      }
+
+      .schedule-bulk-rate .button {
+        min-height: 42px;
+        white-space: nowrap;
+      }
+
       .schedule-card .schedule-time-range {
         margin-top: 7px;
       }
@@ -2911,6 +2941,10 @@
       body.theme-dark .schedule-rate-output {
         background: #132540;
         color: #f4f8ff;
+      }
+
+      body.theme-dark .schedule-bulk-rate {
+        background: #152641;
       }
 
       .schedule-card {
@@ -5622,6 +5656,20 @@
       }
 
       @media (max-width: 560px) {
+        .schedule-bulk-rate {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .schedule-bulk-rate-field {
+          flex-basis: auto;
+        }
+
+        .schedule-bulk-rate .button {
+          width: 100%;
+          white-space: normal;
+        }
+
         .finance-filters {
           grid-template-columns: 1fr;
           gap: 10px;

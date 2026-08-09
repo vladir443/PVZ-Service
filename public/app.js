@@ -3340,6 +3340,12 @@ const tg = window.Telegram?.WebApp;
             badge: "График",
             tone: "ok"
           },
+          SCHEDULE_BULK_RATE_APPLIED: {
+            title: "Ставка применена к сменам",
+            description: "Ставка заполнена у назначенных смен, где она не была указана.",
+            badge: "График",
+            tone: "ok"
+          },
           FINANCE_PAYMENT_CREATED: {
             title: "Выплата добавлена",
             description: "В финансах добавлена выплата или аванс.",
@@ -3471,6 +3477,7 @@ const tg = window.Telegram?.WebApp;
           executor2Start: "Начало И2",
           executor2End: "Конец И2",
           dailyRate: "Ставка за день",
+          updatedCount: "Обновлено смен",
           rate1: "Начислено И1",
           rate2: "Начислено И2",
           period: "Половина месяца",
@@ -5164,6 +5171,10 @@ const tg = window.Telegram?.WebApp;
         return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
       }
 
+      function scheduleAccruedAmount(rate, deductions, bonuses) {
+        return Number(rate || 0) + Number(deductions || 0) + Number(bonuses || 0);
+      }
+
       function calculateScheduleRatesPreview(row) {
         const get = (name) => row.querySelector(`[data-f='${name}']`)?.value ?? "";
         const locationStart = String(state.selectedLocation?.workStart || "14:00");
@@ -5196,8 +5207,10 @@ const tg = window.Telegram?.WebApp;
         if (rate2Input) rate2Input.value = String(rate2);
         const rate1Output = row.querySelector("[data-rate-output='1']");
         const rate2Output = row.querySelector("[data-rate-output='2']");
-        if (rate1Output) rate1Output.textContent = formatMoney(rate1);
-        if (rate2Output) rate2Output.textContent = formatMoney(rate2);
+        const accrued1 = scheduleAccruedAmount(rate1, get("deductions1"), get("bonuses1"));
+        const accrued2 = scheduleAccruedAmount(rate2, get("deductions2"), get("bonuses2"));
+        if (rate1Output) rate1Output.textContent = formatMoney(accrued1);
+        if (rate2Output) rate2Output.textContent = formatMoney(accrued2);
         return { rate1, rate2 };
       }
 
@@ -5534,13 +5547,13 @@ const tg = window.Telegram?.WebApp;
                         <td>
                           <input type="hidden" data-f="rate1" value="${Number(row.rate1 || 0)}" />
                           <span class="schedule-rate-output" data-rate-output="1">${formatMoney(
-                            Number(row.rate1 || 0)
+                            scheduleAccruedAmount(row.rate1, row.deductions1, row.bonuses1)
                           )}</span>
                         </td>
                         <td>
                           <input type="hidden" data-f="rate2" value="${Number(row.rate2 || 0)}" />
                           <span class="schedule-rate-output" data-rate-output="2">${formatMoney(
-                            Number(row.rate2 || 0)
+                            scheduleAccruedAmount(row.rate2, row.deductions2, row.bonuses2)
                           )}</span>
                         </td>
                         <td>
@@ -5681,10 +5694,10 @@ const tg = window.Telegram?.WebApp;
                       <input type="hidden" data-f="rate2" value="${Number(row.rate2 || 0)}" />
                       <div class="row">
                         <span class="schedule-rate-output" data-rate-output="1">${formatMoney(
-                          Number(row.rate1 || 0)
+                          scheduleAccruedAmount(row.rate1, row.deductions1, row.bonuses1)
                         )}</span>
                         <span class="schedule-rate-output" data-rate-output="2">${formatMoney(
-                          Number(row.rate2 || 0)
+                          scheduleAccruedAmount(row.rate2, row.deductions2, row.bonuses2)
                         )}</span>
                       </div>
                     </div>
@@ -5750,6 +5763,17 @@ const tg = window.Telegram?.WebApp;
               )}</button>
               ${financeAllowed ? `<button class="button secondary" id="openFinanceBtn">Финансы</button>` : ""}
             </div>
+            ${
+              editable
+                ? `<div class="schedule-bulk-rate mt12">
+                    <label class="schedule-bulk-rate-field">
+                      <span>Ставка для смен без ставки</span>
+                      <input id="bulkDailyRateInput" type="number" min="1" max="1000000" step="100" placeholder="Введите ставку" inputmode="decimal" />
+                    </label>
+                    <button class="button primary" id="applyBulkDailyRateBtn" type="button">Применить ко всем сменам без ставки</button>
+                  </div>`
+                : ""
+            }
             <p id="scheduleStatus" class="status mt8"></p>
             ${
               viewMode === "mobile"
@@ -5860,6 +5884,39 @@ const tg = window.Telegram?.WebApp;
               renderSchedule();
               }
             });
+          });
+          document.getElementById("applyBulkDailyRateBtn")?.addEventListener("click", async (event) => {
+            const button = event.currentTarget;
+            const input = document.getElementById("bulkDailyRateInput");
+            const status = document.getElementById("scheduleStatus");
+            const dailyRate = Number(input?.value || 0);
+            if (!Number.isFinite(dailyRate) || dailyRate <= 0) {
+              status.className = "status error mt8";
+              status.textContent = "Введите ставку больше нуля";
+              input?.focus();
+              return;
+            }
+            button.disabled = true;
+            button.textContent = "Применяем...";
+            try {
+              const result = await api(
+                `/api/schedule/${encodeURIComponent(state.selectedLocation.code)}/apply-rate`,
+                {
+                  method: "PUT",
+                  body: JSON.stringify({ month: state.selectedMonth, dailyRate })
+                }
+              );
+              const message = result.updatedCount
+                ? `Ставка применена к сменам: ${result.updatedCount}`
+                : "Назначенных смен без ставки нет";
+              await renderSchedule();
+              showTextNotice(message);
+            } catch (error) {
+              status.className = "status error mt8";
+              status.textContent = `Ошибка: ${error.message}`;
+              button.disabled = false;
+              button.textContent = "Применить ко всем сменам без ставки";
+            }
           });
 
           const financeModal = document.getElementById("financeModal");
@@ -7113,6 +7170,7 @@ const tg = window.Telegram?.WebApp;
 
             writeRowMeta(row, kind, items);
             updateAdjustValue(row, kind, total);
+            calculateScheduleRatesPreview(row);
             autosave(row);
             showSavedFeedback(saveAdjustFeedback);
             window.setTimeout(() => {

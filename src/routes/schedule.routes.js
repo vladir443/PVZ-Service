@@ -841,6 +841,119 @@ const shiftSchema = z.object({
     .default([])
 });
 
+const bulkRateSchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  dailyRate: z.coerce.number().positive().max(1000000)
+});
+
+router.put(
+  "/:locationCode/apply-rate",
+  requireRole(Role.ADMIN, Role.SUPERADMIN),
+  (req, res, next) => {
+    try {
+      const parsed = bulkRateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "ValidationError",
+          message: "Укажите положительную ставку и выбранный месяц",
+          issues: parsed.error.flatten()
+        });
+      }
+
+      const location = listLocations().find(
+        (item) => String(item.code) === String(req.params.locationCode)
+      );
+      const schedule = getScheduleForMonth({
+        locationCode: req.params.locationCode,
+        month: parsed.data.month
+      });
+      if (!location || !schedule) {
+        return res.status(404).json({
+          error: "NotFound",
+          message: "ПВЗ не найден"
+        });
+      }
+
+      const updates = (schedule.shifts || [])
+        .filter(
+          (shift) =>
+            (String(shift.executor1 || "").trim() || String(shift.executor2 || "").trim()) &&
+            Number(shift.dailyRate || 0) <= 0
+        )
+        .map((shift) => {
+          const calculation = calculateShiftRates({
+            dailyRate: parsed.data.dailyRate,
+            locationWorkStart: location.workStart,
+            locationWorkEnd: location.workEnd,
+            executor1: String(shift.executor1 || "").trim(),
+            executor2: String(shift.executor2 || "").trim(),
+            executor1Start: shift.executor1Start,
+            executor1End: shift.executor1End,
+            executor2Start: shift.executor2Start,
+            executor2End: shift.executor2End
+          });
+          return { shift, calculation };
+        });
+
+      const invalid = updates.find(({ calculation }) => !calculation.ok);
+      if (invalid) {
+        return res.status(409).json({
+          error: "ValidationError",
+          message: `${invalid.shift.date}: ${invalid.calculation.message}`
+        });
+      }
+
+      for (const { shift, calculation } of updates) {
+        upsertShift({
+          locationCode: req.params.locationCode,
+          date: shift.date,
+          executor1: String(shift.executor1 || "").trim(),
+          executor2: String(shift.executor2 || "").trim(),
+          executor1Start: calculation.executor1Start,
+          executor1End: calculation.executor1End,
+          executor2Start: calculation.executor2Start,
+          executor2End: calculation.executor2End,
+          dailyRate: parsed.data.dailyRate,
+          rate1: calculation.rate1,
+          rate2: calculation.rate2,
+          deductions1: Number(shift.deductions1 || 0),
+          deductions2: Number(shift.deductions2 || 0),
+          bonuses1: Number(shift.bonuses1 || 0),
+          bonuses2: Number(shift.bonuses2 || 0),
+          deductions1Meta: shift.deductions1Meta || [],
+          deductions2Meta: shift.deductions2Meta || [],
+          bonuses1Meta: shift.bonuses1Meta || [],
+          bonuses2Meta: shift.bonuses2Meta || []
+        });
+      }
+
+      logAuditEvent({
+        scope: "SYSTEM",
+        eventType: "SCHEDULE_BULK_RATE_APPLIED",
+        actorUser: req.user,
+        actorTelegramId: req.user.telegramId,
+        actorRole: req.user.role,
+        sessionId: req.session?.id || "",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: {
+          locationCode: req.params.locationCode,
+          month: parsed.data.month,
+          dailyRate: parsed.data.dailyRate,
+          updatedCount: updates.length
+        }
+      });
+
+      return res.json({
+        updatedCount: updates.length,
+        dailyRate: parsed.data.dailyRate
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
 router.put("/:locationCode/:date", requireRole(Role.ADMIN, Role.SUPERADMIN), (req, res, next) => {
   try {
     const parsed = shiftSchema.safeParse({
